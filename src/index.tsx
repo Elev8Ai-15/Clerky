@@ -10,7 +10,7 @@ import ai from './routes/ai'
 import users from './routes/users'
 import notifications from './routes/notifications'
 
-type Bindings = { DB: D1Database }
+type Bindings = { DB: D1Database; MEM0_API_KEY?: string; OPENAI_API_KEY?: string }
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -272,7 +272,11 @@ function getAppHTML(): string {
         </a>
         <a onclick="navigate('ai-workflow')" class="sidebar-link flex items-center gap-3 px-6 py-3 cursor-pointer text-sm" data-page="ai-workflow">
           <i class="fas fa-robot w-5 text-center text-purple-400"></i> <span class="text-purple-300">AI Workflow</span>
-          <span class="ml-auto bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full">8 Agents</span>
+          <span class="ml-auto bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full">5 Agents</span>
+        </a>
+        <a onclick="navigate('memory')" class="sidebar-link flex items-center gap-3 px-6 py-3 cursor-pointer text-sm" data-page="memory">
+          <i class="fas fa-brain w-5 text-center text-pink-400"></i> <span class="text-pink-300">Agent Memory</span>
+          <span class="ml-auto bg-pink-600 text-white text-xs px-2 py-0.5 rounded-full">Mem0</span>
         </a>
         <a onclick="navigate('intake')" class="sidebar-link flex items-center gap-3 px-6 py-3 cursor-pointer text-sm" data-page="intake">
           <i class="fas fa-clipboard-list w-5 text-center"></i> Client Intake
@@ -359,7 +363,7 @@ function navigate(page) {
   if (link) link.classList.add('active');
   document.getElementById('pageContent').innerHTML = '<div class="flex items-center justify-center h-32"><i class="fas fa-spinner fa-spin text-brand-500 text-xl mr-3"></i> Loading...</div>';
   
-  const pages = { dashboard: loadDashboard, cases: loadCases, clients: loadClients, documents: loadDocuments, calendar: loadCalendar, tasks: loadTasks, billing: loadBilling, 'ai-chat': loadAIChat, 'ai-workflow': loadAIWorkflow, intake: loadIntake };
+  const pages = { dashboard: loadDashboard, cases: loadCases, clients: loadClients, documents: loadDocuments, calendar: loadCalendar, tasks: loadTasks, billing: loadBilling, 'ai-chat': loadAIChat, 'ai-workflow': loadAIWorkflow, memory: loadMemory, intake: loadIntake };
   if (pages[page]) pages[page]();
 }
 
@@ -1034,12 +1038,44 @@ function renderChatMessage(m) {
       <p class="text-xs opacity-60 mt-1 text-right">\${formatTime(m.created_at)}</p>
     </div></div>\`;
   }
+  const agentColors = { researcher: 'purple', drafter: 'pink', analyst: 'emerald', strategist: 'amber', orchestrator: 'indigo' };
+  const agentIcons = { researcher: 'magnifying-glass', drafter: 'file-pen', analyst: 'chart-line', strategist: 'chess', orchestrator: 'diagram-project' };
+  const agentEmojis = { researcher: '\uD83D\uDD0D', drafter: '\uD83D\uDCDD', analyst: '\uD83E\uDDE0', strategist: '\uD83C\uDFAF' };
+  const ac = agentColors[m.agent_type] || 'emerald';
+  const ai = agentIcons[m.agent_type] || 'robot';
+  const ae = agentEmojis[m.agent_type] || '\u2696\uFE0F';
+  const confPct = m.confidence ? Math.round(m.confidence * 100) : 0;
+  const confColor = confPct >= 80 ? 'emerald' : confPct >= 60 ? 'amber' : 'red';
+  
+  let badges = '';
+  if (m.agent_type) {
+    badges += '<span class="badge bg-'+ac+'-100 text-'+ac+'-700 text-xs"><i class="fas fa-'+ai+' mr-1"></i>'+m.agent_type+'</span>';
+    if (confPct > 0) badges += '<span class="badge bg-'+confColor+'-50 text-'+confColor+'-700 text-xs" title="Routing confidence">'+confPct+'%</span>';
+  }
+  if (m.jurisdiction) badges += '<span class="badge bg-dark-100 text-dark-500 text-xs">'+m.jurisdiction+'</span>';
+  if (m.sub_agents) {
+    try { const subs = typeof m.sub_agents === 'string' ? JSON.parse(m.sub_agents) : m.sub_agents; if (subs && subs.length > 0) badges += '<span class="badge bg-indigo-50 text-indigo-600 text-xs">\u2192 '+subs.join(', ')+'</span>'; } catch(e){}
+  }
+  if (m.mem0_loaded) badges += '<span class="badge bg-pink-50 text-pink-700 text-xs">\uD83D\uDCBE Memory</span>';
+  
+  let riskSection = '';
+  if (m.risks_flagged) {
+    try {
+      const risks = typeof m.risks_flagged === 'string' ? JSON.parse(m.risks_flagged) : m.risks_flagged;
+      if (risks && ((typeof risks === 'number' && risks > 0) || (Array.isArray(risks) && risks.length > 0))) {
+        const count = typeof risks === 'number' ? risks : risks.length;
+        riskSection = '<div class="mt-2 flex items-center gap-1"><span class="badge bg-red-50 text-red-700 text-xs">\u26A0\uFE0F '+count+' risk(s) flagged</span></div>';
+      }
+    } catch(e){}
+  }
+  
   return \`<div class="flex gap-3">
-    <div class="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white text-sm flex-shrink-0 mt-1">\u2696\uFE0F</div>
+    <div class="w-8 h-8 bg-\${ac}-500 rounded-lg flex items-center justify-center text-white text-sm flex-shrink-0 mt-1">\${ae}</div>
     <div class="bg-white border border-dark-200 rounded-2xl rounded-bl-md px-5 py-4 max-w-[85%] shadow-sm">
-      \${m.agent_type ? '<div class="flex items-center gap-2 mb-2"><span class="badge bg-emerald-100 text-emerald-700 text-xs"><i class="fas fa-robot mr-1"></i>'+m.agent_type+' agent</span><span class="badge bg-dark-100 text-dark-500 text-xs">'+m.jurisdiction+'</span></div>' : ''}
+      \${badges ? '<div class="flex items-center gap-1.5 mb-2 flex-wrap">'+badges+'</div>' : ''}
       <div class="text-sm text-dark-800 prose-sm chat-content">\${renderMarkdown(m.content)}</div>
-      <p class="text-xs text-dark-400 mt-2">\${formatTime(m.created_at)}\${m.tokens_used ? ' \u2022 '+m.tokens_used+' tokens' : ''}</p>
+      \${riskSection}
+      <p class="text-xs text-dark-400 mt-2">\${formatTime(m.created_at)}\${m.tokens_used ? ' \u2022 ~'+Number(m.tokens_used).toLocaleString()+' tokens' : ''}\${m.citations_count ? ' \u2022 '+m.citations_count+' citations' : ''}</p>
     </div>
   </div>\`;
 }
@@ -1102,9 +1138,13 @@ async function sendChat() {
   
   msgContainer.innerHTML += renderChatMessage({ role: 'user', content: message, created_at: new Date().toISOString() });
   
-  // Show typing indicator
-  msgContainer.innerHTML += '<div id="typingIndicator" class="flex gap-3"><div class="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white text-sm flex-shrink-0">\u2696\uFE0F</div><div class="bg-white border border-dark-200 rounded-2xl px-5 py-4 shadow-sm"><div class="flex items-center gap-2"><div class="flex gap-1"><span class="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style="animation-delay:0ms"></span><span class="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style="animation-delay:150ms"></span><span class="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style="animation-delay:300ms"></span></div><span class="text-xs text-dark-400 ml-2">Analyzing...</span></div></div></div>';
+  // Show typing indicator with orchestration flow
+  msgContainer.innerHTML += '<div id="typingIndicator" class="flex gap-3"><div class="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white text-sm flex-shrink-0">\u2696\uFE0F</div><div class="bg-white border border-dark-200 rounded-2xl px-5 py-4 shadow-sm"><div class="flex items-center gap-2"><div class="flex gap-1"><span class="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style="animation-delay:0ms"></span><span class="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style="animation-delay:150ms"></span><span class="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style="animation-delay:300ms"></span></div><span class="text-xs text-dark-400 ml-2" id="typingText">Orchestrating \u2192 Classifying intent...</span></div></div></div>';
   scrollChatToBottom();
+  // Animate orchestration steps
+  const typingSteps = ['Orchestrating \u2192 Loading matter context...', 'Orchestrating \u2192 Searching Mem0 memory...', 'Orchestrating \u2192 Routing to specialist agent...', 'Generating response...'];
+  let stepIdx = 0;
+  const stepInterval = setInterval(() => { stepIdx++; const el = document.getElementById('typingText'); if (el && stepIdx < typingSteps.length) el.textContent = typingSteps[stepIdx]; }, 800);
 
   document.getElementById('chatStatus').textContent = '\u{1F9E0} Processing...';
 
@@ -1116,6 +1156,7 @@ async function sendChat() {
       jurisdiction: chatJurisdiction
     });
 
+    clearInterval(stepInterval);
     // Remove typing indicator
     const ti = document.getElementById('typingIndicator');
     if (ti) ti.remove();
@@ -1127,11 +1168,22 @@ async function sendChat() {
       agent_type: data.agent_used,
       jurisdiction: data.jurisdiction,
       tokens_used: data.tokens_used,
+      confidence: data.confidence,
+      sub_agents: data.sub_agents,
+      risks_flagged: data.risks_flagged,
+      citations_count: data.citations,
+      mem0_loaded: data.mem0_context_loaded,
       created_at: new Date().toISOString()
     });
 
-    document.getElementById('chatStatus').textContent = '\u2705 ' + data.agent_used + ' agent \u2022 ' + data.tokens_used + ' tokens \u2022 ' + data.duration_ms + 'ms';
+    const confPct = data.confidence ? Math.round(data.confidence * 100) + '%' : '';
+    const subInfo = data.sub_agents && data.sub_agents.length > 0 ? ' \u2192 ' + data.sub_agents.join(', ') : '';
+    const risksInfo = data.risks_flagged > 0 ? ' \u2022 \u26A0\uFE0F' + data.risks_flagged + ' risk(s)' : '';
+    const citesInfo = data.citations > 0 ? ' \u2022 \uD83D\uDCDA' + data.citations + ' cite(s)' : '';
+    const memInfo = data.mem0_context_loaded ? ' \u2022 \uD83D\uDCBE Mem0' : '';
+    document.getElementById('chatStatus').textContent = '\u2705 ' + data.agent_used + ' (' + confPct + ')' + subInfo + ' \u2022 ~' + Number(data.tokens_used).toLocaleString() + ' tokens' + risksInfo + citesInfo + memInfo + ' \u2022 ' + data.duration_ms + 'ms';
   } catch(e) {
+    clearInterval(stepInterval);
     const ti = document.getElementById('typingIndicator');
     if (ti) ti.remove();
     msgContainer.innerHTML += '<div class="text-center py-2"><span class="badge bg-red-100 text-red-700">Error: ' + (e.message || 'Network error') + '. Try again.</span></div>';
@@ -1156,61 +1208,215 @@ function scrollChatToBottom() {
   if (c) setTimeout(() => c.scrollTop = c.scrollHeight, 100);
 }
 
-// === AI WORKFLOW ===
+// === AGENT MEMORY (Mem0) ===
+async function loadMemory() {
+  try {
+    const [memStatsRes, casesRes, allMemRes] = await Promise.all([
+      axios.get(API + '/ai/memory/stats').catch(() => ({ data: { mem0: { enabled: false, total: 0, by_agent: {}, recent: [] }, d1: { total: 0, by_agent: [] } } })),
+      axios.get(API + '/cases'),
+      axios.get(API + '/ai/memory/all').catch(() => ({ data: { source: 'd1', memories: [], total: 0 } }))
+    ]);
+    const ms = memStatsRes.data;
+    const cases = casesRes.data.cases;
+    const allMem = allMemRes.data;
+    const mem0On = ms.mem0?.enabled || false;
+    const totalMem = mem0On ? (ms.mem0?.total || 0) : (ms.d1?.total || 0);
+    const memories = allMem.memories || [];
+    
+    const agentTypes = ['researcher', 'drafter', 'analyst', 'strategist'];
+    const agentColors = { researcher: 'purple', drafter: 'pink', analyst: 'emerald', strategist: 'amber' };
+    const agentIcons = { researcher: 'magnifying-glass', drafter: 'file-pen', analyst: 'chart-line', strategist: 'chess' };
+
+    document.getElementById('pageContent').innerHTML = \`
+      <div class="fade-in">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <h2 class="text-2xl font-bold text-dark-900 flex items-center gap-2"><i class="fas fa-brain text-pink-500"></i> Agent Memory</h2>
+            <p class="text-dark-500 text-sm mt-1">Persistent cross-session memory powered by \${mem0On ? '<span class="text-pink-600 font-semibold">Mem0 Cloud</span>' : '<span class="text-dark-500">D1 Local</span>'}</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="badge \${mem0On ? 'bg-pink-100 text-pink-700' : 'bg-dark-100 text-dark-500'}">\${mem0On ? '\u2601\uFE0F Mem0 Cloud' : '\uD83D\uDCBE D1 Local'}</span>
+            <span class="badge bg-emerald-100 text-emerald-700">\${totalMem} memories</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-6">
+          <div class="card p-4 text-center border-pink-200 bg-pink-50">
+            <p class="text-xs text-pink-600 font-semibold">Total Memories</p>
+            <p class="text-2xl font-bold text-pink-700">\${totalMem}</p>
+          </div>
+          \${agentTypes.map(a => {
+            const count = mem0On ? (ms.mem0?.by_agent?.[a] || 0) : ((ms.d1?.by_agent || []).find(b => b.agent_type === a)?.count || 0);
+            return '<div class="card p-4 text-center"><p class="text-xs text-'+agentColors[a]+'-600 font-semibold"><i class="fas fa-'+agentIcons[a]+' mr-1"></i>'+a+'</p><p class="text-2xl font-bold text-dark-800">'+count+'</p></div>';
+          }).join('')}
+        </div>
+
+        <div class="card p-4 mb-6">
+          <div class="flex gap-3">
+            <div class="flex-1">
+              <input type="text" id="memorySearch" placeholder="Search memories semantically..." class="w-full" onkeydown="if(event.key==='Enter')searchMemories()">
+            </div>
+            <select id="memoryCaseFilter" class="w-48">
+              <option value="">All cases</option>
+              \${cases.map(c => '<option value="'+c.id+'">'+c.case_number+'</option>').join('')}
+            </select>
+            <button onclick="searchMemories()" class="btn btn-primary"><i class="fas fa-search mr-1"></i> Search</button>
+          </div>
+          <div id="memorySearchResults" class="mt-4 hidden"></div>
+        </div>
+
+        <h3 class="font-semibold text-dark-800 mb-4"><i class="fas fa-clock-rotate-left text-dark-400 mr-2"></i>Memory Timeline</h3>
+        <div class="space-y-3" id="memoryTimeline">
+          \${memories.length === 0 ? '<div class="card p-8 text-center"><i class="fas fa-brain text-dark-300 text-3xl mb-3"></i><p class="text-dark-400">No memories yet. Chat with AI Co-Counsel to start building memory.</p></div>' :
+            memories.slice(0, 30).map(m => {
+              const agent = m.metadata?.agent_type || m.agent_type || 'general';
+              const ac = agentColors[agent] || 'dark';
+              const aIcon = agentIcons[agent] || 'brain';
+              const memText = m.memory || m.memory_value || '';
+              const caseRef = m.metadata?.case_id || m.case_id || '';
+              const created = m.created_at || m.updated_at || '';
+              const memId = m.id || '';
+              return '<div class="card p-4 hover:shadow-md transition-shadow"><div class="flex items-start justify-between"><div class="flex items-start gap-3 flex-1"><div class="w-8 h-8 bg-'+ac+'-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"><i class="fas fa-'+aIcon+' text-'+ac+'-600 text-sm"></i></div><div class="flex-1 min-w-0"><div class="flex items-center gap-2 mb-1"><span class="badge bg-'+ac+'-100 text-'+ac+'-700 text-xs">'+agent+'</span>'+(caseRef ? '<span class="badge bg-dark-100 text-dark-500 text-xs">Case #'+caseRef+'</span>' : '')+'</div><p class="text-sm text-dark-700">'+escapeHtml(memText.substring(0, 300))+(memText.length > 300 ? '...' : '')+'</p>'+(created ? '<p class="text-xs text-dark-400 mt-1">'+formatDate(created)+'</p>' : '')+'</div></div><button onclick="deleteMemory(\\''+memId+'\\')" class="text-dark-300 hover:text-red-500 ml-2 flex-shrink-0" title="Delete memory"><i class="fas fa-trash-alt text-xs"></i></button></div></div>';
+            }).join('')
+          }
+        </div>
+      </div>
+    \`;
+  } catch(e) { showError('Agent Memory'); }
+}
+
+async function searchMemories() {
+  const query = document.getElementById('memorySearch')?.value?.trim();
+  const caseId = document.getElementById('memoryCaseFilter')?.value;
+  if (!query) return;
+  const resultsDiv = document.getElementById('memorySearchResults');
+  resultsDiv.classList.remove('hidden');
+  resultsDiv.innerHTML = '<div class="flex items-center gap-2"><i class="fas fa-spinner fa-spin text-pink-500"></i><span class="text-sm text-dark-400">Searching...</span></div>';
+  try {
+    const { data } = await axios.get(API + '/ai/memory/search?q=' + encodeURIComponent(query) + (caseId ? '&case_id=' + caseId : ''));
+    const results = data.results || [];
+    if (results.length === 0) { resultsDiv.innerHTML = '<p class="text-sm text-dark-400">No matching memories found.</p>'; return; }
+    resultsDiv.innerHTML = '<p class="text-xs text-dark-400 mb-2 font-semibold">' + results.length + ' result(s) via ' + data.source + '</p>' +
+      results.map(r => '<div class="bg-dark-50 rounded-lg p-3 mb-2"><p class="text-sm text-dark-700">' + escapeHtml((r.memory || r.memory_value || '').substring(0, 400)) + '</p></div>').join('');
+  } catch(e) { resultsDiv.innerHTML = '<p class="text-sm text-red-500">Search failed.</p>'; }
+}
+
+async function deleteMemory(memId) {
+  if (!memId || !confirm('Delete this memory?')) return;
+  try { await axios.delete(API + '/ai/memory/' + memId); loadMemory(); } catch(e) { alert('Delete failed'); }
+}
+
+// === AI WORKFLOW (ENHANCED) ===
 async function loadAIWorkflow() {
   try {
-    const [statsRes, logsRes, casesRes] = await Promise.all([
+    const [statsRes, logsRes, casesRes, agentsRes] = await Promise.all([
       axios.get(API + '/ai/stats'),
       axios.get(API + '/ai/logs'),
-      axios.get(API + '/cases')
+      axios.get(API + '/cases'),
+      axios.get(API + '/ai/agents').catch(() => ({ data: { agents: [], version: '3.0.0', mem0_enabled: false, llm_enabled: false } }))
     ]);
     const s = statsRes.data;
     const logs = logsRes.data.logs;
     const cases = casesRes.data.cases;
+    const agentInfo = agentsRes.data;
     
-    const agents = [
-      { id:'orchestrator', name:'Orchestrator', icon:'diagram-project', desc:'Routes tasks to specialized agents', color:'#6366f1' },
-      { id:'intake', name:'Intake', icon:'clipboard-list', desc:'Process new case intake & screening', color:'#3b82f6' },
-      { id:'research', name:'Research', icon:'magnifying-glass', desc:'Legal research & citation finding', color:'#8b5cf6' },
-      { id:'drafting', name:'Drafting', icon:'file-pen', desc:'Generate legal documents & briefs', color:'#ec4899' },
-      { id:'verification', name:'Verification', icon:'shield-check', desc:'Verify compliance & accuracy', color:'#10b981' },
-      { id:'compliance', name:'Compliance', icon:'scale-balanced', desc:'Regulatory & filing compliance', color:'#f59e0b' },
-      { id:'esignature', name:'E-Signature', icon:'signature', desc:'Document signing workflows', color:'#ef4444' },
-      { id:'billing', name:'Billing', icon:'receipt', desc:'Time tracking & invoice generation', color:'#06b6d4' }
+    const agents = agentInfo.agents && agentInfo.agents.length > 0 ? agentInfo.agents : [
+      { id:'orchestrator', name:'Orchestrator', icon:'diagram-project', description:'Routes to specialist agents, manages Mem0 memory', color:'#6366f1', capabilities:['Intent classification','Multi-agent co-routing','Mem0 context injection'] },
+      { id:'researcher', name:'Researcher', icon:'magnifying-glass', description:'Case law, statutes, citation verification, FL/Federal RAG', color:'#8b5cf6', capabilities:['FL Statutes RAG','Case law DB','Citation verification'] },
+      { id:'drafter', name:'Drafter', icon:'file-pen', description:'Motions, demand letters, FL-specific clauses, 7 templates', color:'#ec4899', capabilities:['7 templates','FL rule compliance','Caption generation'] },
+      { id:'analyst', name:'Analyst', icon:'chart-line', description:'Risk scoring (6-factor), SWOT, damages calc, evidence audit', color:'#10b981', capabilities:['6-factor risk model','SWOT','Damages modeling'] },
+      { id:'strategist', name:'Strategist', icon:'chess', description:'Settlement modeling (3 options), timelines, budgets, ADR', color:'#f59e0b', capabilities:['Settlement modeling','Timeline gen','Budget projection'] }
     ];
 
     document.getElementById('pageContent').innerHTML = \`
       <div class="fade-in">
         <div class="flex items-center justify-between mb-6">
           <div>
-            <h2 class="text-2xl font-bold text-dark-900 flex items-center gap-2"><i class="fas fa-robot text-purple-500"></i> AI Workflow Engine</h2>
-            <p class="text-dark-500 text-sm mt-1">8 specialized agents powered by LangGraph orchestration</p>
+            <h2 class="text-2xl font-bold text-dark-900 flex items-center gap-2"><i class="fas fa-diagram-project text-purple-500"></i> Multi-Agent Workflow Engine</h2>
+            <p class="text-dark-500 text-sm mt-1">Orchestrated pipeline: Main Agent \u2192 Researcher | Drafter | Analyst | Strategist \u2014 shared Mem0 memory</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="badge bg-purple-100 text-purple-700">\${agentInfo.version || 'v3.0'}</span>
+            \${agentInfo.mem0_enabled ? '<span class="badge bg-pink-100 text-pink-700">\u2601\uFE0F Mem0</span>' : '<span class="badge bg-dark-100 text-dark-500">\uD83D\uDCBE D1 Local</span>'}
+            \${agentInfo.llm_enabled ? '<span class="badge bg-emerald-100 text-emerald-700">\uD83E\uDDE0 LLM Active</span>' : '<span class="badge bg-amber-100 text-amber-700">\uD83D\uDCE6 Templates</span>'}
           </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <!-- Architecture Diagram -->
+        <div class="card p-5 mb-6 border-purple-200 bg-gradient-to-r from-purple-50 to-indigo-50">
+          <div class="flex items-center gap-2 mb-4">
+            <i class="fas fa-sitemap text-purple-600"></i>
+            <h3 class="font-semibold text-dark-800">Agent Architecture v3.0</h3>
+          </div>
+          <div class="flex items-center justify-center gap-2 flex-wrap">
+            <div class="bg-white rounded-xl px-4 py-2 border-2 border-purple-400 shadow-sm text-center">
+              <div class="text-xs text-purple-600 font-bold">USER QUERY</div>
+            </div>
+            <i class="fas fa-arrow-right text-purple-400"></i>
+            <div class="bg-white rounded-xl px-4 py-2 border-2 border-indigo-400 shadow-sm text-center">
+              <div class="text-xs text-indigo-600 font-bold">ORCHESTRATOR</div>
+              <div class="text-xs text-dark-400">Intent \u2192 Route \u2192 Merge</div>
+            </div>
+            <i class="fas fa-arrow-right text-purple-400"></i>
+            <div class="flex gap-2">
+              <div class="bg-white rounded-lg px-3 py-1.5 border border-purple-200 text-center">
+                <div class="text-xs font-semibold" style="color:#8b5cf6">\uD83D\uDD0D Researcher</div>
+              </div>
+              <div class="bg-white rounded-lg px-3 py-1.5 border border-pink-200 text-center">
+                <div class="text-xs font-semibold" style="color:#ec4899">\uD83D\uDCDD Drafter</div>
+              </div>
+              <div class="bg-white rounded-lg px-3 py-1.5 border border-emerald-200 text-center">
+                <div class="text-xs font-semibold" style="color:#10b981">\uD83E\uDDE0 Analyst</div>
+              </div>
+              <div class="bg-white rounded-lg px-3 py-1.5 border border-amber-200 text-center">
+                <div class="text-xs font-semibold" style="color:#f59e0b">\uD83C\uDFAF Strategist</div>
+              </div>
+            </div>
+            <i class="fas fa-arrow-right text-purple-400"></i>
+            <div class="bg-white rounded-lg px-3 py-1.5 border border-pink-200 text-center">
+              <div class="text-xs font-semibold text-pink-600">\uD83E\uDDE0 Mem0 Cloud</div>
+              <div class="text-xs text-dark-400">\${s.mem0?.total || 0} memories</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="grid grid-cols-2 md:grid-cols-7 gap-3 mb-6">
           <div class="card p-4 text-center border-purple-200 bg-purple-50">
-            <p class="text-xs text-purple-600 font-semibold">Total Operations</p>
+            <p class="text-xs text-purple-600 font-semibold">Operations</p>
             <p class="text-2xl font-bold text-purple-700">\${s.total_operations}</p>
           </div>
           <div class="card p-4 text-center">
-            <p class="text-xs text-dark-400 font-semibold">Tokens Used</p>
-            <p class="text-2xl font-bold text-dark-800">\${Number(s.total_tokens).toLocaleString()}</p>
+            <p class="text-xs text-dark-400 font-semibold">Tokens</p>
+            <p class="text-2xl font-bold text-dark-800">\${Number(s.total_tokens || 0).toLocaleString()}</p>
           </div>
           <div class="card p-4 text-center">
             <p class="text-xs text-dark-400 font-semibold">Total Cost</p>
-            <p class="text-2xl font-bold text-dark-800">$\${Number(s.total_cost).toFixed(2)}</p>
+            <p class="text-2xl font-bold text-dark-800">$\${Number(s.total_cost || 0).toFixed(2)}</p>
           </div>
           <div class="card p-4 text-center">
-            <p class="text-xs text-dark-400 font-semibold">Monthly Cost</p>
-            <p class="text-2xl font-bold text-dark-800">$\${Number(s.monthly_cost).toFixed(2)}</p>
+            <p class="text-xs text-dark-400 font-semibold">Monthly</p>
+            <p class="text-2xl font-bold text-dark-800">$\${Number(s.monthly_cost || 0).toFixed(2)}</p>
+          </div>
+          <div class="card p-4 text-center border-pink-200 bg-pink-50">
+            <p class="text-xs text-pink-600 font-semibold">Mem0 Memories</p>
+            <p class="text-2xl font-bold text-pink-700">\${s.mem0?.total || 0}</p>
+          </div>
+          <div class="card p-4 text-center border-emerald-200 bg-emerald-50">
+            <p class="text-xs text-emerald-600 font-semibold">D1 Memories</p>
+            <p class="text-2xl font-bold text-emerald-700">\${s.memory_entries || 0}</p>
+          </div>
+          <div class="card p-4 text-center">
+            <p class="text-xs text-dark-400 font-semibold">Sessions</p>
+            <p class="text-2xl font-bold text-dark-800">\${s.active_sessions || 0}</p>
           </div>
         </div>
 
-        <h3 class="font-semibold text-dark-800 mb-4">AI Agents</h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <!-- Agent Cards -->
+        <h3 class="font-semibold text-dark-800 mb-4">Specialist Agents</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
           \${agents.map(a => {
-            const agentStats = s.by_agent.find(b => b.agent_type === a.id);
+            const agentStats = (s.by_agent || []).find(b => b.agent_type === a.id);
             return \`
             <div class="card p-5 hover:shadow-lg cursor-pointer group" onclick="showRunAgentModal('\${a.id}')">
               <div class="flex items-center gap-3 mb-3">
@@ -1219,17 +1425,19 @@ async function loadAIWorkflow() {
                 </div>
                 <div>
                   <h4 class="font-semibold text-dark-800 text-sm">\${a.name}</h4>
-                  <p class="text-xs text-dark-400">\${agentStats ? agentStats.count + ' runs' : '0 runs'}</p>
+                  <p class="text-xs text-dark-400">\${agentStats ? agentStats.count + ' runs' : '0 runs'}\${agentStats ? ' \u2022 ' + Number(agentStats.tokens || 0).toLocaleString() + ' tok' : ''}</p>
                 </div>
               </div>
-              <p class="text-xs text-dark-500">\${a.desc}</p>
-              <button class="mt-3 w-full btn btn-secondary text-xs group-hover:bg-purple-50 group-hover:text-purple-700 group-hover:border-purple-200">
+              <p class="text-xs text-dark-500 mb-2">\${a.description || ''}</p>
+              \${a.capabilities ? '<div class="flex flex-wrap gap-1 mb-2">' + a.capabilities.slice(0,3).map(c => '<span class="text-xs bg-dark-50 text-dark-500 px-1.5 py-0.5 rounded">' + c + '</span>').join('') + '</div>' : ''}
+              <button class="mt-1 w-full btn btn-secondary text-xs group-hover:bg-purple-50 group-hover:text-purple-700 group-hover:border-purple-200">
                 <i class="fas fa-play mr-1"></i> Run Agent
               </button>
             </div>\`;
           }).join('')}
         </div>
 
+        <!-- Recent Activity -->
         <h3 class="font-semibold text-dark-800 mb-4">Recent Activity</h3>
         <div class="card overflow-hidden">
           <table class="w-full">
@@ -1245,17 +1453,19 @@ async function loadAIWorkflow() {
               </tr>
             </thead>
             <tbody>
-              \${logs.map(l => \`
-                <tr class="table-row border-b border-dark-100">
-                  <td class="px-6 py-3"><span class="badge bg-purple-100 text-purple-700">\${l.agent_type}</span></td>
+              \${logs.map(l => {
+                const acMap = { researcher: 'purple', drafter: 'pink', analyst: 'emerald', strategist: 'amber', orchestrator: 'indigo' };
+                const ac = acMap[l.agent_type] || 'dark';
+                return \`<tr class="table-row border-b border-dark-100">
+                  <td class="px-6 py-3"><span class="badge bg-\${ac}-100 text-\${ac}-700">\${l.agent_type}</span></td>
                   <td class="px-6 py-3 text-sm">\${l.action}</td>
                   <td class="px-6 py-3 text-sm text-dark-500">\${l.case_number || '-'}</td>
-                  <td class="px-6 py-3 text-sm">\${Number(l.tokens_used).toLocaleString()}</td>
-                  <td class="px-6 py-3 text-sm">$\${Number(l.cost).toFixed(4)}</td>
+                  <td class="px-6 py-3 text-sm">\${Number(l.tokens_used || 0).toLocaleString()}</td>
+                  <td class="px-6 py-3 text-sm">$\${Number(l.cost || 0).toFixed(4)}</td>
                   <td class="px-6 py-3"><span class="badge bg-green-100 text-green-700">\${l.status}</span></td>
                   <td class="px-6 py-3 text-xs text-dark-400">\${formatDate(l.created_at)}</td>
-                </tr>
-              \`).join('')}
+                </tr>\`;
+              }).join('')}
             </tbody>
           </table>
         </div>
@@ -1306,100 +1516,222 @@ async function executeAgent(agentType) {
 
 // === CLIENT INTAKE ===
 async function loadIntake() {
-  document.getElementById('pageContent').innerHTML = \`
+  try {
+    const [casesRes, clientsRes] = await Promise.all([
+      axios.get(API + '/cases'),
+      axios.get(API + '/clients')
+    ]);
+    const cases = casesRes.data.cases || [];
+    const clients = clientsRes.data.clients || [];
+
+    document.getElementById('pageContent').innerHTML = \`
     <div class="fade-in">
       <div class="flex items-center justify-between mb-6">
         <div>
-          <h2 class="text-2xl font-bold text-dark-900">Client Intake</h2>
-          <p class="text-dark-500 text-sm mt-1">Process new client applications</p>
+          <h2 class="text-2xl font-bold text-dark-900"><i class="fas fa-clipboard-list text-brand-500 mr-2"></i>AI-Powered Client Intake</h2>
+          <p class="text-dark-500 text-sm mt-1">Orchestrator \u2192 Intake Agent \u2192 Conflict Check \u2192 Case Assessment \u2192 Auto-Routing</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="badge bg-purple-100 text-purple-700"><i class="fas fa-robot mr-1"></i>AI Intake Pipeline</span>
+          <span class="badge bg-emerald-100 text-emerald-700">\${clients.length} clients</span>
         </div>
       </div>
+
+      <!-- Intake Pipeline Diagram -->
+      <div class="card p-4 mb-6 bg-gradient-to-r from-blue-50 to-purple-50 border-purple-200">
+        <div class="flex items-center justify-center gap-2 flex-wrap text-xs">
+          <span class="bg-white rounded-lg px-3 py-1.5 border border-blue-200 font-semibold text-blue-700"><i class="fas fa-clipboard-list mr-1"></i>Form Submission</span>
+          <i class="fas fa-arrow-right text-purple-400"></i>
+          <span class="bg-white rounded-lg px-3 py-1.5 border border-purple-200 font-semibold text-purple-700"><i class="fas fa-search mr-1"></i>Conflict Check</span>
+          <i class="fas fa-arrow-right text-purple-400"></i>
+          <span class="bg-white rounded-lg px-3 py-1.5 border border-emerald-200 font-semibold text-emerald-700"><i class="fas fa-robot mr-1"></i>AI Assessment</span>
+          <i class="fas fa-arrow-right text-purple-400"></i>
+          <span class="bg-white rounded-lg px-3 py-1.5 border border-amber-200 font-semibold text-amber-700"><i class="fas fa-route mr-1"></i>Auto-Route</span>
+          <i class="fas fa-arrow-right text-purple-400"></i>
+          <span class="bg-white rounded-lg px-3 py-1.5 border border-emerald-200 font-semibold text-emerald-700"><i class="fas fa-check-circle mr-1"></i>Case Created</span>
+        </div>
+      </div>
+
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Intake Form -->
         <div class="card p-6">
-          <h3 class="font-semibold text-dark-800 mb-4"><i class="fas fa-clipboard-list text-brand-500 mr-2"></i>New Client Intake Form</h3>
+          <h3 class="font-semibold text-dark-800 mb-4"><i class="fas fa-user-plus text-brand-500 mr-2"></i>New Client Intake Form</h3>
           <div class="space-y-4">
             <div class="grid grid-cols-2 gap-4">
               <div><label class="text-sm font-medium text-dark-700 block mb-1">First Name *</label><input id="intakeFirstName" placeholder="First name"></div>
               <div><label class="text-sm font-medium text-dark-700 block mb-1">Last Name *</label><input id="intakeLastName" placeholder="Last name"></div>
             </div>
-            <div><label class="text-sm font-medium text-dark-700 block mb-1">Email</label><input id="intakeEmail" type="email" placeholder="email@example.com"></div>
-            <div><label class="text-sm font-medium text-dark-700 block mb-1">Phone</label><input id="intakePhone" placeholder="(555) 555-0000"></div>
-            <div><label class="text-sm font-medium text-dark-700 block mb-1">Case Type</label>
-              <select id="intakeCaseType">
-                <option value="personal_injury">Personal Injury</option>
-                <option value="family">Family Law</option>
-                <option value="criminal">Criminal Defense</option>
-                <option value="corporate">Corporate</option>
-                <option value="immigration">Immigration</option>
-                <option value="employment">Employment</option>
-                <option value="real_estate">Real Estate</option>
-                <option value="ip">Intellectual Property</option>
-                <option value="bankruptcy">Bankruptcy</option>
-              </select>
+            <div class="grid grid-cols-2 gap-4">
+              <div><label class="text-sm font-medium text-dark-700 block mb-1">Email</label><input id="intakeEmail" type="email" placeholder="email@example.com"></div>
+              <div><label class="text-sm font-medium text-dark-700 block mb-1">Phone</label><input id="intakePhone" placeholder="(555) 555-0000"></div>
             </div>
-            <div><label class="text-sm font-medium text-dark-700 block mb-1">Case Description</label>
-              <textarea id="intakeDescription" rows="4" placeholder="Describe the legal matter..."></textarea></div>
+            <div class="grid grid-cols-2 gap-4">
+              <div><label class="text-sm font-medium text-dark-700 block mb-1">Case Type *</label>
+                <select id="intakeCaseType">
+                  <option value="personal_injury">Personal Injury</option>
+                  <option value="family">Family Law</option>
+                  <option value="criminal">Criminal Defense</option>
+                  <option value="corporate">Corporate</option>
+                  <option value="immigration">Immigration</option>
+                  <option value="employment">Employment</option>
+                  <option value="real_estate">Real Estate</option>
+                  <option value="ip">Intellectual Property</option>
+                  <option value="bankruptcy">Bankruptcy</option>
+                </select>
+              </div>
+              <div><label class="text-sm font-medium text-dark-700 block mb-1">Urgency</label>
+                <select id="intakeUrgency">
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                  <option value="high">High</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+              </div>
+            </div>
+            <div><label class="text-sm font-medium text-dark-700 block mb-1">Opposing Party (if known)</label>
+              <input id="intakeOpposing" placeholder="Name of opposing party"></div>
+            <div><label class="text-sm font-medium text-dark-700 block mb-1">Case Description *</label>
+              <textarea id="intakeDescription" rows="4" placeholder="Describe the legal matter in detail..."></textarea></div>
+            <div><label class="text-sm font-medium text-dark-700 block mb-1">How did you hear about us?</label>
+              <select id="intakeReferral"><option value="">Select...</option><option value="referral">Attorney Referral</option><option value="web">Website</option><option value="social">Social Media</option><option value="existing">Existing Client</option><option value="other">Other</option></select></div>
             <div class="flex gap-2">
-              <button onclick="submitIntake()" class="btn btn-primary flex-1"><i class="fas fa-paper-plane mr-2"></i>Submit & Run AI Intake</button>
+              <button onclick="submitIntake()" class="btn btn-primary flex-1"><i class="fas fa-paper-plane mr-2"></i>Submit & Run AI Intake Pipeline</button>
             </div>
           </div>
         </div>
+
+        <!-- AI Processing Results -->
         <div class="card p-6">
           <h3 class="font-semibold text-dark-800 mb-4"><i class="fas fa-robot text-purple-500 mr-2"></i>AI Intake Processing</h3>
           <div id="intakeResults" class="space-y-3">
             <div class="text-center py-8 text-dark-400">
               <i class="fas fa-inbox text-4xl mb-3"></i>
-              <p>Submit the intake form to see AI processing results</p>
+              <p class="mb-2">Submit the intake form to see AI processing results</p>
+              <p class="text-xs">The AI pipeline will: check conflicts, assess the case, recommend attorney assignment, and flag risks</p>
             </div>
           </div>
         </div>
       </div>
     </div>
-  \`;
+    \`;
+  } catch(e) { showError('Client Intake'); }
 }
 
 async function submitIntake() {
   const firstName = document.getElementById('intakeFirstName').value;
   const lastName = document.getElementById('intakeLastName').value;
+  const desc = document.getElementById('intakeDescription').value;
   if (!firstName || !lastName) { alert('First and last name are required'); return; }
+  if (!desc) { alert('Case description is required'); return; }
 
-  document.getElementById('intakeResults').innerHTML = '<div class="text-center py-8"><i class="fas fa-spinner fa-spin text-purple-500 text-2xl mb-3"></i><p class="text-dark-500">AI Intake Agent processing...</p></div>';
+  const resultsEl = document.getElementById('intakeResults');
+  resultsEl.innerHTML = \`
+    <div class="space-y-3">
+      <div class="flex items-center gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+        <i class="fas fa-spinner fa-spin text-blue-500"></i>
+        <div><p class="text-sm font-medium text-blue-700">Step 1/4: Creating client record...</p></div>
+      </div>
+    </div>\`;
 
   try {
+    // Step 1: Create client
     const clientRes = await axios.post(API + '/clients', {
       first_name: firstName, last_name: lastName,
       email: document.getElementById('intakeEmail').value,
       phone: document.getElementById('intakePhone').value
     });
+    const clientId = clientRes.data.id;
 
+    resultsEl.innerHTML += \`<div class="flex items-center gap-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
+      <i class="fas fa-spinner fa-spin text-purple-500"></i>
+      <div><p class="text-sm font-medium text-purple-700">Step 2/4: Running conflict check...</p></div>
+    </div>\`;
+
+    // Step 2: Conflict check
+    const opposingParty = document.getElementById('intakeOpposing')?.value || '';
+    let conflictFound = false;
+    let conflictDetails = 'No conflicts detected';
+    try {
+      const casesCheck = await axios.get(API + '/cases');
+      const clientsCheck = await axios.get(API + '/clients');
+      const fullName = firstName + ' ' + lastName;
+      const nameCheck = [...(casesCheck.data.cases || [])].filter(c => 
+        (c.opposing_party && c.opposing_party.toLowerCase().includes(fullName.toLowerCase())) ||
+        (c.opposing_counsel && c.opposing_counsel.toLowerCase().includes(fullName.toLowerCase()))
+      );
+      if (nameCheck.length > 0) { conflictFound = true; conflictDetails = 'Potential conflict: ' + fullName + ' appears as opposing party in ' + nameCheck.map(c=>c.case_number).join(', '); }
+      if (opposingParty) {
+        const opCheck = [...(clientsCheck.data.clients || [])].filter(c => (c.first_name + ' ' + c.last_name).toLowerCase().includes(opposingParty.toLowerCase()));
+        if (opCheck.length > 0) { conflictFound = true; conflictDetails += (conflictFound ? '; ' : '') + 'Opposing party "' + opposingParty + '" is an existing client'; }
+      }
+    } catch(e) {}
+
+    resultsEl.innerHTML += \`<div class="flex items-center gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
+      <i class="fas fa-spinner fa-spin text-amber-500"></i>
+      <div><p class="text-sm font-medium text-amber-700">Step 3/4: Creating case & running AI assessment...</p></div>
+    </div>\`;
+
+    // Step 3: Create case
     const caseType = document.getElementById('intakeCaseType').value;
-    const desc = document.getElementById('intakeDescription').value;
+    const urgency = document.getElementById('intakeUrgency')?.value || 'medium';
     const caseRes = await axios.post(API + '/cases', {
       title: firstName + ' ' + lastName + ' - ' + formatType(caseType),
-      description: desc, case_type: caseType,
-      client_id: clientRes.data.id, lead_attorney_id: 1
+      description: desc, case_type: caseType, priority: urgency,
+      client_id: clientId, lead_attorney_id: 1,
+      opposing_party: opposingParty || null
     });
+
+    // Step 4: Run AI Intake Agent
+    resultsEl.innerHTML += \`<div class="flex items-center gap-3 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+      <i class="fas fa-spinner fa-spin text-emerald-500"></i>
+      <div><p class="text-sm font-medium text-emerald-700">Step 4/4: AI agent analyzing case...</p></div>
+    </div>\`;
 
     const aiRes = await axios.post(API + '/ai/run', {
       agent_type: 'intake', action: 'process_new_case',
       case_id: caseRes.data.id, user_id: 1,
-      input_data: { client: firstName + ' ' + lastName, type: caseType, description: desc }
+      input_data: { client: firstName + ' ' + lastName, type: caseType, description: desc, urgency, opposing_party: opposingParty }
     });
 
-    document.getElementById('intakeResults').innerHTML = \`
+    // Show results
+    resultsEl.innerHTML = \`
       <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-        <h4 class="font-semibold text-green-800"><i class="fas fa-check-circle mr-2"></i>Intake Complete!</h4>
-        <p class="text-sm text-green-600 mt-1">Client and case created successfully</p>
+        <h4 class="font-semibold text-green-800"><i class="fas fa-check-circle mr-2"></i>Intake Pipeline Complete!</h4>
+        <p class="text-sm text-green-600 mt-1">Client registered, case created, AI assessment generated</p>
       </div>
+
       <div class="space-y-3">
-        <div class="p-3 bg-dark-50 rounded-lg"><span class="text-xs text-dark-400">Client ID</span><p class="font-medium">#\${clientRes.data.id} - \${firstName} \${lastName}</p></div>
-        <div class="p-3 bg-dark-50 rounded-lg"><span class="text-xs text-dark-400">Case</span><p class="font-medium">\${caseRes.data.case_number}</p></div>
-        <div class="p-3 bg-purple-50 rounded-lg"><span class="text-xs text-purple-600">AI Assessment</span><pre class="text-sm mt-1 whitespace-pre-wrap">\${JSON.stringify(aiRes.data.output, null, 2)}</pre></div>
+        <div class="p-3 bg-dark-50 rounded-lg flex items-center justify-between">
+          <div><span class="text-xs text-dark-400">Client</span><p class="font-medium">#\${clientId} \u2014 \${firstName} \${lastName}</p></div>
+          <span class="badge bg-blue-100 text-blue-700">New</span>
+        </div>
+        <div class="p-3 bg-dark-50 rounded-lg flex items-center justify-between">
+          <div><span class="text-xs text-dark-400">Case</span><p class="font-medium">\${caseRes.data.case_number} \u2014 \${formatType(caseType)}</p></div>
+          <span class="badge \${getPriorityColor(urgency)}">\${urgency}</span>
+        </div>
+
+        <div class="p-3 \${conflictFound ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'} rounded-lg">
+          <div class="flex items-center gap-2 mb-1">
+            <i class="fas fa-\${conflictFound ? 'exclamation-triangle text-red-500' : 'check-circle text-green-500'}"></i>
+            <span class="text-sm font-medium \${conflictFound ? 'text-red-700' : 'text-green-700'}">Conflict Check: \${conflictFound ? 'POTENTIAL CONFLICT' : 'CLEAR'}</span>
+          </div>
+          <p class="text-xs \${conflictFound ? 'text-red-600' : 'text-green-600'}">\${conflictDetails}</p>
+        </div>
+
+        <div class="p-3 bg-purple-50 rounded-lg border border-purple-200">
+          <div class="flex items-center gap-2 mb-2">
+            <i class="fas fa-robot text-purple-500"></i>
+            <span class="text-sm font-medium text-purple-700">AI Assessment (\${aiRes.data.agent_type} agent)</span>
+            <span class="badge bg-purple-100 text-purple-700 text-xs">\${aiRes.data.tokens_used} tokens</span>
+          </div>
+          <div class="text-sm text-dark-700 prose-sm">\${renderMarkdown(aiRes.data.output?.content_preview || JSON.stringify(aiRes.data.output, null, 2))}</div>
+        </div>
       </div>
+
       <button onclick="viewCase(\${caseRes.data.id})" class="btn btn-primary w-full mt-4"><i class="fas fa-arrow-right mr-2"></i>View Case</button>
     \`;
   } catch(e) {
-    document.getElementById('intakeResults').innerHTML = '<div class="bg-red-50 p-4 rounded-lg"><p class="text-red-600">Error: ' + e.message + '</p></div>';
+    resultsEl.innerHTML = '<div class="bg-red-50 p-4 rounded-lg border border-red-200"><p class="text-red-600"><i class="fas fa-exclamation-circle mr-2"></i>Error: ' + (e.response?.data?.error || e.message) + '</p></div>';
   }
 }
 
