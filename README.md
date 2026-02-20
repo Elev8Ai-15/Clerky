@@ -90,6 +90,11 @@ User Query → Hono API (port 3000)
 - **Tasks & Deadlines** - Task management with priority, status, assignee, due dates
 - **Billing & Invoices** - Revenue stats, invoice management, time entries tracking
 - **AI Co-Counsel Chat** - Full conversational interface with 4 specialist agents
+  - **`/api/crew` Dashboard-Wired Pipeline** — auto-creates docs, tasks, events from AI responses
+  - Pipeline Trace visualization in chat (step-by-step with color-coded icons)
+  - Agent badges (Researcher, Drafter, Analyst, Strategist) with per-agent colors
+  - Dashboard sync banner with click-to-navigate action buttons
+  - Auto-refreshes dashboard/docs/tasks/calendar after side-effect creation
   - Quick action chips for KS/MO research, drafting, analysis, strategy
   - Routing metadata display (agent, confidence, sub-agents)
   - Session management and chat history
@@ -112,8 +117,11 @@ User Query → Hono API (port 3000)
 
 ### AI Multi-Agent System
 - `POST /api/ai/chat` - Send message to AI orchestrator (routes to specialist agents)
+- `POST /api/ai/crew` - **Dashboard-Wired CrewAI Pipeline** — Orchestrates agents AND auto-creates docs/tasks/events in D1; returns `dashboard_update` JSON for frontend auto-wiring
 - `GET /api/ai/chat/history?session_id=` - Get chat history for session
 - `DELETE /api/ai/chat/:session_id` - Clear chat session
+- `GET /api/ai/crewai/status` - Check CrewAI backend availability
+- `POST /api/ai/crewai/configure` - Configure LLM API key at runtime
 - `GET /api/ai/agents` - Agent architecture info (version, capabilities, memory system)
 - `GET /api/ai/stats` - AI usage statistics (ops, tokens, costs, per-agent breakdown)
 - `GET /api/ai/logs` - AI activity logs with case/user joins
@@ -124,6 +132,58 @@ User Query → Hono API (port 3000)
 - `GET /api/ai/memory/stats` - Memory statistics (Mem0 + D1)
 - `DELETE /api/ai/memory/:id` - Delete memory entry
 - `GET /api/ai/sessions` - List agent sessions
+
+#### `/api/ai/crew` — Dashboard-Wired Pipeline
+**Request:**
+```json
+{
+  "query": "Draft a demand letter for the Johnson PI case",
+  "matter_context": { "case_id": 1, "case_number": "CM-2026-001" },
+  "dashboard_state": { "active_cases": 6, "active_clients": 5 },
+  "session_id": "session_xyz",
+  "jurisdiction": "missouri"
+}
+```
+**Response includes `dashboard_update`:**
+```json
+{
+  "content": "...",
+  "agent_used": "drafter",
+  "confidence": 0.98,
+  "dashboard_update": {
+    "new_documents": 1,
+    "new_tasks": 2,
+    "matter_id": "CM-2026-001",
+    "event_added": null,
+    "created_document_ids": [13],
+    "created_task_ids": [18, 19],
+    "created_event_ids": [],
+    "agents_used": ["drafter"],
+    "pipeline_steps": [
+      "1. Received query — initializing CrewAI pipeline",
+      "2. User message saved to session history",
+      "3. Running orchestrator: Researcher → Analyst → Drafter/Strategist",
+      "4. Template pipeline completed: drafter agent (conf: 98%)",
+      "5. Assistant response saved to session",
+      "6. Document created: \"Demand Letter (AI Draft)\" (ID: 13)",
+      "7. 2 task(s) created in D1",
+      "9. Pipeline complete — AI log recorded"
+    ]
+  }
+}
+```
+**Side-Effects Auto-Detected:**
+- Drafter → creates document + review/filing tasks
+- Researcher → creates research memo + citation verification task
+- Analyst → creates risk assessment report + review task
+- Strategist → creates strategy tasks + settlement prep; calendar events for mediation/deposition/hearing
+
+**Frontend Auto-Wiring:**
+- Pipeline trace rendered in chat (collapsible step-by-step)
+- Agent badges with color-coded icons
+- Dashboard sync banner with clickable "View Docs" / "View Tasks" / "View Calendar" buttons
+- Auto-refreshes current page if on dashboard/docs/tasks/calendar
+- Toast notifications with creation summaries
 
 ### Dashboard & DB
 - `GET /api/dashboard` - Full practice stats overview

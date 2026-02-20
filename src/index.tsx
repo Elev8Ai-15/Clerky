@@ -1397,10 +1397,17 @@ async function sendChat() {
   </div>\`;
   scrollChatToBottom();
 
-  // Animate orchestration steps
-  const typingSteps = ['Loading matter context...', 'Searching agent memory...', 'Routing to specialist agent...', 'Generating response...'];
+  // Animate orchestration steps — CrewAI hierarchy: Researcher → Analyst → Drafter/Strategist
+  const typingSteps = [
+    'Initializing CrewAI pipeline...',
+    'Loading matter context & agent memory...',
+    'Routing: Researcher \\u2192 Analyst \\u2192 Specialist...',
+    'Running ' + chatJurisdiction.charAt(0).toUpperCase() + chatJurisdiction.slice(1) + ' jurisdiction analysis...',
+    'Generating response & detecting side-effects...',
+    'Syncing dashboard (docs, tasks, events)...'
+  ];
   let stepIdx = 0;
-  const stepInterval = setInterval(() => { stepIdx++; const el = document.getElementById('typingText'); if (el && stepIdx < typingSteps.length) el.textContent = typingSteps[stepIdx]; }, 900);
+  const stepInterval = setInterval(() => { stepIdx++; const el = document.getElementById('typingText'); if (el && stepIdx < typingSteps.length) el.textContent = typingSteps[stepIdx]; }, 800);
 
   document.getElementById('chatStatus').textContent = '\u{1F9E0} Processing...';
 
@@ -1442,6 +1449,99 @@ async function sendChat() {
     document.getElementById('chatStatus').textContent = '\u2705 ' + data.agent_used + ' (' + confPct + ')' + subInfo + ' \u2022 ~' + Number(data.tokens_used).toLocaleString() + ' tokens' + risksInfo + citesInfo + crewFlag + ' \u2022 ' + data.duration_ms + 'ms';
 
     toast('Agent Response', data.agent_used + ' agent responded with ' + (data.citations || 0) + ' citations', 'success');
+
+    // ═══ DASHBOARD AUTO-WIRING from /api/crew response ═══
+    if (data.dashboard_update) {
+      const du = data.dashboard_update;
+
+      // ── 1. Pipeline Steps visualization ────────────────────
+      if (du.pipeline_steps && du.pipeline_steps.length > 0) {
+        const stepsHtml = du.pipeline_steps.map(function(step, i) {
+          const isLast = i === du.pipeline_steps.length - 1;
+          const icon = step.includes('Error') ? 'fa-times-circle text-red-400' :
+                       step.includes('complete') || step.includes('Complete') ? 'fa-check-circle text-emerald-400' :
+                       step.includes('Document') || step.includes('doc') ? 'fa-file-alt text-blue-400' :
+                       step.includes('task') || step.includes('Task') ? 'fa-tasks text-amber-400' :
+                       step.includes('event') || step.includes('Event') || step.includes('Calendar') ? 'fa-calendar text-purple-400' :
+                       step.includes('CrewAI') ? 'fa-robot text-cyan-400' :
+                       step.includes('Researcher') || step.includes('researcher') ? 'fa-search text-sky-400' :
+                       step.includes('Analyst') || step.includes('analyst') ? 'fa-chart-bar text-orange-400' :
+                       step.includes('Drafter') || step.includes('drafter') ? 'fa-pen-fancy text-indigo-400' :
+                       step.includes('Strategist') || step.includes('strategist') ? 'fa-chess text-rose-400' :
+                       'fa-circle text-slate-500';
+          return '<div class="flex items-start gap-2 ' + (isLast ? '' : 'mb-1') + '">' +
+            '<i class="fas ' + icon + ' text-[10px] mt-1 flex-shrink-0"></i>' +
+            '<span class="text-[11px] text-slate-400">' + step + '</span></div>';
+        }).join('');
+
+        msgContainer.innerHTML += '<div class="flex justify-center my-2"><div class="rounded-xl px-4 py-3 border max-w-md w-full" style="background:#0c1222; border-color:#1e293b">' +
+          '<div class="flex items-center gap-2 mb-2"><i class="fas fa-stream text-emerald-400 text-xs"></i><span class="text-xs font-semibold text-emerald-400">Pipeline Trace</span>' +
+          '<span class="text-[10px] text-slate-500 ml-auto">' + du.pipeline_steps.length + ' steps</span></div>' +
+          stepsHtml + '</div></div>';
+      }
+
+      // ── 2. Agents Used badges ──────────────────────────────
+      if (du.agents_used && du.agents_used.length > 0) {
+        const agentBadges = du.agents_used.map(function(a) {
+          const colors = { researcher: 'bg-sky-900 text-sky-300 border-sky-700', drafter: 'bg-indigo-900 text-indigo-300 border-indigo-700', analyst: 'bg-orange-900 text-orange-300 border-orange-700', strategist: 'bg-rose-900 text-rose-300 border-rose-700' };
+          const aLower = a.toLowerCase();
+          const colorClass = Object.keys(colors).find(function(k) { return aLower.includes(k); });
+          const cls = colorClass ? colors[colorClass] : 'bg-slate-800 text-slate-300 border-slate-600';
+          return '<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-medium border ' + cls + '">' +
+            '<i class="fas fa-robot text-[8px]"></i> ' + a + '</span>';
+        }).join(' ');
+
+        msgContainer.innerHTML += '<div class="flex justify-center gap-1.5 my-1 flex-wrap">' + agentBadges + '</div>';
+      }
+
+      // ── 3. Dashboard sync banner with clickable actions ────
+      const updates = [];
+      const actions = [];
+      if (du.new_documents > 0) {
+        updates.push('<i class="fas fa-file-alt text-blue-400"></i> ' + du.new_documents + ' doc(s)');
+        actions.push('<button onclick="navigate(\\x27documents\\x27)" class="text-[10px] underline text-blue-400 hover:text-blue-300">View Docs</button>');
+      }
+      if (du.new_tasks > 0) {
+        updates.push('<i class="fas fa-tasks text-amber-400"></i> ' + du.new_tasks + ' task(s)');
+        actions.push('<button onclick="navigate(\\x27tasks\\x27)" class="text-[10px] underline text-amber-400 hover:text-amber-300">View Tasks</button>');
+      }
+      if (du.event_added) {
+        updates.push('<i class="fas fa-calendar text-purple-400"></i> ' + du.event_added);
+        actions.push('<button onclick="navigate(\\x27calendar\\x27)" class="text-[10px] underline text-purple-400 hover:text-purple-300">View Calendar</button>');
+      }
+
+      if (updates.length > 0) {
+        // Rich toast with navigation
+        toast('Dashboard Synced', updates.join(' \\u2022 ').replace(/<[^>]*>/g, '') + ' \\u2014 Click to view', 'success');
+
+        // In-chat sync banner with action buttons
+        msgContainer.innerHTML += '<div class="flex justify-center my-2"><div class="inline-flex flex-col items-center gap-1.5 rounded-xl px-5 py-2.5 border" style="background:#064e3b; border-color:#065f46">' +
+          '<div class="flex items-center gap-2"><i class="fas fa-bolt text-emerald-400 text-xs"></i><span class="text-xs font-semibold text-emerald-300">Dashboard Synced</span></div>' +
+          '<div class="flex items-center gap-3 text-xs text-emerald-200">' + updates.join(' <span class="text-emerald-700">|</span> ') + '</div>' +
+          (actions.length > 0 ? '<div class="flex items-center gap-3 mt-0.5">' + actions.join('') + '</div>' : '') +
+          '</div></div>';
+
+        // ── 4. Auto-refresh current page if relevant ─────────
+        if (currentPage === 'dashboard') {
+          // Silently reload dashboard stats after a brief delay
+          setTimeout(function() { loadDashboard(); }, 1200);
+        } else if (currentPage === 'documents' && du.new_documents > 0) {
+          setTimeout(function() { loadDocuments(); }, 1200);
+        } else if (currentPage === 'tasks' && du.new_tasks > 0) {
+          setTimeout(function() { loadTasks(); }, 1200);
+        } else if (currentPage === 'calendar' && du.event_added) {
+          setTimeout(function() { loadCalendar(); }, 1200);
+        }
+      }
+
+      // ── 5. Matter ID linking ───────────────────────────────
+      if (du.matter_id) {
+        msgContainer.innerHTML += '<div class="flex justify-center my-1"><span class="text-[10px] text-slate-500"><i class="fas fa-link mr-1"></i>Linked to matter: <strong class="text-slate-400">' + du.matter_id + '</strong></span></div>';
+      }
+
+      console.log('[CrewAI Pipeline]', du.pipeline_steps);
+      console.log('[Dashboard Update]', du);
+    }
   } catch(e) {
     clearInterval(stepInterval);
     const ti = document.getElementById('typingIndicator');
