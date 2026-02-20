@@ -223,17 +223,26 @@ export async function runDrafter(input: AgentInput, llm?: LLMClient, mem0Context
     content += `- **Certificate of Service** per Mo.Sup.Ct.R. 43.01\n`
     content += `- **Format** per Mo.Sup.Ct.R. 55.03 (specific pleading requirements)\n`
     content += `- **E-filing** required via Missouri Courts Electronic Filing System\n`
-    content += `- **⚠️ FACT PLEADING required** — Missouri requires more specific factual allegations than federal notice pleading\n`
+    content += `- **⚠️ FACT PLEADING required** (Mo.Sup.Ct.R. 55.05) — Must allege ultimate facts, not mere legal conclusions; stricter than federal notice pleading; dismissal risk under Mo.Sup.Ct.R. 55.27(a)(6)\n`
+    content += `- **Mo.Sup.Ct.R. 56.01(b) — Discovery Proportionality & ESI:** Scope limited to relevant AND proportional to needs; parties may agree on ESI formats; cost-shifting available for disproportionate ESI burden\n`
     if (docType === 'complaint' || docType === 'motion_dismiss') {
       content += `- Verify **Mo.Sup.Ct.R. 55.03(c)** sanctions standards\n`
     }
-    if (input.matter.case_type === 'personal_injury') {
-      content += `- **RSMo § 537.765** — Pure comparative fault; no bar to recovery regardless of plaintiff's fault percentage\n`
-      content += `- **RSMo § 537.067** — Joint & several only for defendants ≥51% at fault\n`
+    if (input.matter.case_type === 'personal_injury' || docType === 'complaint' || docType === 'demand_letter') {
+      content += `- **RSMo § 537.765** — Pure comparative fault; plaintiff recovers even at 99% fault\n`
+      content += `- **RSMo § 537.067** — Joint & several liability applies ONLY for defendants **≥51% at fault**; defendants <51% pay proportionate share only\n`
+      content += `- **RSMo § 516.120** — 5-year PI statute of limitations; verify accrual date\n`
     }
     if (input.matter.case_type === 'medical_malpractice') {
       content += `- **RSMo § 538.225** — Affidavit of merit required with petition\n`
+      content += `- **RSMo § 516.105** — 2-year med-mal SOL with 10-year repose\n`
     }
+    if (docType === 'motion_compel' || docType === 'discovery_responses') {
+      content += `- **Mo.Sup.Ct.R. 56.01(b)** — Discovery proportionality & ESI cost-shifting rules apply; argue burden vs. benefit\n`
+      content += `- **Mo.Sup.Ct.R. 57/58** — Interrogatory and production response requirements (30 days)\n`
+    }
+    content += `- **Missouri Court of Appeals** — 3 districts: Eastern (St. Louis), Western (Kansas City), Southern (Springfield); tailor arguments to controlling district\n`
+    content += `- **8th Circuit** — Binding federal appellate authority for MO diversity/federal-question cases\n`
   }
 
   // Warnings

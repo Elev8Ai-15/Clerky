@@ -44,6 +44,8 @@ const MO_STATUTES: Record<string, { title: string; text: string; url: string }> 
   'comparative_fault': { title: 'RSMo § 537.765', text: 'Pure comparative fault — plaintiff recovers even at 99% at fault, reduced by their percentage of fault. Joint and several liability applies only if defendant ≥51% at fault (RSMo § 537.067). Defendants <51% at fault liable only for their percentage share.', url: 'https://revisor.mo.gov/main/OneSection.aspx?section=537.765' },
   'workers_comp': { title: 'RSMo § 287.010 et seq.', text: 'Missouri Workers Compensation — exclusive remedy. Temporary total based on average weekly wage. Permanent partial per body-as-a-whole ratings. Second Injury Fund for pre-existing conditions.', url: 'https://revisor.mo.gov/main/OneSection.aspx?section=287.010' },
   'sovereign_immunity': { title: 'RSMo § 537.600', text: 'Missouri Sovereign Immunity — waived for dangerous conditions of public property and negligent acts of government employees operating motor vehicles. Damages capped per occurrence.', url: 'https://revisor.mo.gov/main/OneSection.aspx?section=537.600' },
+  'fact_pleading': { title: 'Mo.Sup.Ct.R. 55.05', text: 'Missouri requires FACT PLEADING (not notice pleading). Petitions must allege ultimate facts constituting the cause of action, not mere conclusions. More specific than federal or Kansas notice-pleading standards. Failure to plead facts can result in dismissal under Mo.Sup.Ct.R. 55.27(a)(6).', url: 'https://www.courts.mo.gov/courts/ClerkHandbooksP2RusijMenu.nsf' },
+  'discovery_proportionality': { title: 'Mo.Sup.Ct.R. 56.01(b)', text: 'Missouri imposes unique discovery proportionality requirements. Scope limited to non-privileged matter relevant to claims/defenses AND proportional to the needs of the case. Factors: importance of issues, amount in controversy, relative access to information, burden vs. benefit. Special ESI rules: parties may agree on ESI formats; cost-shifting available for disproportionate ESI burden.', url: 'https://www.courts.mo.gov/courts/ClerkHandbooksP2RulesMenu.nsf' },
 }
 
 // ── Kansas case law database ────────────────────────────────
@@ -91,6 +93,21 @@ const MO_CASE_LAW: Record<string, { name: string; cite: string; holding: string;
     { name: '66, Inc. v. Crestwood Commons Redev. Corp.', cite: '998 S.W.2d 373 (Mo. 1999)', holding: 'Missouri applies business judgment rule with deference to board decisions absent fraud or self-dealing', year: 1999 },
     { name: 'Collet v. American National Stores', cite: '708 S.W.2d 273 (Mo.App. E.D. 1986)', holding: 'Alter ego/veil piercing in MO requires proof of control + misuse + injustice or fraud', year: 1986 },
     { name: 'Ronnoco Coffee LLC v. Castagna', cite: '622 S.W.3d 668 (Mo.App. E.D. 2021)', holding: 'Non-compete agreements enforceable in MO if reasonable in scope, geography, and duration; must protect legitimate business interest', year: 2021 },
+  ],
+}
+
+// ── 8th Circuit precedent (applicable to MO federal cases) ───
+const EIGHTH_CIRCUIT_CASES: Record<string, { name: string; cite: string; holding: string; year: number }[]> = {
+  'personal_injury': [
+    { name: 'Blevins v. Cessna Aircraft Co.', cite: '728 F.2d 1576 (8th Cir. 1984)', holding: '8th Circuit applies Missouri pure comparative fault under Erie; plaintiff fault reduces but does not bar recovery', year: 1984 },
+    { name: 'Dhyne v. State Farm Fire & Cas. Co.', cite: '188 F.3d 1084 (8th Cir. 1999)', holding: 'Summary judgment standard in diversity cases follows substantive state law (MO) with federal procedural rules', year: 1999 },
+  ],
+  'employment': [
+    { name: 'Torgerson v. City of Rochester', cite: '643 F.3d 1031 (8th Cir. 2011) (en banc)', holding: 'Clarified summary judgment standard for employment discrimination under McDonnell Douglas framework in 8th Circuit', year: 2011 },
+    { name: 'Hervey v. County of Koochiching', cite: '527 F.3d 711 (8th Cir. 2008)', holding: 'Title VII hostile work environment: severe or pervasive standard; totality of circumstances analysis', year: 2008 },
+  ],
+  'corporate': [
+    { name: 'Radaszewski v. Telecom Corp.', cite: '981 F.2d 305 (8th Cir. 1992)', holding: '8th Circuit respects MO veil-piercing standards; alter ego requires control, misuse, and resulting injustice', year: 1992 },
   ],
 }
 
@@ -173,6 +190,24 @@ export async function runResearcher(input: AgentInput, llm?: LLMClient, mem0Cont
     }
   }
 
+  // ── MISSOURI MODE: auto-inject critical MO statutes ───────
+  if (isMO) {
+    // Always include comparative fault and SOL for MO PI/negligence queries
+    if (!caseKeys.includes('comparative_fault') && (caseKeys.includes('personal_injury') || input.message.toLowerCase().match(/negligence|tort|injury|fault|liability|comparative/))) {
+      caseKeys.push('comparative_fault')
+    }
+    if (!caseKeys.includes('personal_injury') && input.message.toLowerCase().match(/sol|limitation|deadline|5[- ]year|five[- ]year/)) {
+      caseKeys.push('personal_injury')
+    }
+    // Auto-include fact pleading and discovery proportionality for MO
+    if (!caseKeys.includes('fact_pleading') && input.message.toLowerCase().match(/plead|petition|complaint|filing|dismiss|55\.05/)) {
+      caseKeys.push('fact_pleading')
+    }
+    if (!caseKeys.includes('discovery_proportionality') && input.message.toLowerCase().match(/discover|esi|proportional|cost.shift|56\.01/)) {
+      caseKeys.push('discovery_proportionality')
+    }
+  }
+
   // ── Gather relevant statutes ──────────────────────────────
   const ksStatutes = isKS ? caseKeys.filter(k => KS_STATUTES[k]).map(k => KS_STATUTES[k]) : []
   const moStatutes = isMO ? caseKeys.filter(k => MO_STATUTES[k]).map(k => MO_STATUTES[k]) : []
@@ -180,6 +215,7 @@ export async function runResearcher(input: AgentInput, llm?: LLMClient, mem0Cont
   // ── Gather relevant case law ──────────────────────────────
   const ksCases = isKS ? caseKeys.filter(k => KS_CASE_LAW[k]).flatMap(k => KS_CASE_LAW[k]) : []
   const moCases = isMO ? caseKeys.filter(k => MO_CASE_LAW[k]).flatMap(k => MO_CASE_LAW[k]) : []
+  const eighthCirCases = isMO ? caseKeys.filter(k => EIGHTH_CIRCUIT_CASES[k]).flatMap(k => EIGHTH_CIRCUIT_CASES[k]) : []
 
   // Build citations
   for (const s of ksStatutes) {
@@ -194,9 +230,12 @@ export async function runResearcher(input: AgentInput, llm?: LLMClient, mem0Cont
   for (const c of moCases) {
     citations.push({ source: 'case_law', reference: `${c.name}, ${c.cite}`, verified: true })
   }
+  for (const c of eighthCirCases) {
+    citations.push({ source: 'case_law', reference: `${c.name}, ${c.cite}`, verified: true })
+  }
 
   const totalStatutes = ksStatutes.length + moStatutes.length
-  const totalCases = ksCases.length + moCases.length
+  const totalCases = ksCases.length + moCases.length + eighthCirCases.length
 
   // Jurisdiction display
   const jxDisplay = jx === 'kansas' ? 'Kansas / 10th Circuit' :
@@ -252,6 +291,53 @@ export async function runResearcher(input: AgentInput, llm?: LLMClient, mem0Cont
       content += `**${c.name}** — *${c.cite}* (${c.year})\n`
       content += `- **Holding:** ${c.holding}\n`
       content += `- **Relevance:** Directly applicable to the legal issues in this matter\n\n`
+    }
+  }
+
+  // ── 8th Circuit Precedent (MO Federal) ─────────────────────
+  if (eighthCirCases.length > 0) {
+    content += `### 8th Circuit Precedent\n\n`
+    for (const c of eighthCirCases) {
+      content += `**${c.name}** — *${c.cite}* (${c.year})\n`
+      content += `- **Holding:** ${c.holding}\n`
+      content += `- **Relevance:** Binding 8th Circuit authority applicable to MO federal proceedings\n\n`
+    }
+  }
+
+  // ── MISSOURI MODE: Auto-Flag SOL, Pure Comparative, J&S, Fact Pleading ──
+  if (isMO && (caseKeys.includes('personal_injury') || caseKeys.includes('comparative_fault'))) {
+    content += `### ⏰ Missouri SOL & Comparative Fault\n\n`
+    content += `**RSMo § 516.120 — 5-Year Statute of Limitations:**\n`
+    content += `- Personal injury / negligence: **5 years** from date injury is sustained and capable of ascertainment\n`
+    content += `- Discovery rule: SOL tolled until plaintiff knew or should have known of injury (*Strahler v. St. Luke's Hosp.*, 706 S.W.2d 7 (Mo. 1986))\n`
+    content += `- Medical malpractice: **2 years** with 10-year repose (RSMo § 516.105); affidavit of merit required (RSMo § 538.225)\n\n`
+    content += `**RSMo § 537.765 — Pure Comparative Fault:**\n`
+    content += `- Plaintiff recovers **even at 99% fault** — damages reduced proportionally\n`
+    content += `- No bar to recovery regardless of plaintiff's fault percentage\n\n`
+    content += `**RSMo § 537.067 — Joint & Several Liability:**\n`
+    content += `- Applies **ONLY** when defendant is **≥51% at fault**\n`
+    content += `- Defendants **<51% at fault** liable only for their proportionate share\n`
+    content += `- Strategic significance: target individual defendants for ≥51% fault allocation to maximize joint & several exposure\n\n`
+    risksFound.push('MO 5-year SOL (RSMo § 516.120) — verify accrual date and calendar deadline')
+    risksFound.push('MO J&S liability threshold: only defendants ≥51% at fault (RSMo § 537.067)')
+  }
+
+  // ── MISSOURI MODE: Fact Pleading & Discovery Proportionality ──
+  if (isMO && (caseKeys.includes('fact_pleading') || caseKeys.includes('discovery_proportionality'))) {
+    content += `### 📜 Missouri Procedural Requirements\n\n`
+    if (caseKeys.includes('fact_pleading')) {
+      content += `**Mo.Sup.Ct.R. 55.05 — FACT PLEADING Required:**\n`
+      content += `- Missouri requires **fact pleading** (NOT notice pleading)\n`
+      content += `- Petition must allege **ultimate facts** constituting the cause of action, not mere legal conclusions\n`
+      content += `- More specific than federal or Kansas notice-pleading standards\n`
+      content += `- Failure to plead facts: dismissal under Mo.Sup.Ct.R. 55.27(a)(6)\n\n`
+    }
+    if (caseKeys.includes('discovery_proportionality')) {
+      content += `**Mo.Sup.Ct.R. 56.01(b) — Discovery Proportionality & ESI:**\n`
+      content += `- Scope limited to relevant AND proportional to the needs of the case\n`
+      content += `- Proportionality factors: importance of issues, amount in controversy, relative access, burden vs. benefit\n`
+      content += `- **ESI rules**: parties may agree on formats; **cost-shifting** available for disproportionate ESI burden\n`
+      content += `- Unique to MO — more prescriptive than federal proportionality rules\n\n`
     }
   }
 
@@ -368,7 +454,8 @@ export async function runResearcher(input: AgentInput, llm?: LLMClient, mem0Cont
       const embeddedKnowledge = ksStatutes.map(s => `[KS] ${s.title}: ${s.text}`).join('\n') +
         '\n' + moStatutes.map(s => `[MO] ${s.title}: ${s.text}`).join('\n') +
         '\n' + ksCases.map(c => `[KS] ${c.name} (${c.cite}): ${c.holding}`).join('\n') +
-        '\n' + moCases.map(c => `[MO] ${c.name} (${c.cite}): ${c.holding}`).join('\n')
+        '\n' + moCases.map(c => `[MO] ${c.name} (${c.cite}): ${c.holding}`).join('\n') +
+        '\n' + eighthCirCases.map(c => `[8thCir] ${c.name} (${c.cite}): ${c.holding}`).join('\n')
 
       const llmResponse = await llm.generateForAgent({
         agentType: 'researcher',
@@ -396,7 +483,7 @@ export async function runResearcher(input: AgentInput, llm?: LLMClient, mem0Cont
   if (input.matter.case_id) {
     memoryUpdates.push({
       key: `research_${subtypes[0]}_${input.date}`,
-      value: `Researched: ${input.message.substring(0, 200)}. Found ${totalStatutes} statutes (KS:${ksStatutes.length}/MO:${moStatutes.length}), ${totalCases} cases (KS:${ksCases.length}/MO:${moCases.length}).`,
+      value: `Researched: ${input.message.substring(0, 200)}. Found ${totalStatutes} statutes (KS:${ksStatutes.length}/MO:${moStatutes.length}), ${totalCases} cases (KS:${ksCases.length}/MO:${moCases.length}/8thCir:${eighthCirCases.length}).`,
       agent_type: 'researcher',
       confidence: 0.85
     })

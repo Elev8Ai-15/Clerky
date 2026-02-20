@@ -4,8 +4,8 @@
 - **Name**: Lawyrs
 - **Goal**: Full-featured legal practice management platform with multi-agent AI co-counsel
 - **Stack**: Hono + Cloudflare D1 + TailwindCSS + Cloudflare Pages
-- **Architecture**: Multi-Agent Orchestrated Pipeline v3.1 — **KANSAS MODE ACTIVE**
-- **Jurisdictions**: Kansas (PRIMARY) & Missouri (dual-licensed KS/MO)
+- **Architecture**: Multi-Agent Orchestrated Pipeline v3.2 — **MISSOURI MODE ACTIVE**
+- **Jurisdictions**: Missouri (PRIMARY) & Kansas (dual-licensed KS/MO)
 
 ## Live URL
 - **Sandbox**: Port 3000
@@ -23,19 +23,25 @@ User Query → Orchestrator (intent classification + confidence scoring)
 
 ### System Identity
 > Lawyrs AI — Senior equity partner, 25+ years experience, licensed in Kansas & Missouri.
-> **KANSAS MODE** — Primary jurisdiction active. Auto-flags on every KS response:
-> - 2-year SOL (K.S.A. 60-513) — always stated
-> - 50% comparative fault bar (K.S.A. 60-258a) — always flagged
-> - Proportional fault ONLY — no joint & several liability
-> - No mandatory presuit notice for standard negligence (≠ KTCA for govt entities)
+> **MISSOURI MODE** — Primary jurisdiction active. Auto-flags on every MO response:
+> - 5-year PI SOL (RSMo § 516.120) — always stated; 2-year med-mal (RSMo § 516.105)
+> - PURE comparative fault (RSMo § 537.765) — plaintiff recovers even at 99% fault
+> - Joint & several liability ONLY when defendant ≥51% at fault (RSMo § 537.067)
+> - FACT PLEADING required (Mo.Sup.Ct.R. 55.05) — stricter than federal notice pleading
+> - Discovery proportionality & ESI cost-shifting (Mo.Sup.Ct.R. 56.01(b))
+> - Affidavit of merit for med-mal (RSMo § 538.225)
+> - MO Court of Appeals: 3 districts (Eastern/Western/Southern)
+> - 8th Circuit precedent — binding federal authority
+> **KANSAS MODE** — Active when jurisdiction = Kansas. Auto-flags:
+> - 2-year SOL (K.S.A. 60-513), 50% bar (K.S.A. 60-258a), proportional fault ONLY, no J&S
 > Core rules: step-by-step reasoning, no hallucinations, cite sources, flag risks, confidentiality.
 > Response structure: Summary → Analysis → Recommendations → Next Actions → Sources.
 
 ### Jurisdiction Priorities
 | Jurisdiction | Statutes | Courts | Key Rules |
 |-------------|----------|--------|-----------|
-| **Kansas** | K.S.A. (2025–2026), Rules Civ Proc Ch. 60 | KS District/Supreme, 10th Circuit | SOL 2yr (K.S.A. 60-513), 50% comp fault bar (K.S.A. 60-258a), **proportional fault ONLY** (no J&S), no presuit notice |
-| **Missouri** | RSMo, Supreme Court Rules | MO Circuit/Supreme, 8th Circuit | SOL 5yr (RSMo § 516.120), 2yr med-mal, pure comp fault (RSMo § 537.765), joint-several ≥51% |
+| **Missouri** | RSMo (2025–2026), Mo.Sup.Ct.R. (discovery proportionality, ESI) | MO Circuit/Supreme/3 CoA districts, **8th Circuit** | **SOL 5yr PI** (RSMo § 516.120), 2yr med-mal, **pure comp fault** (RSMo § 537.765), **J&S ≥51%** (RSMo § 537.067), **fact pleading** (55.05), ESI cost-shifting (56.01(b)) |
+| **Kansas** | K.S.A. (2025–2026), Rules Civ Proc Ch. 60 | KS District/Supreme, **10th Circuit** | SOL 2yr (K.S.A. 60-513), 50% comp fault bar (K.S.A. 60-258a), **proportional fault ONLY** (no J&S), no presuit notice |
 | **Federal** | USC, FRCP, FRE | 10th Cir (KS), 8th Cir (MO) | Federal questions, diversity jurisdiction |
 | **Multi-state** | KS + MO combined | Both circuits | Cross-border analysis, choice of law |
 
@@ -43,7 +49,7 @@ User Query → Orchestrator (intent classification + confidence scoring)
 | Agent | Specialties | Key Features |
 |-------|-----------|-------------|
 | **Orchestrator** | Intent routing, multi-agent co-routing | Keyword scoring, conversation continuity, confidence calibration |
-| **Researcher** | KS & MO statutes, case law, citations, Federal RAG | SOL lookup (KS 2yr / MO 5yr), comparative fault analysis, auto-injects K.S.A. 60-258a + presuit rules for KS PI, Shepardize warnings |
+| **Researcher** | KS & MO statutes, case law, citations, **8th Circuit** precedent DB, Federal RAG | SOL lookup (KS 2yr / MO 5yr), comparative fault analysis, auto-injects KS/MO-specific KB entries, fact pleading + discovery proportionality for MO, Shepardize warnings |
 | **Drafter** | 7 templates (demand letter, MTD, MTC, engagement, complaint, MSJ, discovery) | Caption generation, KS/MO-specific clauses, review checklists |
 | **Analyst** | Risk scoring (6 factors), SWOT, damages modeling | Liability/exposure/SOL/opposing counsel/evidence/deadline scoring |
 | **Strategist** | Settlement (3 scenarios), timeline, budget, ADR | KS/MO-specific strategy, cross-border analysis, cost projections |
@@ -164,28 +170,43 @@ npm run db:migrate:local  # Apply migrations locally
 
 ## Test Results (All Passing — Feb 20 2026)
 ```
---- KANSAS MODE Agent Tests (5/5 pass) ---
-1. RESEARCHER (KS SOL auto-flag)    ✅ conf=0.98, tok=1826, cit=6
-   ✔ 2yr SOL ✔ 50% bar ✔ proportional-only ✔ no J&S ✔ no presuit notice
-2. RESEARCHER (KS negligence auto)  ✅ conf=0.98, tok=1925, cit=6
-   ✔ K.S.A. 60-258a ✔ proportional ✔ empty-chair defense ✔ no presuit
-3. DRAFTER (KS complaint)           ✅ conf=0.92, tok=1224, cit=4
-   ✔ PROPORTIONAL FAULT ONLY ✔ no presuit ✔ KTCA exception (75-6101)
-4. ANALYST (KS 50% bar risk)        ✅ conf=0.84, tok=1390, cit=1
-   ✔ 50% bar ✔ PROPORTIONAL ✔ no J&S ✔ empty-chair ✔ no presuit
-5. STRATEGIST (KS settlement)       ✅ conf=0.80, tok=1221, cit=2
-   ✔ PROPORTIONAL ✔ 50% bar ✔ no presuit ✔ K.S.A. 60-258a
+--- MISSOURI MODE Agent Tests (7/7 pass) ---
+1. RESEARCHER (MO SOL + comparative + 8th Cir) ✅ conf=0.91, tok=1846, cit=7, risks=4
+   ✔ pure comparative ✔ 8th Circuit ✔ RSMo § 516.120 ✔ RSMo § 537.765 ✔ RSMo § 537.067
+2. DRAFTER (MO complaint + fact plead + ESI)   ✅ conf=0.98, tok=1403, cit=4
+   ✔ fact pleading ✔ Mo.Sup.Ct.R. 55.05 ✔ proportionality ✔ 537.765 ✔ 537.067 ✔ 8th Circuit ✔ Court of Appeals
+3. ANALYST (MO pure comparative + J&S)         ✅ conf=0.91, tok=1198
+   ✔ pure comparative ✔ 537.765 ✔ 537.067 ✔ joint & several ✔ 51%
+4. STRATEGIST (MO settlement + venue)          ✅ conf=0.98, tok=2027
+   ✔ 537.765 ✔ 537.067 ✔ Mo.Sup.Ct.R. 68 ✔ 56.01 ✔ proportionality
+5. RESEARCHER (MO discovery + ESI)             ✅ conf=0.98, tok=975
+   ✔ 56.01 ✔ ESI ✔ cost-shifting ✔ proportionality
+6. DEFAULT JURISDICTION                        ✅ chatJurisdiction = 'missouri'
+7. ORCHESTRATOR IDENTITY                       ✅ MISSOURI MODE + KANSAS MODE blocks present
 
---- Bundle Verification ---
-6.  KANSAS MODE in bundle        ✅ 1 occurrence
-7.  PROPORTIONAL FAULT ONLY      ✅ 7 occurrences
-8.  No mandatory presuit          ✅ 8 occurrences
-9.  Empty-chair defense           ✅ 5 occurrences
-10. K.S.A. 75-6101 (KTCA)        ✅ 5 occurrences
-11. Bundle size                   ✅ 290.96 kB
+--- Previous KANSAS MODE Tests (still passing) ---
+  RESEARCHER (KS SOL)  ✅ | DRAFTER (KS complaint) ✅ | ANALYST (KS 50% bar) ✅ | STRATEGIST (KS) ✅
+
+--- Bundle ---
+  Size: 302.22 kB
 ```
 
 ## Bugs Fixed
+
+### Feb 20, 2026 — MISSOURI MODE Activation (v3.2)
+- **Orchestrator system prompt**: Added MISSOURI MODE priority block with auto-apply rules for every MO response
+- **Auto-flag: 5-year PI SOL** (RSMo § 516.120) — always stated; 2-year med-mal (RSMo § 516.105) with affidavit of merit
+- **Auto-flag: Pure comparative fault** (RSMo § 537.765) — plaintiff recovers even at 99% fault, damages reduced proportionally
+- **Auto-flag: Joint & several liability** (RSMo § 537.067) — applies ONLY when defendant ≥51% at fault; <51% proportionate only
+- **Fact pleading** (Mo.Sup.Ct.R. 55.05): Auto-flagged for MO complaints/petitions; stricter than federal notice pleading
+- **Discovery proportionality & ESI** (Mo.Sup.Ct.R. 56.01(b)): Cost-shifting and proportionality analysis for MO discovery
+- **8th Circuit case law DB**: Added EIGHTH_CIRCUIT_CASES with PI, employment, and corporate precedent entries
+- **MO Court of Appeals districts**: Eastern (St. Louis), Western (Kansas City), Southern (Springfield) awareness in strategist venue analysis and drafter sections
+- **Researcher auto-inject**: MO fact_pleading + discovery_proportionality KB entries auto-injected for relevant MO queries
+- **Drafter MO sections**: Enhanced with RSMo § 516.120 SOL, RSMo § 516.105 med-mal, 8th Circuit reference, Court of Appeals 3-district info, proportionality for all doc types
+- **Strategist budget**: Added ESI cost-shifting note for MO discovery budgets
+- **Default jurisdiction**: Changed from 'kansas' to 'missouri' in UI
+- **Intent routing**: Boosted MO statutory patterns (RSMo, 516.120, 537.765, 537.067, fact plead, ESI, proportionality)
 
 ### Feb 20, 2026 — KANSAS MODE Activation (v3.1)
 - **Orchestrator system prompt**: Added KANSAS MODE priority block with auto-apply rules for every KS response

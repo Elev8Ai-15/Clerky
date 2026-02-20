@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// LAWYRS — ORCHESTRATOR (MAIN AGENT) v3.1
+// LAWYRS — ORCHESTRATOR (MAIN AGENT) v3.2
 // Kansas-Missouri Dual-Jurisdiction Legal AI
 // Routes user queries to specialist agents, assembles context,
 // manages multi-agent workflows, merges responses.
@@ -20,9 +20,9 @@ const SYSTEM_IDENTITY = `You are Lawyrs AI, a world-class senior equity partner 
 You are meticulous, ethical, proactive, and obsessed with accuracy. You act as the lawyer's trusted co-counsel, researcher, analyst, strategist, and drafting partner across Kansas, Missouri, and federal courts.
 
 ══════════════════════════════════════════════
-**KANSAS MODE — PRIMARY JURISDICTION ACTIVE**
+**KANSAS MODE — ACTIVE WHEN JURISDICTION = KANSAS**
 ══════════════════════════════════════════════
-When jurisdiction is Kansas (default), apply these rules AUTOMATICALLY on every response:
+When jurisdiction is Kansas, apply these rules AUTOMATICALLY on every response:
 • K.S.A. (2025–2026 session) — primary statutory authority
 • Kansas Rules of Civil Procedure (K.S.A. Chapter 60) — procedural baseline
 • Kansas Supreme Court, Court of Appeals, District Courts — controlling authority
@@ -31,6 +31,22 @@ When jurisdiction is Kansas (default), apply these rules AUTOMATICALLY on every 
 • AUTO-FLAG: 50% comparative fault bar (K.S.A. 60-258a) — plaintiff BARRED if ≥50% at fault
 • PROPORTIONAL FAULT ONLY: No joint & several liability in Kansas — each defendant liable ONLY for their proportionate share of fault (K.S.A. 60-258a)
 • NO mandatory presuit notice for standard negligence claims (distinguish from Kansas Tort Claims Act which requires 120-day notice for government entities per K.S.A. 75-6101)
+══════════════════════════════════════════════
+
+══════════════════════════════════════════════
+**MISSOURI MODE — ACTIVE WHEN JURISDICTION = MISSOURI**
+══════════════════════════════════════════════
+When jurisdiction is Missouri, apply these rules AUTOMATICALLY on every response:
+• RSMo (2025–2026 session) — primary statutory authority
+• Missouri Supreme Court Rules (esp. discovery proportionality & ESI rules) — procedural baseline
+• Missouri Supreme Court, Court of Appeals (Eastern/Western/Southern Districts), Circuit Courts — controlling authority
+• 8th Circuit precedent — persuasive/binding federal authority
+• AUTO-FLAG: 5-year PI SOL (RSMo § 516.120) — always state deadline; 2-year med-mal (RSMo § 516.105)
+• AUTO-FLAG: PURE comparative fault (RSMo § 537.765) — plaintiff recovers even at 99% fault, reduced proportionally
+• JOINT & SEVERAL LIABILITY: Applies ONLY when defendant is ≥51% at fault (RSMo § 537.067). Defendants <51% liable only for their proportionate share.
+• FACT PLEADING required (Mo.Sup.Ct.R. 55.05) — Missouri requires more specific factual allegations than federal notice pleading
+• DISCOVERY PROPORTIONALITY: Mo.Sup.Ct.R. 56.01(b) imposes unique proportionality and ESI cost-shifting rules
+• Affidavit of merit required for medical malpractice (RSMo § 538.225)
 ══════════════════════════════════════════════
 
 CORE RULES (never break these):
@@ -50,7 +66,10 @@ JURISDICTION-SPECIFIC PRIORITIES (auto-apply based on matter):
 • Kansas Fault Allocation: PROPORTIONAL ONLY — no joint & several liability. Each defendant pays only their proportionate share (K.S.A. 60-258a). Non-party fault allocation permitted (empty-chair defense).
 • Kansas Presuit: No mandatory presuit notice for standard negligence. Government entity claims require 120-day written notice per K.S.A. 75-6101 et seq. (Kansas Tort Claims Act).
 • Missouri Statute of Limitations: 5 years from date injury is ascertainable for most PI/negligence (RSMo § 516.120). Medical malpractice = 2 years. Monitor any future legislative changes.
-• Missouri Comparative Fault: Pure comparative — plaintiff recovers even at 99% fault, reduced by their percentage (RSMo § 537.765 & tort rules). Joint & several only if defendant ≥51% fault (RSMo § 537.067).`
+• Missouri Comparative Fault: Pure comparative — plaintiff recovers even at 99% fault, reduced by their percentage (RSMo § 537.765 & tort rules). Joint & several only if defendant ≥51% fault (RSMo § 537.067).
+• Missouri Fact Pleading: Mo.Sup.Ct.R. 55.05 requires fact pleading (not notice pleading) — more specific factual allegations required than in federal or Kansas courts.
+• Missouri Discovery Proportionality: Mo.Sup.Ct.R. 56.01(b) imposes unique proportionality requirements including ESI cost-shifting analysis.
+• Missouri Court of Appeals: Three districts (Eastern — St. Louis, Western — Kansas City, Southern — Springfield) with distinct caseload patterns.`
 
 // ── Intent classification with confidence scoring ───────────
 function classifyIntent(message: string, history: ChatMessage[]): AgentRoute {
@@ -62,11 +81,15 @@ function classifyIntent(message: string, history: ChatMessage[]): AgentRoute {
   for (const k of researchKeywords) { if (msg.includes(k)) scores.researcher += 3 }
   // Kansas-specific statutory patterns (KANSAS MODE: boosted priority)
   if (msg.match(/k\.?s\.?a\.?\s|kansas\sstatute|chapter\s60|10th\scircuit/i)) scores.researcher += 6
-  // Missouri-specific statutory patterns
-  if (msg.match(/rsmo\s|r\.?s\.?mo\.?\s|missouri\sstatute|missouri\ssupreme\scourt\srule|8th\scircuit/i)) scores.researcher += 5
-  // KANSAS MODE: auto-boost for SOL and comparative fault queries
+  // Missouri-specific statutory patterns (MISSOURI MODE: boosted priority)
+  if (msg.match(/rsmo\s|r\.?s\.?mo\.?\s|missouri\sstatute|missouri\ssupreme\scourt\srule|8th\scircuit/i)) scores.researcher += 6
+  // KS MODE: auto-boost for SOL and comparative fault queries
   if (msg.match(/sol\b|statute\s+of\s+limitation|60-513|2[- ]year/i)) scores.researcher += 4
   if (msg.match(/50%\s*bar|comparative\s+fault|60-258a|proportional\s+fault/i)) scores.researcher += 4
+  // MO MODE: auto-boost for MO-specific SOL, pure comparative, J&S, ESI queries
+  if (msg.match(/516\.120|5[- ]year\s+sol|five[- ]year/i)) scores.researcher += 4
+  if (msg.match(/pure\s+comparative|537\.765|537\.067|joint\s+(and|&)\s+several/i)) scores.researcher += 4
+  if (msg.match(/fact\s+plead|esi\b|proportionality|discovery\s+cost/i)) scores.researcher += 3
   // General legal research patterns
   if (msg.match(/what\s+(is|are)\s+the\s+(law|rule|statute|standard)/i)) scores.researcher += 4
 

@@ -94,10 +94,12 @@ export async function runStrategist(input: AgentInput, llm?: LLMClient, mem0Cont
     }
     if (isMO) {
       content += `**Missouri-Specific Considerations:**\n`
+      content += `- **RSMo § 537.765 — Pure comparative fault** — No bar to recovery; focus on damages reduction, not elimination\n`
+      content += `- **RSMo § 537.067 — Joint & several liability** — Applies ONLY for defendants **≥51% at fault**; target high-fault defendants strategically\n`
+      content += `- Defendants <51% at fault pay proportionate share only — evaluate each defendant's exposure separately\n`
       content += `- **Mo.Sup.Ct.R. 68 — Offer of Judgment** — Strategic fee-shifting considerations\n`
-      content += `- **RSMo § 537.765 — Pure comparative fault** — No bar to recovery; focus on damages reduction\n`
-      content += `- **RSMo § 537.067 — Joint & several liability** — Only for defendants ≥51% at fault; evaluate multi-defendant strategy\n`
-      content += `- **Missouri mediation** — Circuit courts frequently order mediation; consider volunteering early\n\n`
+      content += `- **Missouri mediation** — Circuit courts frequently order mediation; consider volunteering early\n`
+      content += `- **Mo.Sup.Ct.R. 56.01(b)** — Discovery proportionality & ESI cost-shifting rules may affect litigation budget\n\n`
       citations.push({ source: 'statute', reference: 'RSMo § 537.765 (Pure Comparative Fault)', verified: true })
       citations.push({ source: 'rule', reference: 'Mo.Sup.Ct.R. 68 (Offer of Judgment)', verified: true })
     }
@@ -113,10 +115,16 @@ export async function runStrategist(input: AgentInput, llm?: LLMClient, mem0Cont
     content += `| PI SOL | 2 years (K.S.A. 60-513) | 5 years (RSMo § 516.120) |\n`
     content += `| Joint & Several | **No — proportional ONLY** (K.S.A. 60-258a) | Yes, if defendant ≥51% at fault |\n`
     content += `| Presuit Notice | **None** for standard negligence | None for standard negligence |\n`
-    content += `| Pleading Standard | Notice pleading | **Fact pleading** (more specific) |\n`
-    content += `| Discovery Rules | K.S.A. Chapter 60 | Mo.Sup.Ct.R. (unique ESI/proportionality) |\n`
+    content += `| Pleading Standard | Notice pleading | **Fact pleading** (Mo.Sup.Ct.R. 55.05) — stricter |\n`
+    content += `| Discovery Rules | K.S.A. Chapter 60 | Mo.Sup.Ct.R. (unique ESI/proportionality under 56.01(b)) |\n`
+    content += `| Court of Appeals | 1 court | **3 districts** (Eastern/Western/Southern) |\n`
     content += `| Federal Circuit | 10th Circuit | 8th Circuit |\n\n`
     content += `**Recommendation:** For plaintiff-side PI cases, Missouri generally offers advantages (longer SOL, no comparative fault bar, joint & several for high-fault defendants). For defense, Kansas may be more favorable (50% bar eliminates high-fault plaintiffs, proportional-only allocation limits defendant exposure). In Kansas, no presuit notice is needed for standard negligence.\n\n`
+    content += `**Missouri Court of Appeals Districts:**\n`
+    content += `- **Eastern District** (St. Louis) — highest volume, urban caseload\n`
+    content += `- **Western District** (Kansas City) — covers KS-MO border region\n`
+    content += `- **Southern District** (Springfield) — rural/suburban caseload\n`
+    content += `Choose filing venue strategically based on district tendencies and local circuit court practices.\n\n`
   }
 
   // ── Timeline Generation ───────────────────────────────────
@@ -183,6 +191,7 @@ export async function runStrategist(input: AgentInput, llm?: LLMClient, mem0Cont
     }
     if (isMO) {
       content += `*Missouri: Contingency fee structure per Missouri Rule 4-1.5(c). Written agreement required.*\n`
+      content += `*Mo.Sup.Ct.R. 56.01(b) discovery proportionality may reduce or shift ESI costs — factor into discovery budget.*\n`
     }
     content += '\n'
   }

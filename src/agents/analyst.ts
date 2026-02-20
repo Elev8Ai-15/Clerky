@@ -153,10 +153,15 @@ export async function runAnalyst(input: AgentInput, llm?: LLMClient, mem0Context
       content += `**Missouri — Pure Comparative Fault (RSMo § 537.765):**\n`
       content += `- **No bar to recovery** — plaintiff recovers even at 99% fault\n`
       content += `- Damages reduced by plaintiff's percentage of fault\n`
-      content += `- **Joint & several liability** applies only if defendant ≥51% at fault (RSMo § 537.067)\n`
-      content += `- Defendants <51% at fault liable only for proportionate share\n`
-      content += `- **Strategic Impact:** Even high plaintiff fault does not eliminate the claim — focus shifts to damages reduction\n\n`
+      content += `- **Joint & several liability** applies **ONLY** if defendant **≥51% at fault** (RSMo § 537.067)\n`
+      content += `- Defendants **<51% at fault** liable only for proportionate share\n`
+      content += `- **Strategic Impact:** Target individual defendants for ≥51% fault allocation to maximize J&S exposure; pure comparative means even high plaintiff fault does not eliminate the claim\n\n`
+      content += `**Mo.Sup.Ct.R. 55.05 — Fact Pleading Required:**\n`
+      content += `- Missouri requires **fact pleading** (stricter than federal notice pleading)\n`
+      content += `- Must allege ultimate facts, not mere legal conclusions\n`
+      content += `- Dismissal risk under Mo.Sup.Ct.R. 55.27(a)(6) if insufficient\n\n`
       citations.push({ source: 'statute', reference: 'RSMo § 537.765 (Pure Comparative Fault)', url: 'https://revisor.mo.gov/main/OneSection.aspx?section=537.765', verified: true })
+      citations.push({ source: 'statute', reference: 'RSMo § 537.067 (Joint & Several Liability ≥51%)', url: 'https://revisor.mo.gov/main/OneSection.aspx?section=537.067', verified: true })
     }
     if (isKS && isMO) {
       content += `**⚠️ Multi-State Consideration:** Venue/forum selection between KS and MO may significantly impact recovery. Kansas bars at 50%; Missouri allows recovery at any fault level. Evaluate choice-of-law and forum selection carefully.\n\n`
@@ -211,7 +216,10 @@ export async function runAnalyst(input: AgentInput, llm?: LLMClient, mem0Context
       risksFound.push('KS 50% comparative fault bar applies — proportional fault only, no joint & several')
     }
     if (isMO && input.matter.case_type === 'personal_injury') {
-      content += `- **RSMo § 537.067** — Joint & several liability threshold may affect multi-defendant strategy\n`
+      content += `- **RSMo § 537.067** — Joint & several liability for defendants **≥51%** at fault; others pay proportionate only\n`
+      content += `- **Mo.Sup.Ct.R. 55.05** — Fact pleading required; insufficient facts risk dismissal\n`
+      risksFound.push('MO joint & several liability threshold: only defendants ≥51% at fault (RSMo § 537.067)')
+      risksFound.push('MO fact pleading (Mo.Sup.Ct.R. 55.05) — stricter than federal notice pleading')
     }
     content += `- Adverse rulings on dispositive motions\n`
     content += `- Escalating litigation costs exceeding projected budget\n`
