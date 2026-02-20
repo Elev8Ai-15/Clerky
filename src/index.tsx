@@ -172,9 +172,34 @@ function getAppHTML(): string {
     .scrollbar-thin::-webkit-scrollbar { width: 6px; }
     .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
     .ai-glow { box-shadow: 0 0 20px rgba(139, 92, 246, 0.3); }
+    #splash { position: fixed; inset: 0; z-index: 9999; transition: opacity 0.6s ease, visibility 0.6s ease; }
+    #splash.hide { opacity: 0; visibility: hidden; pointer-events: none; }
+    #splash .splash-icon { animation: splashPulse 2s ease-in-out infinite; }
+    @keyframes splashPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.05); opacity: 0.8; } }
+    #splash .splash-bar { width: 200px; height: 3px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; margin: 0 auto; }
+    #splash .splash-bar-fill { height: 100%; background: linear-gradient(90deg, #10b981, #34d399); border-radius: 3px; animation: splashLoad 2s ease-in-out forwards; }
+    @keyframes splashLoad { 0% { width: 0%; } 60% { width: 70%; } 100% { width: 100%; } }
   </style>
 </head>
 <body class="bg-dark-50">
+  <!-- Splash Screen -->
+  <div id="splash" class="min-h-screen bg-slate-950 flex items-center justify-center">
+    <div class="text-center">
+      <div class="splash-icon mb-6">
+        <div class="w-16 h-16 bg-emerald-500/20 rounded-2xl flex items-center justify-center mx-auto border border-emerald-500/30">
+          <i class="fas fa-scale-balanced text-emerald-400 text-2xl"></i>
+        </div>
+      </div>
+      <h1 class="text-4xl font-bold text-white tracking-tight">Lawyrs</h1>
+      <p class="text-emerald-400 mt-2 font-medium">Legal Practice Management</p>
+      <p class="mt-8 text-slate-400 text-sm">AI Assistant &bull; Secure &bull; Built for Lawyers</p>
+      <div class="mt-8">
+        <div class="splash-bar"><div class="splash-bar-fill"></div></div>
+        <p class="mt-3 text-slate-500 text-xs animate-pulse">Initializing platform...</p>
+      </div>
+    </div>
+  </div>
+
   <div id="app" class="flex h-screen overflow-hidden">
     <!-- Sidebar -->
     <aside id="sidebar" class="w-64 bg-dark-900 text-white flex flex-col flex-shrink-0 transition-all duration-300">
@@ -281,11 +306,19 @@ let dbInitialized = false;
 
 // Initialize
 async function init() {
+  const splash = document.getElementById('splash');
   try {
     await axios.get(API + '/init-db');
     dbInitialized = true;
   } catch(e) { console.error('DB init error:', e); }
   navigate('dashboard');
+  // Fade out splash screen
+  setTimeout(() => {
+    if (splash) {
+      splash.classList.add('hide');
+      setTimeout(() => splash.remove(), 600);
+    }
+  }, 400);
 }
 
 function navigate(page) {
