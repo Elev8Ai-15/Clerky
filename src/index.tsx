@@ -529,6 +529,15 @@ async function loadDashboard() {
   try {
     const { data } = await axios.get(API + '/dashboard');
     const d = data;
+    // Cache live dashboard state for /api/crew requests
+    liveDashboardState = {
+      active_cases: d.cases?.active || 0,
+      active_clients: d.clients?.total || 0,
+      pending_tasks: d.tasks?.pending || 0,
+      overdue_tasks: d.tasks?.overdue || 0,
+      total_documents: d.documents?.total || 0,
+      total_events: (d.upcoming_events || []).length
+    };
     document.getElementById('pageContent').innerHTML = \`
       <div class="fade-in">
         <div class="flex items-center justify-between mb-6">
@@ -1083,6 +1092,7 @@ var chatCaseId = null;
 var chatJurisdiction = 'missouri';
 var chatMessages = [];
 var currentMatterContext = null;
+var liveDashboardState = { active_cases: 0, active_clients: 0, pending_tasks: 0, overdue_tasks: 0, total_documents: 0, total_events: 0 };
 
 async function loadAIChat() {
   try {
@@ -1411,11 +1421,27 @@ async function sendChat() {
 
   document.getElementById('chatStatus').textContent = '\u{1F9E0} Processing...';
 
+  // Refresh dashboard state if stale (all zeros = never loaded outside dashboard page)
+  if (liveDashboardState.active_cases === 0 && liveDashboardState.active_clients === 0) {
+    try {
+      const dashRes = await axios.get(API + '/dashboard');
+      const dd = dashRes.data;
+      liveDashboardState = {
+        active_cases: dd.cases?.active || 0,
+        active_clients: dd.clients?.total || 0,
+        pending_tasks: dd.tasks?.pending || 0,
+        overdue_tasks: dd.tasks?.overdue || 0,
+        total_documents: dd.documents?.total || 0,
+        total_events: (dd.upcoming_events || []).length
+      };
+    } catch(e) { /* proceed with stale state */ }
+  }
+
   try {
     const { data } = await axios.post(API + '/ai/crew', {
       query: message,
-      matter_context: chatCaseId ? { case_id: chatCaseId, case_number: document.querySelector('#chatCaseSelect option:checked')?.textContent?.split(' \\u2014')[0] || null } : null,
-      dashboard_state: { active_cases: 6, active_clients: 5 },
+      matter_context: currentMatterContext || (chatCaseId ? { case_id: chatCaseId, case_number: document.querySelector('#chatCaseSelect option:checked')?.textContent?.split(' \\u2014')[0] || null } : null),
+      dashboard_state: liveDashboardState,
       session_id: chatSessionId,
       jurisdiction: chatJurisdiction
     });
@@ -1522,6 +1548,11 @@ async function sendChat() {
           '</div></div>';
 
         // ── 4. Auto-refresh current page if relevant ─────────
+        // Update cached dashboard state immediately with side-effect counts
+        liveDashboardState.total_documents += du.new_documents;
+        liveDashboardState.pending_tasks += du.new_tasks;
+        if (du.event_added) liveDashboardState.total_events++;
+
         if (currentPage === 'dashboard') {
           // Silently reload dashboard stats after a brief delay
           setTimeout(function() { loadDashboard(); }, 1200);
