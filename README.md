@@ -144,19 +144,23 @@ npm run db:migrate:local  # Apply migrations locally
 
 ## Test Results (All Passing — Feb 20 2026)
 ```
-1. RESEARCHER (no case)    ✅ agent=researcher, conf=0.98, tok=1292
-2. DRAFTER (no case)       ✅ agent=drafter, conf=0.98, tok=1042
-3. ANALYST (no case)       ✅ agent=analyst, conf=0.98, tok=1156
-4. STRATEGIST (no case)    ✅ agent=strategist, conf=0.98, tok=1544
-5. RESEARCHER (case_id=1)  ✅ agent=researcher, conf=0.98, tok=1362
-6. DRAFTER (case_id=2)     ✅ agent=drafter, conf=0.98, tok=1210
-7. ANALYST (case_id=1)     ✅ agent=analyst, conf=0.98, tok=1417
-8. STRATEGIST (case_id=3)  ✅ agent=strategist, conf=0.98, tok=1845
-9. MEMORY endpoints        ✅ 16 entries
-10. SESSIONS               ✅ 20 active sessions
-11. STATS                  ✅ 34 ops, 69k tokens
+--- Agent Tests ---
+1. RESEARCHER (no case)    ✅ conf=0.98, tok=1302, cit=4
+2. DRAFTER (case_id=2)     ✅ conf=0.98, tok=1425, cit=3
+3. ANALYST (case_id=1)     ✅ conf=0.98, tok=1648, cit=0
+4. STRATEGIST (case_id=3)  ✅ conf=0.98, tok=1611, cit=2
+
+--- E2E Chat Flow ---
+5. Send (no case)          ✅ researcher, conf=0.98
+6. Send (case_id=1)        ✅ drafter, conf=0.95
+7. History (4 messages)    ✅
+8. Delete session          ✅
+9. History after delete    ✅ 0 messages
+
+--- API Endpoints ---
+10. MEMORY endpoints       ✅ 22 entries
+11. STATS                  ✅ 43 ops, 80k tokens
 12. AGENTS INFO            ✅ v3.0.0, 5 agents
-13. WORKFLOW RUN            ✅ status=success
 ```
 
 ## Bugs Fixed (Feb 20 2026)
@@ -164,6 +168,10 @@ npm run db:migrate:local  # Apply migrations locally
 - **Memory column mismatch**: D1 `agent_memory` table uses `memory_key`/`memory_value` columns but code expected `key`/`value` — added safe column mapping in `assembleMatterContext`
 - **Null-safety in formatMatterContext**: Added null-safe access for `.substring()` calls on memory entries to prevent crashes when prior research/analysis values are undefined
 - **Error handling**: Added try/catch wrapper to `POST /api/ai/chat` to return structured JSON errors instead of bare 500s
+- **Dynamic Tailwind classes**: Replaced string-concatenated badge classes (`'bg-'+ac+'-950'`) with static class lookups via `agentStyles`/`confStyles` maps — CDN Tailwind requires full class names to exist in the source
+- **renderMarkdown code-block ordering**: Fixed regex precedence bug where `\n` → `<br>` conversion ran before code-block extraction, mangling `<pre>` blocks. Code blocks and inline code are now extracted first, text processed, then restored
+- **shadcn/ui design system**: Added CSS variables (HSL tokens), component classes (Button, Card, Badge, Input, Tabs, Avatar, Tooltip, ScrollArea, Separator, Toast/Sonner) without React dependency
+- **Chat UI rewrite**: Ported React AI Assistant patch to vanilla JS — dark-mode slate-950 chat, matter context bar, orchestration step animation, citation/risk rendering, prompt chips with 8 legal actions
 
 ## Deployment
 - **Platform**: Cloudflare Pages
