@@ -258,6 +258,10 @@ function getAppHTML(): string {
           <i class="fas fa-receipt w-5 text-center"></i> Billing
         </a>
         <div class="px-4 mt-6 mb-2 text-xs font-semibold text-dark-500 uppercase tracking-wider">AI Tools</div>
+        <a onclick="navigate('ai-chat')" class="sidebar-link flex items-center gap-3 px-6 py-3 cursor-pointer text-sm" data-page="ai-chat">
+          <i class="fas fa-scale-balanced w-5 text-center text-emerald-400"></i> <span class="text-emerald-300">AI Co-Counsel</span>
+          <span class="ml-auto bg-emerald-600 text-white text-xs px-2 py-0.5 rounded-full">Live</span>
+        </a>
         <a onclick="navigate('ai-workflow')" class="sidebar-link flex items-center gap-3 px-6 py-3 cursor-pointer text-sm" data-page="ai-workflow">
           <i class="fas fa-robot w-5 text-center text-purple-400"></i> <span class="text-purple-300">AI Workflow</span>
           <span class="ml-auto bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full">8 Agents</span>
@@ -290,8 +294,8 @@ function getAppHTML(): string {
           </div>
         </div>
         <div class="flex items-center gap-4">
-          <button onclick="navigate('ai-workflow')" class="btn bg-purple-50 text-purple-700 hover:bg-purple-100 flex items-center gap-2">
-            <i class="fas fa-wand-magic-sparkles"></i> AI Assistant
+          <button onclick="navigate('ai-chat')" class="btn bg-emerald-50 text-emerald-700 hover:bg-emerald-100 flex items-center gap-2">
+            <i class="fas fa-scale-balanced"></i> AI Co-Counsel
           </button>
           <button onclick="loadNotifications()" class="relative text-dark-400 hover:text-dark-600 p-2">
             <i class="fas fa-bell text-lg"></i>
@@ -347,7 +351,7 @@ function navigate(page) {
   if (link) link.classList.add('active');
   document.getElementById('pageContent').innerHTML = '<div class="flex items-center justify-center h-32"><i class="fas fa-spinner fa-spin text-brand-500 text-xl mr-3"></i> Loading...</div>';
   
-  const pages = { dashboard: loadDashboard, cases: loadCases, clients: loadClients, documents: loadDocuments, calendar: loadCalendar, tasks: loadTasks, billing: loadBilling, 'ai-workflow': loadAIWorkflow, intake: loadIntake };
+  const pages = { dashboard: loadDashboard, cases: loadCases, clients: loadClients, documents: loadDocuments, calendar: loadCalendar, tasks: loadTasks, billing: loadBilling, 'ai-chat': loadAIChat, 'ai-workflow': loadAIWorkflow, intake: loadIntake };
   if (pages[page]) pages[page]();
 }
 
@@ -909,6 +913,258 @@ async function loadBilling() {
 }
 
 // === AI WORKFLOW ===
+// === AI CO-COUNSEL CHAT ===
+let chatSessionId = 'session_' + Date.now();
+let chatJurisdiction = 'florida';
+let chatCaseId = null;
+
+async function loadAIChat() {
+  try {
+    const [casesRes, historyRes] = await Promise.all([
+      axios.get(API + '/cases'),
+      axios.get(API + '/ai/chat/history?session_id=' + chatSessionId)
+    ]);
+    const cases = casesRes.data.cases;
+    const messages = historyRes.data.messages || [];
+
+    document.getElementById('pageContent').innerHTML = \`
+      <div class="fade-in flex flex-col h-full" style="max-height:calc(100vh - 80px)">
+        <!-- Chat Header -->
+        <div class="flex items-center justify-between mb-4 flex-shrink-0">
+          <div class="flex items-center gap-3">
+            <div class="w-11 h-11 bg-emerald-100 rounded-xl flex items-center justify-center">
+              <i class="fas fa-scale-balanced text-emerald-600 text-lg"></i>
+            </div>
+            <div>
+              <h2 class="text-xl font-bold text-dark-900">Lawyrs AI Co-Counsel</h2>
+              <p class="text-dark-500 text-xs">Senior Partner \u2022 25+ Years \u2022 All US Jurisdictions \u2022 FL Bar Member</p>
+            </div>
+            <div class="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse ml-2"></div>
+          </div>
+          <div class="flex items-center gap-3">
+            <select id="chatJurisdiction" onchange="chatJurisdiction=this.value" class="text-sm py-1.5 px-3 w-auto bg-dark-50">
+              <option value="florida" selected>\uD83C\uDDFA\uD83C\uDDF8 Florida</option>
+              <option value="federal">\uD83C\uDFDB\uFE0F US Federal</option>
+              <option value="multistate">\uD83D\uDDFA\uFE0F Multi-state</option>
+            </select>
+            <select id="chatCaseSelect" onchange="chatCaseId=this.value||null" class="text-sm py-1.5 px-3 w-auto bg-dark-50">
+              <option value="">No matter selected</option>
+              \${cases.map(c => '<option value="'+c.id+'">'+c.case_number+' \u2014 '+c.title+'</option>').join('')}
+            </select>
+            <button onclick="clearChat()" class="btn btn-secondary text-xs"><i class="fas fa-trash-can mr-1"></i>Clear</button>
+          </div>
+        </div>
+
+        <!-- Chat Messages -->
+        <div id="chatMessages" class="flex-1 overflow-y-auto space-y-4 pr-2 scrollbar-thin" style="min-height:0">
+          \${messages.length > 0 ? messages.map(m => renderChatMessage(m)).join('') : \`
+            <div class="text-center py-12">
+              <div class="w-20 h-20 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-emerald-200">
+                <i class="fas fa-scale-balanced text-emerald-500 text-3xl"></i>
+              </div>
+              <h3 class="text-lg font-bold text-dark-800 mb-2">Welcome to Lawyrs AI</h3>
+              <p class="text-dark-500 text-sm max-w-lg mx-auto mb-6">I'm your AI co-counsel \u2014 a senior equity partner with 25+ years across all US jurisdictions. I can research, draft, analyze, and strategize. What are we working on?</p>
+              <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 max-w-2xl mx-auto">
+                <button onclick="sendQuickChat('Research Florida statute of limitations for personal injury claims')" class="card p-3 text-left hover:border-emerald-300 cursor-pointer">
+                  <i class="fas fa-magnifying-glass text-emerald-500 text-sm mb-1"></i>
+                  <p class="text-xs font-medium text-dark-700">FL SOL Research</p>
+                  <p class="text-xs text-dark-400">Personal injury</p>
+                </button>
+                <button onclick="sendQuickChat('Draft a motion to compel discovery responses in Florida')" class="card p-3 text-left hover:border-emerald-300 cursor-pointer">
+                  <i class="fas fa-file-pen text-emerald-500 text-sm mb-1"></i>
+                  <p class="text-xs font-medium text-dark-700">Draft Motion</p>
+                  <p class="text-xs text-dark-400">Compel discovery</p>
+                </button>
+                <button onclick="sendQuickChat('Analyze the risks and strategy for a wrongful termination case in Florida')" class="card p-3 text-left hover:border-emerald-300 cursor-pointer">
+                  <i class="fas fa-brain text-emerald-500 text-sm mb-1"></i>
+                  <p class="text-xs font-medium text-dark-700">Risk Analysis</p>
+                  <p class="text-xs text-dark-400">Wrongful termination</p>
+                </button>
+                <button onclick="sendQuickChat('What are the Florida Bar rules for contingency fee agreements?')" class="card p-3 text-left hover:border-emerald-300 cursor-pointer">
+                  <i class="fas fa-receipt text-emerald-500 text-sm mb-1"></i>
+                  <p class="text-xs font-medium text-dark-700">Fee Rules</p>
+                  <p class="text-xs text-dark-400">Contingency fees</p>
+                </button>
+              </div>
+            </div>
+          \`}
+        </div>
+
+        <!-- Chat Input -->
+        <div class="flex-shrink-0 pt-4 border-t border-dark-200 mt-4">
+          <div class="flex gap-3">
+            <div class="flex-1 relative">
+              <textarea id="chatInput" rows="2" placeholder="Ask Lawyrs AI anything \u2014 research, draft, analyze, strategize..." class="w-full resize-none pr-12" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
+              <div class="absolute right-2 bottom-2 text-xs text-dark-400">Shift+Enter for new line</div>
+            </div>
+            <button onclick="sendChat()" id="chatSendBtn" class="btn bg-emerald-600 text-white hover:bg-emerald-700 self-end px-5 py-3">
+              <i class="fas fa-paper-plane"></i>
+            </button>
+          </div>
+          <div class="flex items-center justify-between mt-2 text-xs text-dark-400">
+            <div><i class="fas fa-shield-check text-emerald-500 mr-1"></i>Confidential \u2022 Attorney Work Product \u2022 Privileged</div>
+            <div id="chatStatus"></div>
+          </div>
+        </div>
+      </div>
+    \`;
+
+    // Scroll to bottom
+    const container = document.getElementById('chatMessages');
+    if (container) container.scrollTop = container.scrollHeight;
+  } catch(e) { showError('AI Chat'); }
+}
+
+function renderChatMessage(m) {
+  if (m.role === 'user') {
+    return \`
+      <div class="flex justify-end">
+        <div class="bg-brand-600 text-white rounded-2xl rounded-tr-sm px-5 py-3 max-w-2xl">
+          <p class="text-sm whitespace-pre-wrap">\${escapeHtml(m.content)}</p>
+          <p class="text-xs opacity-60 mt-1 text-right">\${formatTime(m.created_at)}</p>
+        </div>
+      </div>\`;
+  } else {
+    return \`
+      <div class="flex gap-3">
+        <div class="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
+          <i class="fas fa-scale-balanced text-emerald-600 text-xs"></i>
+        </div>
+        <div class="card px-5 py-4 max-w-4xl flex-1 border-emerald-100">
+          \${m.agent_type ? '<div class="flex items-center gap-2 mb-2"><span class="badge bg-emerald-100 text-emerald-700 text-xs"><i class="fas fa-robot mr-1"></i>'+m.agent_type+' agent</span>' + (m.tokens_used ? '<span class="text-xs text-dark-400">'+m.tokens_used+' tokens</span>' : '') + '</div>' : ''}
+          <div class="text-sm text-dark-700 prose-sm ai-response">\${renderMarkdown(m.content)}</div>
+          <p class="text-xs text-dark-400 mt-2">\${formatTime(m.created_at)}</p>
+        </div>
+      </div>\`;
+  }
+}
+
+function renderMarkdown(text) {
+  if (!text) return '';
+  return text
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/^## (.+)$/gm, '<h3 class="text-base font-bold text-dark-900 mt-3 mb-2">$1</h3>')
+    .replace(/^### (.+)$/gm, '<h4 class="text-sm font-semibold text-dark-800 mt-2 mb-1">$1</h4>')
+    .replace(/\\*\\*(.+?)\\*\\*/g, '<strong class="font-semibold text-dark-900">$1</strong>')
+    .replace(/\\*(.+?)\\*/g, '<em>$1</em>')
+    .replace(/^- \\[ \\] (.+)$/gm, '<div class="flex items-center gap-2 ml-2 my-0.5"><input type="checkbox" disabled class="rounded"><span class="text-sm">$1</span></div>')
+    .replace(/^- (.+)$/gm, '<div class="flex items-start gap-2 ml-2 my-0.5"><span class="text-emerald-500 mt-0.5">\u2022</span><span>$1</span></div>')
+    .replace(/^\\d+\\. (.+)$/gm, '<div class="ml-2 my-0.5"><span>$1</span></div>')
+    .replace(/\\| (.+)/g, '<div class="font-mono text-xs bg-dark-50 px-2 py-0.5 rounded my-0.5">$1</div>')
+    .replace(/\\[(.+?)\\]\\((.+?)\\)/g, '<a href="$2" target="_blank" class="text-brand-600 underline">$1</a>')
+    .replace(/---/g, '<hr class="my-3 border-dark-200">')
+    .replace(/\\n/g, '<br>')
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+async function sendChat() {
+  const input = document.getElementById('chatInput');
+  const message = input.value.trim();
+  if (!message) return;
+
+  const container = document.getElementById('chatMessages');
+  const statusEl = document.getElementById('chatStatus');
+  const sendBtn = document.getElementById('chatSendBtn');
+
+  // Clear welcome screen if first message
+  if (container.querySelector('.text-center.py-12')) container.innerHTML = '';
+
+  // Add user message
+  container.innerHTML += \`
+    <div class="flex justify-end fade-in">
+      <div class="bg-brand-600 text-white rounded-2xl rounded-tr-sm px-5 py-3 max-w-2xl">
+        <p class="text-sm whitespace-pre-wrap">\${escapeHtml(message)}</p>
+        <p class="text-xs opacity-60 mt-1 text-right">Just now</p>
+      </div>
+    </div>\`;
+
+  input.value = '';
+  input.focus();
+  container.scrollTop = container.scrollHeight;
+
+  // Show typing indicator
+  const typingId = 'typing_' + Date.now();
+  container.innerHTML += \`
+    <div id="\${typingId}" class="flex gap-3 fade-in">
+      <div class="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
+        <i class="fas fa-scale-balanced text-emerald-600 text-xs"></i>
+      </div>
+      <div class="card px-5 py-4 border-emerald-100">
+        <div class="flex items-center gap-2">
+          <div class="flex gap-1">
+            <div class="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style="animation-delay:0ms"></div>
+            <div class="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style="animation-delay:150ms"></div>
+            <div class="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style="animation-delay:300ms"></div>
+          </div>
+          <span class="text-xs text-dark-400">Lawyrs AI is analyzing...</span>
+        </div>
+      </div>
+    </div>\`;
+  container.scrollTop = container.scrollHeight;
+
+  statusEl.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Processing...';
+  sendBtn.disabled = true;
+
+  try {
+    const { data } = await axios.post(API + '/ai/chat', {
+      message,
+      session_id: chatSessionId,
+      case_id: chatCaseId,
+      jurisdiction: chatJurisdiction
+    });
+
+    // Remove typing indicator
+    const typingEl = document.getElementById(typingId);
+    if (typingEl) typingEl.remove();
+
+    // Add AI response
+    container.innerHTML += \`
+      <div class="flex gap-3 fade-in">
+        <div class="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
+          <i class="fas fa-scale-balanced text-emerald-600 text-xs"></i>
+        </div>
+        <div class="card px-5 py-4 max-w-4xl flex-1 border-emerald-100">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="badge bg-emerald-100 text-emerald-700 text-xs"><i class="fas fa-robot mr-1"></i>\${data.agent_used} agent</span>
+            <span class="text-xs text-dark-400">\${data.tokens_used} tokens \u2022 \${data.jurisdiction}</span>
+          </div>
+          <div class="text-sm text-dark-700 ai-response">\${renderMarkdown(data.content)}</div>
+          <p class="text-xs text-dark-400 mt-2">Just now</p>
+        </div>
+      </div>\`;
+
+    statusEl.innerHTML = '<i class="fas fa-check text-emerald-500 mr-1"></i>Response received \u2022 ' + data.tokens_used + ' tokens';
+    container.scrollTop = container.scrollHeight;
+  } catch(e) {
+    const typingEl = document.getElementById(typingId);
+    if (typingEl) typingEl.remove();
+    container.innerHTML += '<div class="text-center py-4"><p class="text-red-500 text-sm">Error getting response. <button onclick="sendChat()" class="underline">Retry</button></p></div>';
+    statusEl.innerHTML = '<i class="fas fa-exclamation-triangle text-red-500 mr-1"></i>Error';
+  }
+
+  sendBtn.disabled = false;
+}
+
+function sendQuickChat(message) {
+  document.getElementById('chatInput').value = message;
+  sendChat();
+}
+
+async function clearChat() {
+  if (!confirm('Clear all chat history for this session?')) return;
+  try {
+    await axios.delete(API + '/ai/chat/' + chatSessionId);
+    chatSessionId = 'session_' + Date.now();
+    loadAIChat();
+  } catch(e) {}
+}
+
+// === AI WORKFLOW (existing) ===
 async function loadAIWorkflow() {
   try {
     const [statsRes, logsRes, casesRes] = await Promise.all([
