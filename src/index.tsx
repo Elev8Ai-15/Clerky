@@ -1077,104 +1077,114 @@ async function loadBilling() {
   } catch(e) { showError('billing'); }
 }
 
-// === AI CO-COUNSEL CHAT ===
+// === AI CO-COUNSEL CHAT (Dark Mode — ported from React patch) ===
 var chatSessionId = 'session_' + Date.now();
 var chatCaseId = null;
 var chatJurisdiction = 'florida';
 var chatMessages = [];
+var currentMatterContext = null;
 
 async function loadAIChat() {
   try {
     const casesRes = await axios.get(API + '/cases');
-    const cases = casesRes.data.cases;
+    const cases = casesRes.data.cases || [];
     let historyRes;
     try { historyRes = await axios.get(API + '/ai/chat/history?session_id=' + chatSessionId); } catch(e) { historyRes = { data: { messages: [] } }; }
     chatMessages = historyRes.data.messages || [];
 
+    // Resolve current matter context for the context bar
+    if (chatCaseId) {
+      const match = cases.find(c => c.id == chatCaseId);
+      if (match) currentMatterContext = match;
+    }
+    const ctx = currentMatterContext;
+
     document.getElementById('pageContent').innerHTML = \`
-      <div class="fade-in flex flex-col h-full" style="max-height:calc(100vh - 73px)">
-        <!-- Chat Header -->
-        <div class="flex items-center justify-between pb-4 border-b border-dark-200 flex-shrink-0">
+      <div class="fade-in flex flex-col h-full rounded-xl overflow-hidden border border-slate-700" style="max-height:calc(100vh - 73px); background: #020617;">
+        <!-- Header -->
+        <div class="p-4 border-b border-slate-800 flex items-center justify-between" style="background:#0f172a">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-bold">\u2696\uFE0F</div>
+            <div class="w-9 h-9 bg-emerald-500 rounded-2xl flex items-center justify-center text-white">
+              <i class="fas fa-robot text-sm"></i>
+            </div>
             <div>
-              <h2 class="text-lg font-bold text-dark-900 flex items-center gap-2">Lawyrs AI Co-Counsel <span class="w-2 h-2 bg-emerald-500 rounded-full inline-block"></span></h2>
-              <p class="text-xs text-dark-400">Senior Partner \u2022 25+ yrs \u2022 FL Bar \u2022 All US Jurisdictions</p>
+              <div class="font-semibold text-white flex items-center gap-2">Lawyrs AI Partner <span class="w-2 h-2 bg-emerald-400 rounded-full inline-block"></span></div>
+              <div class="text-xs text-emerald-400 flex items-center gap-1">
+                <i class="fas fa-diagram-project text-[10px]"></i> 4 specialist agents \u2022 \${chatJurisdiction === 'florida' ? 'Florida' : chatJurisdiction === 'federal' ? 'Federal' : 'Multi-state'} jurisdiction
+              </div>
             </div>
           </div>
-          <div class="flex items-center gap-3">
-            <select id="chatJurisdiction" onchange="chatJurisdiction=this.value" class="text-xs py-1.5 px-3 w-auto rounded-lg bg-dark-50 border-dark-200">
-              <option value="florida" \${chatJurisdiction==='florida'?'selected':''}>🇺🇸 Florida</option>
-              <option value="federal" \${chatJurisdiction==='federal'?'selected':''}>🏛️ US Federal</option>
-              <option value="multistate" \${chatJurisdiction==='multistate'?'selected':''}>🗺️ Multi-state</option>
-            </select>
-            <select id="chatCaseSelect" onchange="chatCaseId=this.value||null" class="text-xs py-1.5 px-3 w-auto rounded-lg bg-dark-50 border-dark-200" style="max-width:220px">
+          <div class="flex items-center gap-2">
+            <select id="chatCaseSelect" onchange="chatCaseId=this.value||null;updateMatterBar()" class="text-xs py-1.5 px-3 w-auto rounded-lg border-slate-700 text-slate-300" style="background:#1e293b; max-width:260px; border:1px solid #334155">
               <option value="">No matter selected</option>
-              \${cases.map(c => '<option value="'+c.id+'" '+(chatCaseId==c.id?'selected':'')+'>'+c.case_number+' — '+c.title.substring(0,30)+'</option>').join('')}
+              \${cases.map(c => '<option value="'+c.id+'" '+(chatCaseId==c.id?'selected':'')+'>'+c.case_number+' \u2014 '+c.title.substring(0,35)+'</option>').join('')}
             </select>
-            <button onclick="clearChat()" class="btn btn-secondary text-xs py-1.5"><i class="fas fa-trash-alt mr-1"></i>Clear</button>
+            <select id="chatJurisdiction" onchange="chatJurisdiction=this.value" class="text-xs py-1.5 px-3 w-auto rounded-lg border-slate-700 text-slate-300" style="background:#1e293b; border:1px solid #334155">
+              <option value="florida" \${chatJurisdiction==='florida'?'selected':''}>Florida</option>
+              <option value="federal" \${chatJurisdiction==='federal'?'selected':''}>Federal</option>
+              <option value="multistate" \${chatJurisdiction==='multistate'?'selected':''}>Multi-state</option>
+            </select>
+            <button onclick="clearChat()" class="btn btn-ghost btn-sm text-slate-400 hover:text-white" title="Clear chat"><i class="fas fa-trash-alt"></i></button>
           </div>
         </div>
 
-        <!-- Chat Messages -->
-        <div id="chatMessages" class="flex-1 overflow-y-auto py-4 space-y-4 scrollbar-thin">
+        <!-- Matter Context Bar -->
+        <div id="matterBar" class="px-4 py-2 border-b border-slate-800 flex items-center gap-4 text-xs text-slate-500" style="background:#0f172a; \${ctx ? '' : 'display:none'}">
+          \${ctx ? \`
+            <div>Matter: <span class="text-white font-medium">\${ctx.case_number}</span></div>
+            <div class="separator-vertical" style="height:12px; width:1px; background:#334155"></div>
+            <div>Client: <span class="text-white">\${ctx.client_name || ctx.title?.split(' v.')[0] || '-'}</span></div>
+            <div class="separator-vertical" style="height:12px; width:1px; background:#334155"></div>
+            <div>Type: <span class="text-white">\${ctx.case_type || '-'}</span></div>
+            <div class="separator-vertical" style="height:12px; width:1px; background:#334155"></div>
+            <div class="flex items-center gap-1"><i class="fas fa-clock text-[10px]"></i> Filed: \${ctx.date_filed || 'N/A'}</div>
+            \${ctx.status ? '<span class="badge badge-outline text-[10px] text-emerald-400 border-emerald-800">'+ctx.status+'</span>' : ''}
+          \` : ''}
+        </div>
+
+        <!-- Prompt Chips -->
+        <div class="px-4 py-3 border-b border-slate-800" style="background:#0f172a">
+          <div class="text-[10px] uppercase tracking-widest text-slate-600 mb-2 font-semibold">Quick legal actions</div>
+          <div class="flex flex-wrap gap-1.5">
+            <button onclick="injectChip('Research Florida case law on comparative negligence with citations and key holdings')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all" style="background:#1e293b; border-color:#334155">\u2696\uFE0F Research case law</button>
+            <button onclick="injectChip('Draft a demand letter under Florida law based on the current matter facts')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all" style="background:#1e293b; border-color:#334155">\uD83D\uDCDD Draft demand letter</button>
+            <button onclick="injectChip('Confirm statute of limitations for this claim in Florida and flag any risks')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all" style="background:#1e293b; border-color:#334155">\u23F0 SOL check</button>
+            <button onclick="injectChip('Analyze for inconsistencies, risks, and impeachment opportunities')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all" style="background:#1e293b; border-color:#334155">\uD83D\uDD0D Deposition analysis</button>
+            <button onclick="injectChip('Provide full risk assessment and 3 settlement strategy options with expected value calculations')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all" style="background:#1e293b; border-color:#334155">\uD83D\uDCCA Risk & settlement</button>
+            <button onclick="injectChip('Generate complete matter timeline with all Florida Rules of Civil Procedure deadlines')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all" style="background:#1e293b; border-color:#334155">\uD83D\uDCC5 Build timeline</button>
+            <button onclick="injectChip('Create motion to dismiss with supporting authorities')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all" style="background:#1e293b; border-color:#334155">\uD83D\uDCDD Motion to Dismiss</button>
+            <button onclick="injectChip('What am I missing? Give proactive recommendations for this matter')" class="text-xs py-1 px-3 rounded-full border font-semibold text-emerald-400 hover:bg-emerald-950 transition-all" style="background:#1e293b; border-color:#065f46">\uD83C\uDFAF What am I missing?</button>
+          </div>
+        </div>
+
+        <!-- Chat Messages (scroll area) -->
+        <div id="chatMessages" class="flex-1 overflow-y-auto p-4 space-y-5" style="scrollbar-width:thin; scrollbar-color:#334155 transparent">
           \${chatMessages.length === 0 ? \`
             <div class="flex flex-col items-center justify-center h-full text-center">
-              <div class="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mb-4 border border-emerald-200">
-                <i class="fas fa-scale-balanced text-emerald-500 text-2xl"></i>
+              <div class="w-14 h-14 bg-emerald-950 rounded-2xl flex items-center justify-center mb-4 border border-emerald-800">
+                <i class="fas fa-scale-balanced text-emerald-400 text-xl"></i>
               </div>
-              <h3 class="text-lg font-bold text-dark-800 mb-1">Lawyrs AI Co-Counsel</h3>
-              <p class="text-dark-400 text-sm max-w-md mb-2">Your always-on senior partner, researcher, analyst & drafter. Ask anything or use the quick actions below.</p>
-              <div class="flex items-center gap-4 text-xs text-dark-400 mt-1">
+              <h3 class="text-lg font-bold text-white mb-1">Lawyrs AI Co-Counsel</h3>
+              <p class="text-slate-400 text-sm max-w-md mb-3">Your always-on senior partner. I have full context on your matters \u2014 research, draft, analyze, or strategize.</p>
+              <div class="flex items-center gap-4 text-xs text-slate-500">
                 <span>\uD83D\uDD12 Privileged & Confidential</span>
                 <span>\u2696\uFE0F FL Bar Member</span>
-                <span>\uD83E\uDDE0 8 AI Agents</span>
+                <span>\uD83E\uDDE0 4 AI Agents</span>
               </div>
             </div>
           \` : chatMessages.map(m => renderChatMessage(m)).join('')}
         </div>
 
-        <!-- Quick Action Chips -->
-        <div id="chatChips" class="flex-shrink-0 border-t border-dark-200 pt-3 pb-2">
-          <div class="flex items-center gap-1.5 mb-1.5">
-            <span class="text-xs font-semibold text-dark-400 uppercase tracking-wider mr-1">\uD83D\uDD0D Research</span>
-            <button onclick="injectChip('Research Florida case law on [issue] with citations and key holdings')" class="chip">Case Law</button>
-            <button onclick="injectChip('Find statute of limitations for [claim type] in Florida')" class="chip">SOL Lookup</button>
-            <button onclick="injectChip('Compare strengths and weaknesses of our position vs opposing party')" class="chip">Compare</button>
-          </div>
-          <div class="flex items-center gap-1.5 mb-1.5">
-            <span class="text-xs font-semibold text-dark-400 uppercase tracking-wider mr-1">\u{1F4DD} Drafting</span>
-            <button onclick="injectChip('Draft a demand letter under Florida law based on the current matter facts')" class="chip">Demand Letter</button>
-            <button onclick="injectChip('Create motion to dismiss with supporting authorities')" class="chip">Motion to Dismiss</button>
-            <button onclick="injectChip('Draft client engagement letter with Florida-specific clauses')" class="chip">Engagement Letter</button>
-          </div>
-          <div class="flex items-center gap-1.5 mb-1.5">
-            <span class="text-xs font-semibold text-dark-400 uppercase tracking-wider mr-1">\u{1F9E0} Analysis</span>
-            <button onclick="injectChip('Risk assessment: analyze strengths and weaknesses of our case')" class="chip">Risk Assessment</button>
-            <button onclick="injectChip('Review for Florida enforceability issues and flag risks')" class="chip">Enforceability</button>
-            <button onclick="injectChip('Analyze for inconsistencies, risks, and impeachment opportunities')" class="chip">Depo Analysis</button>
-          </div>
-          <div class="flex items-center gap-1.5">
-            <span class="text-xs font-semibold text-dark-400 uppercase tracking-wider mr-1">\u{1F3AF} Strategy</span>
-            <button onclick="injectChip('Propose 3 settlement strategies with pros and cons for each')" class="chip">Settlement</button>
-            <button onclick="injectChip('Generate timeline and deadline calendar for this matter')" class="chip">Timeline</button>
-            <button onclick="injectChip('What am I missing? Give proactive recommendations for this matter')" class="chip chip-glow">What Am I Missing?</button>
-          </div>
-        </div>
-
-        <!-- Chat Input -->
-        <div class="flex-shrink-0 border-t border-dark-200 pt-3 pb-1">
-          <div class="flex gap-2">
-            <div class="flex-1 relative">
-              <textarea id="chatInput" rows="2" placeholder="Ask Lawyrs AI anything — research, draft, analyze, strategize..." class="w-full pr-12 resize-none" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
-              <div class="absolute right-2 bottom-2 text-xs text-dark-400" id="chatJxLabel">\uD83C\uDDFA\uD83C\uDDF8 FL</div>
-            </div>
-            <button onclick="sendChat()" id="chatSendBtn" class="btn bg-emerald-600 text-white hover:bg-emerald-700 self-end px-5 h-[52px]">
-              <i class="fas fa-paper-plane"></i>
+        <!-- Input Area -->
+        <div class="p-4 border-t border-slate-800" style="background:#0f172a">
+          <div class="relative">
+            <textarea id="chatInput" rows="2" placeholder="Ask anything \u2014 draft motion, analyze risk, research precedent..." class="w-full pr-14 resize-none text-slate-200 placeholder-slate-500" style="background:#020617; border:1px solid #334155; min-height:52px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
+            <button onclick="sendChat()" id="chatSendBtn" class="btn btn-sm absolute right-2 bottom-2 bg-emerald-600 hover:bg-emerald-500 text-white" style="width:36px;height:36px;padding:0">
+              <i class="fas fa-paper-plane text-sm"></i>
             </button>
           </div>
-          <div class="flex items-center justify-between mt-2 text-xs text-dark-400">
-            <span>\uD83D\uDD12 All communications are privileged and confidential</span>
+          <div class="flex items-center justify-between mt-2 text-[10px] text-slate-500">
+            <span>All responses are logged \u2022 Human review recommended \u2022 Not legal advice</span>
             <span id="chatStatus"></span>
           </div>
         </div>
@@ -1184,70 +1194,146 @@ async function loadAIChat() {
   } catch(e) { showError('AI Co-Counsel'); }
 }
 
+function updateMatterBar() {
+  // Re-fetch matter context when case selection changes
+  if (chatCaseId) {
+    axios.get(API + '/cases/' + chatCaseId).then(res => {
+      currentMatterContext = res.data;
+      const bar = document.getElementById('matterBar');
+      if (bar) {
+        bar.style.display = 'flex';
+        const c = res.data;
+        bar.innerHTML = \`
+          <div>Matter: <span class="text-white font-medium">\${c.case_number || '-'}</span></div>
+          <div style="height:12px; width:1px; background:#334155"></div>
+          <div>Client: <span class="text-white">\${c.client_name || '-'}</span></div>
+          <div style="height:12px; width:1px; background:#334155"></div>
+          <div>Type: <span class="text-white">\${c.case_type || '-'}</span></div>
+          <div style="height:12px; width:1px; background:#334155"></div>
+          <div class="flex items-center gap-1"><i class="fas fa-clock text-[10px]"></i> Filed: \${c.date_filed || 'N/A'}</div>
+          \${c.status ? '<span class="badge badge-outline text-[10px] text-emerald-400 border-emerald-800">'+c.status+'</span>' : ''}
+        \`;
+      }
+    }).catch(() => {});
+  } else {
+    currentMatterContext = null;
+    const bar = document.getElementById('matterBar');
+    if (bar) bar.style.display = 'none';
+  }
+}
+
 function renderChatMessage(m) {
   if (m.role === 'user') {
-    return \`<div class="flex justify-end"><div class="bg-brand-600 text-white rounded-2xl rounded-br-md px-5 py-3 max-w-[75%] shadow-sm">
-      <p class="text-sm whitespace-pre-wrap">\${escapeHtml(m.content)}</p>
-      <p class="text-xs opacity-60 mt-1 text-right">\${formatTime(m.created_at)}</p>
-    </div></div>\`;
+    return \`<div class="flex justify-end">
+      <div class="max-w-[80%] rounded-2xl rounded-br-sm px-5 py-3 shadow-md" style="background:#059669">
+        <div class="flex items-center gap-2 mb-1">
+          <i class="fas fa-user text-xs text-emerald-200"></i>
+          <span class="text-xs text-emerald-200">You</span>
+        </div>
+        <p class="text-sm text-white leading-relaxed whitespace-pre-wrap">\${escapeHtml(m.content)}</p>
+        <p class="text-[10px] text-emerald-200 mt-1.5 text-right opacity-70">\${formatTime(m.created_at)}</p>
+      </div>
+    </div>\`;
   }
-  const agentColors = { researcher: 'purple', drafter: 'pink', analyst: 'emerald', strategist: 'amber', orchestrator: 'indigo' };
-  const agentIcons = { researcher: 'magnifying-glass', drafter: 'file-pen', analyst: 'chart-line', strategist: 'chess', orchestrator: 'diagram-project' };
-  const agentEmojis = { researcher: '\uD83D\uDD0D', drafter: '\uD83D\uDCDD', analyst: '\uD83E\uDDE0', strategist: '\uD83C\uDFAF' };
-  const ac = agentColors[m.agent_type] || 'emerald';
-  const ai = agentIcons[m.agent_type] || 'robot';
-  const ae = agentEmojis[m.agent_type] || '\u2696\uFE0F';
+
+  // Assistant message — dark card style
+  // Use full static class strings to ensure Tailwind CDN generates them
+  const agentStyles = {
+    researcher:   { bg: 'bg-purple-950', text: 'text-purple-400', border: 'border-purple-800', icon: 'magnifying-glass', emoji: '\uD83D\uDD0D', hex: '#7c3aed' },
+    drafter:      { bg: 'bg-pink-950', text: 'text-pink-400', border: 'border-pink-800', icon: 'file-pen', emoji: '\uD83D\uDCDD', hex: '#ec4899' },
+    analyst:      { bg: 'bg-emerald-950', text: 'text-emerald-400', border: 'border-emerald-800', icon: 'chart-line', emoji: '\uD83E\uDDE0', hex: '#10b981' },
+    strategist:   { bg: 'bg-amber-950', text: 'text-amber-400', border: 'border-amber-800', icon: 'chess', emoji: '\uD83C\uDFAF', hex: '#f59e0b' },
+    orchestrator: { bg: 'bg-indigo-950', text: 'text-indigo-400', border: 'border-indigo-800', icon: 'diagram-project', emoji: '\u2696\uFE0F', hex: '#6366f1' }
+  };
+  const confStyles = {
+    high:   { bg: 'bg-emerald-950', text: 'text-emerald-400', border: 'border-emerald-800' },
+    medium: { bg: 'bg-amber-950', text: 'text-amber-400', border: 'border-amber-800' },
+    low:    { bg: 'bg-red-950', text: 'text-red-400', border: 'border-red-800' }
+  };
+  const as = agentStyles[m.agent_type] || agentStyles.analyst;
   const confPct = m.confidence ? Math.round(m.confidence * 100) : 0;
-  const confColor = confPct >= 80 ? 'emerald' : confPct >= 60 ? 'amber' : 'red';
-  
+  const cs = confPct >= 80 ? confStyles.high : confPct >= 60 ? confStyles.medium : confStyles.low;
+
+  // Build agent badges with full static class names
   let badges = '';
   if (m.agent_type) {
-    badges += '<span class="badge bg-'+ac+'-100 text-'+ac+'-700 text-xs"><i class="fas fa-'+ai+' mr-1"></i>'+m.agent_type+'</span>';
-    if (confPct > 0) badges += '<span class="badge bg-'+confColor+'-50 text-'+confColor+'-700 text-xs" title="Routing confidence">'+confPct+'%</span>';
+    badges += '<span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold '+as.bg+' '+as.text+' border '+as.border+'"><i class="fas fa-'+as.icon+' mr-1"></i>'+m.agent_type+'</span>';
+    if (confPct > 0) badges += '<span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold '+cs.bg+' '+cs.text+' border '+cs.border+'">'+confPct+'%</span>';
   }
-  if (m.jurisdiction) badges += '<span class="badge bg-dark-100 text-dark-500 text-xs">'+m.jurisdiction+'</span>';
   if (m.sub_agents) {
-    try { const subs = typeof m.sub_agents === 'string' ? JSON.parse(m.sub_agents) : m.sub_agents; if (subs && subs.length > 0) badges += '<span class="badge bg-indigo-50 text-indigo-600 text-xs">\u2192 '+subs.join(', ')+'</span>'; } catch(e){}
+    try { const subs = typeof m.sub_agents === 'string' ? JSON.parse(m.sub_agents) : m.sub_agents; if (subs && subs.length > 0) badges += '<span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-indigo-950 text-indigo-400 border border-indigo-800">\u2192 '+subs.join(', ')+'</span>'; } catch(e){}
   }
-  if (m.mem0_loaded) badges += '<span class="badge bg-pink-50 text-pink-700 text-xs">\uD83D\uDCBE Memory</span>';
-  
+  if (m.mem0_loaded) badges += '<span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-pink-950 text-pink-400 border border-pink-800">\uD83D\uDCBE Memory</span>';
+
+  // Risk section
   let riskSection = '';
   if (m.risks_flagged) {
     try {
       const risks = typeof m.risks_flagged === 'string' ? JSON.parse(m.risks_flagged) : m.risks_flagged;
       if (risks && ((typeof risks === 'number' && risks > 0) || (Array.isArray(risks) && risks.length > 0))) {
         const count = typeof risks === 'number' ? risks : risks.length;
-        riskSection = '<div class="mt-2 flex items-center gap-1"><span class="badge bg-red-50 text-red-700 text-xs">\u26A0\uFE0F '+count+' risk(s) flagged</span></div>';
+        riskSection = '<div class="mt-2 flex items-center gap-1"><span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-red-950 text-red-400 border border-red-800"><i class="fas fa-triangle-exclamation mr-1"></i>'+count+' risk(s) flagged</span></div>';
       }
     } catch(e){}
   }
-  
+
+  // Citation section (from patch)
+  let citationSection = '';
+  if (m.citations_count && m.citations_count > 0) {
+    citationSection = '<div class="mt-2 pt-2 border-t border-slate-700 text-[10px] text-emerald-400"><i class="fas fa-book mr-1"></i>'+m.citations_count+' citation(s) included in response</div>';
+  }
+
   return \`<div class="flex gap-3">
-    <div class="w-8 h-8 bg-\${ac}-500 rounded-lg flex items-center justify-center text-white text-sm flex-shrink-0 mt-1">\${ae}</div>
-    <div class="bg-white border border-dark-200 rounded-2xl rounded-bl-md px-5 py-4 max-w-[85%] shadow-sm">
-      \${badges ? '<div class="flex items-center gap-1.5 mb-2 flex-wrap">'+badges+'</div>' : ''}
-      <div class="text-sm text-dark-800 prose-sm chat-content">\${renderMarkdown(m.content)}</div>
+    <div class="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm flex-shrink-0 mt-1" style="background:\${as.hex}">\${as.emoji}</div>
+    <div class="max-w-[85%] rounded-2xl rounded-bl-sm px-5 py-4 shadow-md border border-slate-700" style="background:#0f172a">
+      <div class="flex items-center gap-2 mb-2">
+        <i class="fas fa-robot text-xs text-emerald-400"></i>
+        <span class="text-xs text-slate-400">Lawyrs AI \u2022 \${m.agent_type ? m.agent_type.charAt(0).toUpperCase() + m.agent_type.slice(1) + ' Agent' : 'Senior Partner'}</span>
+      </div>
+      \${badges ? '<div class="flex items-center gap-1.5 mb-3 flex-wrap">'+badges+'</div>' : ''}
+      <div class="text-sm text-slate-200 leading-relaxed prose-sm chat-content">\${renderMarkdown(m.content)}</div>
       \${riskSection}
-      <p class="text-xs text-dark-400 mt-2">\${formatTime(m.created_at)}\${m.tokens_used ? ' \u2022 ~'+Number(m.tokens_used).toLocaleString()+' tokens' : ''}\${m.citations_count ? ' \u2022 '+m.citations_count+' citations' : ''}</p>
+      \${citationSection}
+      <p class="text-[10px] text-slate-500 mt-3">\${formatTime(m.created_at)}\${m.tokens_used ? ' \u2022 ~'+Number(m.tokens_used).toLocaleString()+' tokens' : ''}\${m.duration_ms ? ' \u2022 '+m.duration_ms+'ms' : ''}</p>
     </div>
   </div>\`;
 }
 
 function renderMarkdown(text) {
   if (!text) return '';
-  return text
-    .replace(/^## (.+)$/gm, '<h3 class="text-base font-bold text-dark-900 mt-3 mb-2">$1</h3>')
-    .replace(/^### (.+)$/gm, '<h4 class="text-sm font-bold text-dark-800 mt-2 mb-1">$1</h4>')
-    .replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>')
-    .replace(/^- \\[ \\] (.+)$/gm, '<div class="flex items-center gap-2 text-dark-600 ml-2"><i class="far fa-square text-dark-400 text-xs"></i> $1</div>')
-    .replace(/^- (.+)$/gm, '<div class="flex items-start gap-2 ml-2"><span class="text-dark-400 mt-0.5">\u2022</span> $1</div>')
-    .replace(/^\\d+\\. (.+)$/gm, '<div class="ml-2">$1</div>')
-    .replace(/\\| (.+?) \\|/g, function(match) { return '<span class="font-mono text-xs bg-dark-50 px-1 rounded">' + match + '</span>'; })
-    .replace(/\\n---\\n/g, '<hr class="my-3 border-dark-200">')
+  // Extract code blocks first to protect them from other replacements
+  const codeBlocks = [];
+  let processed = text.replace(/\`\`\`([\\s\\S]*?)\`\`\`/g, function(_, code) {
+    codeBlocks.push(code);
+    return '%%CODEBLOCK_' + (codeBlocks.length - 1) + '%%';
+  });
+  // Extract inline code
+  const inlineCodes = [];
+  processed = processed.replace(/\`(.+?)\`/g, function(_, code) {
+    inlineCodes.push(code);
+    return '%%INLINE_' + (inlineCodes.length - 1) + '%%';
+  });
+  // Process markdown
+  processed = processed
+    .replace(/^## (.+)$/gm, '<h3 class="text-base font-bold text-white mt-3 mb-2">$1</h3>')
+    .replace(/^### (.+)$/gm, '<h4 class="text-sm font-bold text-slate-200 mt-2 mb-1">$1</h4>')
+    .replace(/\\*\\*(.+?)\\*\\*/g, '<strong class="text-white">$1</strong>')
+    .replace(/^- \\[ \\] (.+)$/gm, '<div class="flex items-center gap-2 text-slate-300 ml-2"><i class="far fa-square text-slate-500 text-xs"></i> $1</div>')
+    .replace(/^- (.+)$/gm, '<div class="flex items-start gap-2 ml-2"><span class="text-slate-500 mt-0.5">\u2022</span> $1</div>')
+    .replace(/^\\d+\\. (.+)$/gm, '<div class="ml-2 text-slate-300">$1</div>')
+    .replace(/\\| (.+?) \\|/g, function(match) { return '<span class="font-mono text-xs bg-slate-800 px-1 rounded text-slate-300">' + match + '</span>'; })
+    .replace(/\\n---\\n/g, '<hr class="my-3 border-slate-700">')
     .replace(/\\n\\n/g, '<div class="mb-2"></div>')
     .replace(/\\n/g, '<br>')
-    .replace(/\\*(.+?)\\*/g, '<em>$1</em>')
-    .replace(/\`(.+?)\`/g, '<code class="bg-dark-100 px-1.5 py-0.5 rounded text-xs font-mono">$1</code>');
+    .replace(/\\*(.+?)\\*/g, '<em class="text-slate-300">$1</em>');
+  // Restore code blocks and inline code
+  codeBlocks.forEach(function(code, i) {
+    processed = processed.replace('%%CODEBLOCK_' + i + '%%', '<pre class="bg-slate-800 p-3 rounded-lg text-xs text-slate-300 overflow-x-auto my-2 font-mono border border-slate-700">' + code + '</pre>');
+  });
+  inlineCodes.forEach(function(code, i) {
+    processed = processed.replace('%%INLINE_' + i + '%%', '<code class="bg-slate-800 px-1.5 py-0.5 rounded text-xs font-mono text-emerald-400 border border-slate-700">' + code + '</code>');
+  });
+  return processed;
 }
 
 function escapeHtml(t) {
@@ -1256,7 +1342,6 @@ function escapeHtml(t) {
 
 function injectChip(text) {
   const input = document.getElementById('chatInput');
-  // If a case is selected, try to enrich the prompt with case context
   const caseSelect = document.getElementById('chatCaseSelect');
   const caseName = caseSelect?.selectedOptions?.[0]?.text;
   let enriched = text;
@@ -1264,14 +1349,10 @@ function injectChip(text) {
     enriched = text
       .replace('[issue]', 'the issues in ' + caseName)
       .replace('[claim type]', 'the claims in ' + caseName)
-      .replace('[matter facts]', 'the facts of ' + caseName)
-      .replace('[grounds]', 'applicable grounds for ' + caseName);
-  } else {
-    enriched = text.replace(/\\[.+?\\]/g, '...');
+      .replace('the current matter facts', 'the facts of ' + caseName);
   }
   input.value = enriched;
   input.focus();
-  input.setSelectionRange(enriched.indexOf('...'), enriched.indexOf('...') + 3);
 }
 
 async function sendChat() {
@@ -1282,22 +1363,33 @@ async function sendChat() {
   input.value = '';
   const sendBtn = document.getElementById('chatSendBtn');
   sendBtn.disabled = true;
-  sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin text-sm"></i>';
 
-  // Show user message immediately
   const msgContainer = document.getElementById('chatMessages');
   const emptyState = msgContainer.querySelector('.flex.flex-col.items-center');
   if (emptyState) emptyState.remove();
-  
+
+  // Show user message
   msgContainer.innerHTML += renderChatMessage({ role: 'user', content: message, created_at: new Date().toISOString() });
-  
-  // Show typing indicator with orchestration flow
-  msgContainer.innerHTML += '<div id="typingIndicator" class="flex gap-3"><div class="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white text-sm flex-shrink-0">\u2696\uFE0F</div><div class="bg-white border border-dark-200 rounded-2xl px-5 py-4 shadow-sm"><div class="flex items-center gap-2"><div class="flex gap-1"><span class="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style="animation-delay:0ms"></span><span class="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style="animation-delay:150ms"></span><span class="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style="animation-delay:300ms"></span></div><span class="text-xs text-dark-400 ml-2" id="typingText">Orchestrating \u2192 Classifying intent...</span></div></div></div>';
+
+  // Show thinking indicator (from patch — step-by-step)
+  msgContainer.innerHTML += \`<div id="typingIndicator" class="flex items-center gap-3 text-slate-400">
+    <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:#064e3b">
+      <i class="fas fa-robot text-emerald-400 text-sm"></i>
+    </div>
+    <div class="rounded-2xl px-4 py-3 border border-slate-700" style="background:#0f172a">
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+        <span class="text-xs text-slate-400" id="typingText">Thinking step-by-step with full case context...</span>
+      </div>
+    </div>
+  </div>\`;
   scrollChatToBottom();
+
   // Animate orchestration steps
-  const typingSteps = ['Orchestrating \u2192 Loading matter context...', 'Orchestrating \u2192 Searching Mem0 memory...', 'Orchestrating \u2192 Routing to specialist agent...', 'Generating response...'];
+  const typingSteps = ['Loading matter context...', 'Searching agent memory...', 'Routing to specialist agent...', 'Generating response...'];
   let stepIdx = 0;
-  const stepInterval = setInterval(() => { stepIdx++; const el = document.getElementById('typingText'); if (el && stepIdx < typingSteps.length) el.textContent = typingSteps[stepIdx]; }, 800);
+  const stepInterval = setInterval(() => { stepIdx++; const el = document.getElementById('typingText'); if (el && stepIdx < typingSteps.length) el.textContent = typingSteps[stepIdx]; }, 900);
 
   document.getElementById('chatStatus').textContent = '\u{1F9E0} Processing...';
 
@@ -1310,7 +1402,6 @@ async function sendChat() {
     });
 
     clearInterval(stepInterval);
-    // Remove typing indicator
     const ti = document.getElementById('typingIndicator');
     if (ti) ti.remove();
 
@@ -1321,6 +1412,7 @@ async function sendChat() {
       agent_type: data.agent_used,
       jurisdiction: data.jurisdiction,
       tokens_used: data.tokens_used,
+      duration_ms: data.duration_ms,
       confidence: data.confidence,
       sub_agents: data.sub_agents,
       risks_flagged: data.risks_flagged,
@@ -1333,18 +1425,20 @@ async function sendChat() {
     const subInfo = data.sub_agents && data.sub_agents.length > 0 ? ' \u2192 ' + data.sub_agents.join(', ') : '';
     const risksInfo = data.risks_flagged > 0 ? ' \u2022 \u26A0\uFE0F' + data.risks_flagged + ' risk(s)' : '';
     const citesInfo = data.citations > 0 ? ' \u2022 \uD83D\uDCDA' + data.citations + ' cite(s)' : '';
-    const memInfo = data.mem0_context_loaded ? ' \u2022 \uD83D\uDCBE Mem0' : '';
-    document.getElementById('chatStatus').textContent = '\u2705 ' + data.agent_used + ' (' + confPct + ')' + subInfo + ' \u2022 ~' + Number(data.tokens_used).toLocaleString() + ' tokens' + risksInfo + citesInfo + memInfo + ' \u2022 ' + data.duration_ms + 'ms';
+    document.getElementById('chatStatus').textContent = '\u2705 ' + data.agent_used + ' (' + confPct + ')' + subInfo + ' \u2022 ~' + Number(data.tokens_used).toLocaleString() + ' tokens' + risksInfo + citesInfo + ' \u2022 ' + data.duration_ms + 'ms';
+
+    toast('Agent Response', data.agent_used + ' agent responded with ' + (data.citations || 0) + ' citations', 'success');
   } catch(e) {
     clearInterval(stepInterval);
     const ti = document.getElementById('typingIndicator');
     if (ti) ti.remove();
-    msgContainer.innerHTML += '<div class="text-center py-2"><span class="badge bg-red-100 text-red-700">Error: ' + (e.message || 'Network error') + '. Try again.</span></div>';
+    msgContainer.innerHTML += '<div class="text-center py-2"><span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold bg-red-950 text-red-400 border border-red-800"><i class="fas fa-times-circle mr-1"></i>Error: ' + (e.message || 'Network error') + '</span></div>';
     document.getElementById('chatStatus').textContent = '\u274C Error';
+    toast('Error', 'Failed to get AI response', 'error');
   }
 
   sendBtn.disabled = false;
-  sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i>';
+  sendBtn.innerHTML = '<i class="fas fa-paper-plane text-sm"></i>';
   scrollChatToBottom();
 }
 
