@@ -172,30 +172,49 @@ function getAppHTML(): string {
     .scrollbar-thin::-webkit-scrollbar { width: 6px; }
     .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
     .ai-glow { box-shadow: 0 0 20px rgba(139, 92, 246, 0.3); }
-    #splash { position: fixed; inset: 0; z-index: 9999; transition: opacity 0.6s ease, visibility 0.6s ease; }
+    #splash { position: fixed; inset: 0; z-index: 9999; transition: opacity 0.8s ease, visibility 0.8s ease; }
     #splash.hide { opacity: 0; visibility: hidden; pointer-events: none; }
-    #splash .splash-icon { animation: splashPulse 2s ease-in-out infinite; }
-    @keyframes splashPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.05); opacity: 0.8; } }
-    #splash .splash-bar { width: 200px; height: 3px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; margin: 0 auto; }
-    #splash .splash-bar-fill { height: 100%; background: linear-gradient(90deg, #10b981, #34d399); border-radius: 3px; animation: splashLoad 2s ease-in-out forwards; }
-    @keyframes splashLoad { 0% { width: 0%; } 60% { width: 70%; } 100% { width: 100%; } }
+    .hero-bg { background: linear-gradient(135deg, #0a2540 0%, #1e3a8a 100%); }
+    #splash .splash-dot { animation: splashDot 1.4s ease-in-out infinite; }
+    @keyframes splashDot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.8); } }
   </style>
 </head>
 <body class="bg-dark-50">
   <!-- Splash Screen -->
-  <div id="splash" class="min-h-screen bg-slate-950 flex items-center justify-center">
-    <div class="text-center">
-      <div class="splash-icon mb-6">
-        <div class="w-16 h-16 bg-emerald-500/20 rounded-2xl flex items-center justify-center mx-auto border border-emerald-500/30">
-          <i class="fas fa-scale-balanced text-emerald-400 text-2xl"></i>
+  <div id="splash" class="hero-bg min-h-screen flex items-center justify-center">
+    <div class="max-w-2xl mx-auto text-center px-6">
+      <div class="flex items-center justify-center gap-3 mb-8">
+        <div class="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center text-2xl font-bold text-white">\u2696\uFE0F</div>
+        <h1 class="text-5xl font-bold tracking-tight text-white">Lawyrs</h1>
+      </div>
+      <p class="text-emerald-400 text-xl mb-2">AI-Powered Legal Practice Management</p>
+      <p class="text-2xl text-slate-300 mb-12">Your always-on senior partner, researcher, analyst &amp; drafter.</p>
+      <div class="bg-slate-900/70 backdrop-blur-xl rounded-3xl p-10 border border-slate-700">
+        <div class="flex items-center justify-center gap-3 mb-6">
+          <div class="w-3 h-3 bg-emerald-500 rounded-full splash-dot"></div>
+          <span class="text-slate-400 font-medium">Loading secure AI platform...</span>
+        </div>
+        <div class="grid grid-cols-3 gap-4 text-left text-sm text-white">
+          <div class="bg-slate-800/50 rounded-2xl p-4">
+            <i class="fa-solid fa-magnifying-glass text-emerald-400 mb-2"></i>
+            <div class="font-semibold">Instant Research</div>
+            <div class="text-slate-500">Case law \u2022 Statutes \u2022 Precedents</div>
+          </div>
+          <div class="bg-slate-800/50 rounded-2xl p-4">
+            <i class="fa-solid fa-file-lines text-emerald-400 mb-2"></i>
+            <div class="font-semibold">Smart Drafting</div>
+            <div class="text-slate-500">Motions \u2022 Contracts \u2022 Demands</div>
+          </div>
+          <div class="bg-slate-800/50 rounded-2xl p-4">
+            <i class="fa-solid fa-brain text-emerald-400 mb-2"></i>
+            <div class="font-semibold">Deep Analysis</div>
+            <div class="text-slate-500">Risk \u2022 Strategy \u2022 Outcomes</div>
+          </div>
         </div>
       </div>
-      <h1 class="text-4xl font-bold text-white tracking-tight">Lawyrs</h1>
-      <p class="text-emerald-400 mt-2 font-medium">Legal Practice Management</p>
-      <p class="mt-8 text-slate-400 text-sm">AI Assistant &bull; Secure &bull; Built for Lawyers</p>
-      <div class="mt-8">
-        <div class="splash-bar"><div class="splash-bar-fill"></div></div>
-        <p class="mt-3 text-slate-500 text-xs animate-pulse">Initializing platform...</p>
+      <div class="mt-10 text-xs text-slate-500 flex items-center justify-center gap-6">
+        <div>\uD83D\uDD12 SOC-2 Ready \u2022 End-to-End Encrypted</div>
+        <div>\uD83C\uDDFA\uD83C\uDDF8 US Jurisdictions \u2022 Florida-Optimized</div>
       </div>
     </div>
   </div>
@@ -316,7 +335,7 @@ async function init() {
   setTimeout(() => {
     if (splash) {
       splash.classList.add('hide');
-      setTimeout(() => splash.remove(), 600);
+      setTimeout(() => splash.remove(), 800);
     }
   }, 400);
 }
