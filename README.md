@@ -3,8 +3,8 @@
 ## Project Overview
 - **Name**: Lawyrs
 - **Goal**: Full-featured legal practice management platform with multi-agent AI co-counsel
-- **Stack**: Hono + Cloudflare D1 + TailwindCSS + Cloudflare Pages
-- **Architecture**: Multi-Agent Orchestrated Pipeline v3.2 — **MISSOURI MODE ACTIVE**
+- **Stack**: Hono + Cloudflare D1 + TailwindCSS + Cloudflare Pages + **CrewAI** (Python)
+- **Architecture**: Multi-Agent Orchestrated Pipeline v3.3 — **MISSOURI MODE ACTIVE** + **CrewAI Backend** + **Runtime LLM Config**
 - **Jurisdictions**: Missouri (PRIMARY) & Kansas (dual-licensed KS/MO)
 
 ## Live URL
@@ -14,12 +14,28 @@
 
 ### Architecture
 ```
-User Query → Orchestrator (intent classification + confidence scoring)
-                ├── 🔍 Researcher Agent (case law, statutes, citations — KS/MO/Federal)
-                ├── 📝 Drafter Agent (7 document templates, KS/MO rules)
-                ├── 🧠 Analyst Agent (6-factor risk model, SWOT, damages)
-                └── 🎯 Strategist Agent (settlement, timeline, budget — KS/MO)
+User Query → Hono API (port 3000)
+                │
+                ├── [Priority 1] CrewAI Python Backend (port 8100)
+                │   └── CrewAI Crew → LLM (OpenAI/Novita/GenSpark)
+                │       ├── 🔍 Researcher Agent
+                │       ├── 📝 Drafter Agent
+                │       ├── 🧠 Analyst Agent
+                │       └── 🎯 Strategist Agent
+                │
+                └── [Fallback] Template Orchestrator (TypeScript)
+                    ├── 🔍 Researcher Agent (embedded KS/MO statutes + case law DB)
+                    ├── 📝 Drafter Agent (7 document templates)
+                    ├── 🧠 Analyst Agent (6-factor risk model)
+                    └── 🎯 Strategist Agent (settlement/timeline/budget)
 ```
+
+**How it works:**
+1. User sends a message via the Hono frontend
+2. Hono tries CrewAI Python backend first (`POST http://127.0.0.1:8100/api/crew/chat`)
+3. If CrewAI succeeds (LLM available), the LLM-powered response is used
+4. If CrewAI fails (LLM unavailable, 503, timeout), Hono falls back to template agents
+5. Template agents provide comprehensive KS/MO legal analysis without needing an LLM
 
 ### System Identity
 > Lawyrs AI — Senior equity partner, 25+ years experience, licensed in Kansas & Missouri.
@@ -150,7 +166,49 @@ src/agents/
 └── strategist.ts   # Strategy planning: KS/MO settlement, timeline, budget, ADR
 ```
 
-## Environment Variables
+## CrewAI Backend (Python)
+
+### Setup
+```bash
+# CrewAI backend runs on port 8100 via PM2
+cd crewai_backend
+python3 server.py  # or pm2 start ecosystem.config.cjs
+```
+
+### Environment Variables
+```bash
+# Option A: OpenAI-compatible endpoint (GenSpark, Novita, OpenAI)
+OPENAI_API_KEY=your-key
+OPENAI_BASE_URL=https://api.openai.com/v1  # or your proxy URL
+CREWAI_MODEL=gpt-5-mini  # or gpt-4o, claude-3-5-sonnet, etc.
+
+# Option B: Novita AI
+NOVITA_API_KEY=your-novita-key
+NOVITA_BASE_URL=https://api.novita.ai/v3/openai
+CREWAI_MODEL=claude-3-5-sonnet-20241022
+```
+
+### API Endpoints
+- `GET  http://localhost:8100/health` — Health check + LLM reachability
+- `POST http://localhost:8100/api/crew/chat` — Run CrewAI agent(s)
+- `GET  http://localhost:8100/api/crew/config` — Current LLM config (redacted)
+- `GET  http://localhost:8100/api/crew/classify?message=...` — Classify intent
+- `POST http://localhost:8100/api/crew/configure` — **Hot-reconfigure LLM key/URL/model at runtime**
+
+### Hono-side CrewAI Endpoints
+- `GET  /api/ai/crewai/status` — CrewAI backend health (proxied from Hono)
+- `POST /api/ai/crewai/configure` — Configure CrewAI LLM from the UI (proxied to Python)
+
+### CrewAI Files
+```
+crewai_backend/
+├── crew.py      # Agent definitions, KS/MO system prompts, task templates
+└── server.py    # FastAPI bridge server (port 8100)
+```
+
+## Hono Backend (TypeScript)
+
+### Hono Environment Variables
 ```bash
 # Required
 DB=D1Database        # Cloudflare D1 binding (automatic)
@@ -170,6 +228,13 @@ npm run db:migrate:local  # Apply migrations locally
 
 ## Test Results (All Passing — Feb 20 2026)
 ```
+--- CREWAI INTEGRATION Tests ---
+1. CrewAI Health (direct)      ✅ status=degraded, crewai=1.9.3, model=gpt-5-mini, llm_reachable=false
+2. CrewAI Status (via Hono)    ✅ available=true, version=1.9.3
+3. CrewAI Configure endpoint   ✅ accepts api_key/base_url/model, tests LLM, returns reachability
+4. Chat Fallback               ✅ crewai_powered=false, template agents used, conf=0.87
+5. Intent Classification       ✅ drafter/researcher/analyst/strategist all correct
+
 --- MISSOURI MODE Agent Tests (7/7 pass) ---
 1. RESEARCHER (MO SOL + comparative + 8th Cir) ✅ conf=0.91, tok=1846, cit=7, risks=4
    ✔ pure comparative ✔ 8th Circuit ✔ RSMo § 516.120 ✔ RSMo § 537.765 ✔ RSMo § 537.067
@@ -188,10 +253,23 @@ npm run db:migrate:local  # Apply migrations locally
   RESEARCHER (KS SOL)  ✅ | DRAFTER (KS complaint) ✅ | ANALYST (KS 50% bar) ✅ | STRATEGIST (KS) ✅
 
 --- Bundle ---
-  Size: 302.22 kB
+  Size: 310.92 kB
 ```
 
 ## Bugs Fixed
+
+### Feb 20, 2026 — CrewAI Integration + Runtime Config (v3.3)
+- **CrewAI Python backend**: 4 agents (Researcher, Analyst, Drafter, Strategist) powered by CrewAI 1.9.3
+- **FastAPI bridge server**: REST API on port 8100 with health check, chat, classify, config endpoints
+- **Runtime LLM configuration**: `POST /api/crew/configure` — hot-reconfigure API key, base URL, and model without restart
+- **Hono proxy with graceful fallback**: `/api/ai/chat` tries CrewAI first, handles 503/errors, falls back to template agents
+- **CrewAI settings panel**: UI gear icon in chat header → modal to configure OpenAI/Novita/custom API keys
+- **CrewAI status bar**: Real-time status indicator in chat UI showing CrewAI + LLM reachability
+- **CrewAI powered badge**: Blue 🤖 CrewAI badge on messages when LLM-powered responses are used
+- **PM2 dual-process**: `ecosystem.config.cjs` manages both Hono (port 3000) and CrewAI (port 8100)
+- **LLM-agnostic**: Works with any OpenAI-compatible endpoint (GenSpark, Novita, OpenAI, Anthropic)
+- **KS/MO system prompts**: Same battle-tested jurisdiction rules from template agents
+- **New endpoints**: `/api/ai/crewai/status`, `/api/ai/crewai/configure` (Hono-side), `/health`, `/api/crew/chat`, `/api/crew/config`, `/api/crew/classify`, `/api/crew/configure` (Python-side)
 
 ### Feb 20, 2026 — MISSOURI MODE Activation (v3.2)
 - **Orchestrator system prompt**: Added MISSOURI MODE priority block with auto-apply rules for every MO response

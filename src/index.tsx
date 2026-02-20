@@ -1125,8 +1125,16 @@ async function loadAIChat() {
               <option value="federal" \${chatJurisdiction==='federal'?'selected':''}>Federal</option>
               <option value="multistate" \${chatJurisdiction==='multistate'?'selected':''}>Multi-state</option>
             </select>
+            <button onclick="showCrewAISettings()" class="btn btn-ghost btn-sm text-slate-400 hover:text-white" title="CrewAI Settings"><i class="fas fa-cog"></i></button>
             <button onclick="clearChat()" class="btn btn-ghost btn-sm text-slate-400 hover:text-white" title="Clear chat"><i class="fas fa-trash-alt"></i></button>
           </div>
+        </div>
+
+        <!-- CrewAI Status Bar -->
+        <div id="crewaiStatusBar" class="px-4 py-1.5 border-b border-slate-800 flex items-center gap-3 text-[10px]" style="background:#0f172a; display:none">
+          <span id="crewaiIndicator" class="flex items-center gap-1.5 text-slate-500">
+            <span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span> CrewAI: checking...
+          </span>
         </div>
 
         <!-- Matter Context Bar -->
@@ -1192,6 +1200,7 @@ async function loadAIChat() {
       </div>
     \`;
     scrollChatToBottom();
+    checkCrewAIStatus();
   } catch(e) { showError('AI Co-Counsel'); }
 }
 
@@ -1265,6 +1274,7 @@ function renderChatMessage(m) {
     try { const subs = typeof m.sub_agents === 'string' ? JSON.parse(m.sub_agents) : m.sub_agents; if (subs && subs.length > 0) badges += '<span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-indigo-950 text-indigo-400 border border-indigo-800">\u2192 '+subs.join(', ')+'</span>'; } catch(e){}
   }
   if (m.mem0_loaded) badges += '<span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-pink-950 text-pink-400 border border-pink-800">\uD83D\uDCBE Memory</span>';
+  if (m.crewai_powered) badges += '<span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-blue-950 text-blue-400 border border-blue-800">\uD83E\uDD16 CrewAI</span>';
 
   // Risk section
   let riskSection = '';
@@ -1395,10 +1405,11 @@ async function sendChat() {
   document.getElementById('chatStatus').textContent = '\u{1F9E0} Processing...';
 
   try {
-    const { data } = await axios.post(API + '/ai/chat', {
-      message,
+    const { data } = await axios.post(API + '/ai/crew', {
+      query: message,
+      matter_context: chatCaseId ? { case_id: chatCaseId, case_number: document.querySelector('#chatCaseSelect option:checked')?.textContent?.split(' \\u2014')[0] || null } : null,
+      dashboard_state: { active_cases: 6, active_clients: 5 },
       session_id: chatSessionId,
-      case_id: chatCaseId,
       jurisdiction: chatJurisdiction
     });
 
@@ -1419,6 +1430,7 @@ async function sendChat() {
       risks_flagged: data.risks_flagged,
       citations_count: data.citations,
       mem0_loaded: data.mem0_context_loaded,
+      crewai_powered: data.crewai_powered,
       created_at: new Date().toISOString()
     });
 
@@ -1426,7 +1438,8 @@ async function sendChat() {
     const subInfo = data.sub_agents && data.sub_agents.length > 0 ? ' \u2192 ' + data.sub_agents.join(', ') : '';
     const risksInfo = data.risks_flagged > 0 ? ' \u2022 \u26A0\uFE0F' + data.risks_flagged + ' risk(s)' : '';
     const citesInfo = data.citations > 0 ? ' \u2022 \uD83D\uDCDA' + data.citations + ' cite(s)' : '';
-    document.getElementById('chatStatus').textContent = '\u2705 ' + data.agent_used + ' (' + confPct + ')' + subInfo + ' \u2022 ~' + Number(data.tokens_used).toLocaleString() + ' tokens' + risksInfo + citesInfo + ' \u2022 ' + data.duration_ms + 'ms';
+    const crewFlag = data.crewai_powered ? ' \u2022 \uD83E\uDD16 CrewAI' : '';
+    document.getElementById('chatStatus').textContent = '\u2705 ' + data.agent_used + ' (' + confPct + ')' + subInfo + ' \u2022 ~' + Number(data.tokens_used).toLocaleString() + ' tokens' + risksInfo + citesInfo + crewFlag + ' \u2022 ' + data.duration_ms + 'ms';
 
     toast('Agent Response', data.agent_used + ' agent responded with ' + (data.citations || 0) + ' citations', 'success');
   } catch(e) {
@@ -1456,7 +1469,105 @@ function scrollChatToBottom() {
   if (c) setTimeout(() => c.scrollTop = c.scrollHeight, 100);
 }
 
-// === AGENT MEMORY (Mem0) ===
+// === CREWAI STATUS & SETTINGS ===
+async function checkCrewAIStatus() {
+  const bar = document.getElementById('crewaiStatusBar');
+  const indicator = document.getElementById('crewaiIndicator');
+  if (!bar || !indicator) return;
+  bar.style.display = 'flex';
+  try {
+    const res = await axios.get(API + '/ai/crewai/status', { timeout: 5000 });
+    const d = res.data;
+    if (d.available && d.llm_reachable) {
+      indicator.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> <span class="text-emerald-400">CrewAI: ' + d.model + ' ✓ LLM active</span>';
+    } else if (d.available) {
+      indicator.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> <span class="text-amber-400">CrewAI: online, LLM not reachable — using template agents</span> <button onclick="showCrewAISettings()" class="text-amber-300 underline ml-1">Configure</button>';
+    } else {
+      indicator.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span> <span class="text-slate-500">CrewAI: offline — template agents active</span>';
+    }
+  } catch(e) {
+    indicator.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span> <span class="text-slate-500">CrewAI: offline — template agents active</span>';
+  }
+}
+
+function showCrewAISettings() {
+  const modal = document.createElement('div');
+  modal.id = 'crewaiModal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7)';
+  modal.innerHTML = \`
+    <div class="rounded-xl border border-slate-700 p-6 max-w-md w-full shadow-2xl" style="background:#0f172a">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-robot text-emerald-400"></i> CrewAI LLM Settings</h3>
+        <button onclick="document.getElementById('crewaiModal').remove()" class="text-slate-400 hover:text-white"><i class="fas fa-times"></i></button>
+      </div>
+      <p class="text-xs text-slate-400 mb-4">Configure an OpenAI-compatible API key to power CrewAI agents with real LLM reasoning. Without this, the system uses template-based agents.</p>
+      <div class="space-y-3">
+        <div>
+          <label class="text-xs text-slate-400 block mb-1">API Key <span class="text-red-400">*</span></label>
+          <input id="crewaiApiKey" type="password" placeholder="sk-... or your API key" class="w-full text-sm py-2 px-3 rounded-lg text-white" style="background:#1e293b; border:1px solid #334155">
+        </div>
+        <div>
+          <label class="text-xs text-slate-400 block mb-1">Base URL (optional)</label>
+          <input id="crewaiBaseUrl" type="text" placeholder="https://api.openai.com/v1 (default)" class="w-full text-sm py-2 px-3 rounded-lg text-white" style="background:#1e293b; border:1px solid #334155">
+          <p class="text-[10px] text-slate-600 mt-1">For Novita AI: https://api.novita.ai/v3/openai</p>
+        </div>
+        <div>
+          <label class="text-xs text-slate-400 block mb-1">Model (optional)</label>
+          <input id="crewaiModel" type="text" placeholder="gpt-5-mini (default)" class="w-full text-sm py-2 px-3 rounded-lg text-white" style="background:#1e293b; border:1px solid #334155">
+        </div>
+      </div>
+      <div id="crewaiConfigResult" class="mt-3 text-xs hidden"></div>
+      <div class="flex gap-2 mt-4">
+        <button onclick="configureCrewAI()" id="crewaiSaveBtn" class="btn bg-emerald-600 hover:bg-emerald-500 text-white text-sm flex-1">
+          <i class="fas fa-check mr-1"></i> Save & Test
+        </button>
+        <button onclick="document.getElementById('crewaiModal').remove()" class="btn btn-ghost text-slate-400 text-sm">Cancel</button>
+      </div>
+    </div>
+  \`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+}
+
+async function configureCrewAI() {
+  const key = document.getElementById('crewaiApiKey').value.trim();
+  const base = document.getElementById('crewaiBaseUrl').value.trim();
+  const model = document.getElementById('crewaiModel').value.trim();
+  const resultDiv = document.getElementById('crewaiConfigResult');
+  const btn = document.getElementById('crewaiSaveBtn');
+  
+  if (!key) { resultDiv.className = 'mt-3 text-xs text-red-400'; resultDiv.textContent = 'API key is required'; resultDiv.classList.remove('hidden'); return; }
+  
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Testing...';
+  resultDiv.className = 'mt-3 text-xs text-slate-400';
+  resultDiv.textContent = 'Configuring and testing LLM connection...';
+  resultDiv.classList.remove('hidden');
+  
+  try {
+    const res = await axios.post(API + '/ai/crewai/configure', {
+      api_key: key,
+      base_url: base || undefined,
+      model: model || undefined,
+    }, { timeout: 30000 });
+    
+    if (res.data.llm_reachable) {
+      resultDiv.className = 'mt-3 text-xs text-emerald-400';
+      resultDiv.innerHTML = '<i class="fas fa-check-circle mr-1"></i> LLM connected! Model: ' + res.data.model + '. CrewAI agents are now active.';
+      checkCrewAIStatus();
+      setTimeout(() => { const m = document.getElementById('crewaiModal'); if (m) m.remove(); }, 2000);
+    } else {
+      resultDiv.className = 'mt-3 text-xs text-amber-400';
+      resultDiv.innerHTML = '<i class="fas fa-exclamation-triangle mr-1"></i> ' + (res.data.message || 'LLM not reachable. Check your API key and base URL.');
+    }
+  } catch(e) {
+    resultDiv.className = 'mt-3 text-xs text-red-400';
+    resultDiv.textContent = 'Error: ' + (e.response?.data?.error || e.message || 'Failed to connect to CrewAI backend');
+  }
+  
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fas fa-check mr-1"></i> Save & Test';
+}
 async function loadMemory() {
   try {
     const [memStatsRes, casesRes, allMemRes] = await Promise.all([
