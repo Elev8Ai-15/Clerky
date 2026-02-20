@@ -159,21 +159,29 @@ npm run db:migrate:local  # Apply migrations locally
 
 ## Test Results (All Passing — Feb 20 2026)
 ```
---- KS/MO Agent Tests ---
-1. RESEARCHER (Kansas SOL)     ✅ conf=0.98, tok=1195, cit=4, juris=Kansas
-2. RESEARCHER (MO comp fault)  ✅ conf=0.82, tok=941,  cit=1, juris=Missouri
-3. DRAFTER (Kansas motion)     ✅ conf=0.93, tok=1119, cit=4, juris=Kansas
-4. ANALYST (MO employment)     ✅ conf=0.88, tok=1210, cit=1, juris=Missouri
-5. STRATEGIST (Multi-state)    ✅ conf=0.82, tok=1959, cit=4, juris=Multi-state (KS/MO)
+--- KS/MO Agent Tests (7/7 pass) ---
+1. RESEARCHER (Kansas SOL)      ✅ conf=0.94, tok=1178, cit=4, risks=2
+2. RESEARCHER (MO comp fault)   ✅ conf=0.83, tok=1063, cit=1, risks=2
+3. DRAFTER (KS complaint)       ✅ conf=0.92, tok=1294, cit=4, risks=4
+4. DRAFTER (MO summary judg.)   ✅ conf=0.91, tok=1296, cit=3, risks=4
+5. ANALYST (KS 50% bar)         ✅ conf=0.93, tok=1040, cit=1, risks=1
+6. STRATEGIST (MO settlement)   ✅ conf=0.75, tok=1819, cit=2, risks=0
+7. STRATEGIST (Multi-state)     ✅ conf=0.80, tok=2813, cit=12, risks=2
 
---- E2E Chat Flow ---
-6. Chat history (10 messages)  ✅
-7. Delete session              ✅
+--- E2E Chat Flow (6/6 pass) ---
+8.  Chat history (28 messages)  ✅
+9.  Delete session              ✅
+10. Verify empty after clear    ✅
+11. Agent info (5 agents, v3.0) ✅
+12. Stats (77 ops, 127k tokens) ✅
+13. Memory (27 D1 entries)      ✅
 
---- Bundle Verification ---
-8. Florida references          ✅ 0 (completely removed)
-9. HB 837 references           ✅ 0 (completely removed)
-10. Bundle size                ✅ 285.18 kB
+--- Jurisdiction Verification ---
+14. Florida references in bundle  ✅ 0 (completely removed)
+15. Kansas refs in responses      ✅ present (K.S.A., Kansas)
+16. Missouri refs in responses    ✅ present (RSMo, Missouri)
+17. Closing line present          ✅ "Kansas-Missouri AI partner"
+18. Bundle size                   ✅ 284.99 kB
 ```
 
 ## Bugs Fixed
