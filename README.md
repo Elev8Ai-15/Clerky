@@ -5,6 +5,7 @@
 - **Goal**: Full-featured legal practice management platform with multi-agent AI co-counsel
 - **Stack**: Hono + Cloudflare D1 + TailwindCSS + Cloudflare Pages
 - **Architecture**: Multi-Agent Orchestrated Pipeline v3.0
+- **Jurisdictions**: Kansas (primary) & Missouri (dual-licensed KS/MO)
 
 ## Live URL
 - **Sandbox**: Port 3000
@@ -14,20 +15,33 @@
 ### Architecture
 ```
 User Query → Orchestrator (intent classification + confidence scoring)
-                ├── 🔍 Researcher Agent (case law, statutes, citations)
-                ├── 📝 Drafter Agent (7 document templates, FL rules)
+                ├── 🔍 Researcher Agent (case law, statutes, citations — KS/MO/Federal)
+                ├── 📝 Drafter Agent (7 document templates, KS/MO rules)
                 ├── 🧠 Analyst Agent (6-factor risk model, SWOT, damages)
-                └── 🎯 Strategist Agent (settlement, timeline, budget)
+                └── 🎯 Strategist Agent (settlement, timeline, budget — KS/MO)
 ```
+
+### System Identity
+> Lawyrs AI — Senior equity partner, 25+ years experience, licensed in Kansas & Missouri.
+> Core rules: step-by-step reasoning, no hallucinations, cite sources, flag risks, confidentiality.
+> Response structure: Summary → Analysis → Recommendations → Next Actions → Sources.
+
+### Jurisdiction Priorities
+| Jurisdiction | Statutes | Courts | Key Rules |
+|-------------|----------|--------|-----------|
+| **Kansas** | K.S.A., Rules Civ Proc | KS District/Supreme, 10th Circuit | SOL 2yr (K.S.A. 60-513), 50% comp fault bar (K.S.A. 60-258a) |
+| **Missouri** | RSMo, Supreme Court Rules | MO Circuit/Supreme, 8th Circuit | SOL 5yr (RSMo § 516.120), 2yr med-mal, pure comp fault (RSMo § 537.765), joint-several ≥51% |
+| **Federal** | USC, FRCP, FRE | 10th Cir (KS), 8th Cir (MO) | Federal questions, diversity jurisdiction |
+| **Multi-state** | KS + MO combined | Both circuits | Cross-border analysis, choice of law |
 
 ### Agent Capabilities
 | Agent | Specialties | Key Features |
 |-------|-----------|-------------|
 | **Orchestrator** | Intent routing, multi-agent co-routing | Keyword scoring, conversation continuity, confidence calibration |
-| **Researcher** | FL statutes (14), case law (12 cases), citations | HB 837 analysis, SOL lookup, Shepardize warnings |
-| **Drafter** | 7 templates (demand letter, MTD, MTC, engagement, complaint, MSJ, discovery) | Caption generation, FL-specific clauses, review checklists |
+| **Researcher** | KS & MO statutes, case law, citations, Federal RAG | SOL lookup (KS 2yr / MO 5yr), comparative fault analysis, Shepardize warnings |
+| **Drafter** | 7 templates (demand letter, MTD, MTC, engagement, complaint, MSJ, discovery) | Caption generation, KS/MO-specific clauses, review checklists |
 | **Analyst** | Risk scoring (6 factors), SWOT, damages modeling | Liability/exposure/SOL/opposing counsel/evidence/deadline scoring |
-| **Strategist** | Settlement (3 scenarios), timeline, budget, ADR | Proactive "what am I missing" checklist, cost projections |
+| **Strategist** | Settlement (3 scenarios), timeline, budget, ADR | KS/MO-specific strategy, cross-border analysis, cost projections |
 
 ### Memory System
 - **Mem0 Cloud** (primary): Persistent semantic memory across sessions (requires MEM0_API_KEY)
@@ -49,9 +63,10 @@ User Query → Orchestrator (intent classification + confidence scoring)
 - **Tasks & Deadlines** - Task management with priority, status, assignee, due dates
 - **Billing & Invoices** - Revenue stats, invoice management, time entries tracking
 - **AI Co-Counsel Chat** - Full conversational interface with 4 specialist agents
-  - Quick action chips for research, drafting, analysis, strategy
+  - Quick action chips for KS/MO research, drafting, analysis, strategy
   - Routing metadata display (agent, confidence, sub-agents)
   - Session management and chat history
+  - Dark-mode UI with matter context bar and orchestration step animation
 - **AI Workflow Dashboard** - Agent cards with run buttons, stats, activity logs
 - **Agent Memory UI** - Browse, search, filter, and delete agent memories
 - **Client Intake** - Multi-step intake form with AI processing pipeline
@@ -117,11 +132,11 @@ src/agents/
 ├── memory.ts       # Dual memory system (Mem0 + D1) + matter context assembly
 ├── mem0.ts         # Mem0 Cloud API client (store, search, delete, stats)
 ├── llm.ts          # OpenAI LLM client (gpt-4o-mini, structured prompts)
-├── orchestrator.ts # Main router: intent classification, agent dispatch, response merge
-├── researcher.ts   # Legal research: FL statutes, case law, citations, HB 837
-├── drafter.ts      # Document drafting: 7 templates, FL rules, caption generation
+├── orchestrator.ts # Main router: KS/MO intent classification, agent dispatch, response merge
+├── researcher.ts   # Legal research: KS/MO statutes, case law, citations, SOL analysis
+├── drafter.ts      # Document drafting: 7 templates, KS/MO rules, caption generation
 ├── analyst.ts      # Risk analysis: 6-factor model, SWOT, damages calculation
-└── strategist.ts   # Strategy planning: settlement, timeline, budget, ADR
+└── strategist.ts   # Strategy planning: KS/MO settlement, timeline, budget, ADR
 ```
 
 ## Environment Variables
@@ -144,34 +159,46 @@ npm run db:migrate:local  # Apply migrations locally
 
 ## Test Results (All Passing — Feb 20 2026)
 ```
---- Agent Tests ---
-1. RESEARCHER (no case)    ✅ conf=0.98, tok=1302, cit=4
-2. DRAFTER (case_id=2)     ✅ conf=0.98, tok=1425, cit=3
-3. ANALYST (case_id=1)     ✅ conf=0.98, tok=1648, cit=0
-4. STRATEGIST (case_id=3)  ✅ conf=0.98, tok=1611, cit=2
+--- KS/MO Agent Tests ---
+1. RESEARCHER (Kansas SOL)     ✅ conf=0.98, tok=1195, cit=4, juris=Kansas
+2. RESEARCHER (MO comp fault)  ✅ conf=0.82, tok=941,  cit=1, juris=Missouri
+3. DRAFTER (Kansas motion)     ✅ conf=0.93, tok=1119, cit=4, juris=Kansas
+4. ANALYST (MO employment)     ✅ conf=0.88, tok=1210, cit=1, juris=Missouri
+5. STRATEGIST (Multi-state)    ✅ conf=0.82, tok=1959, cit=4, juris=Multi-state (KS/MO)
 
 --- E2E Chat Flow ---
-5. Send (no case)          ✅ researcher, conf=0.98
-6. Send (case_id=1)        ✅ drafter, conf=0.95
-7. History (4 messages)    ✅
-8. Delete session          ✅
-9. History after delete    ✅ 0 messages
+6. Chat history (10 messages)  ✅
+7. Delete session              ✅
 
---- API Endpoints ---
-10. MEMORY endpoints       ✅ 22 entries
-11. STATS                  ✅ 43 ops, 80k tokens
-12. AGENTS INFO            ✅ v3.0.0, 5 agents
+--- Bundle Verification ---
+8. Florida references          ✅ 0 (completely removed)
+9. HB 837 references           ✅ 0 (completely removed)
+10. Bundle size                ✅ 285.18 kB
 ```
 
-## Bugs Fixed (Feb 20 2026)
-- **Missing modules**: Created `mem0.ts` (Mem0 Cloud API client) and `llm.ts` (OpenAI LLM client) — both were imported by orchestrator/agents but didn't exist, causing runtime crashes
-- **Memory column mismatch**: D1 `agent_memory` table uses `memory_key`/`memory_value` columns but code expected `key`/`value` — added safe column mapping in `assembleMatterContext`
-- **Null-safety in formatMatterContext**: Added null-safe access for `.substring()` calls on memory entries to prevent crashes when prior research/analysis values are undefined
-- **Error handling**: Added try/catch wrapper to `POST /api/ai/chat` to return structured JSON errors instead of bare 500s
-- **Dynamic Tailwind classes**: Replaced string-concatenated badge classes (`'bg-'+ac+'-950'`) with static class lookups via `agentStyles`/`confStyles` maps — CDN Tailwind requires full class names to exist in the source
-- **renderMarkdown code-block ordering**: Fixed regex precedence bug where `\n` → `<br>` conversion ran before code-block extraction, mangling `<pre>` blocks. Code blocks and inline code are now extracted first, text processed, then restored
-- **shadcn/ui design system**: Added CSS variables (HSL tokens), component classes (Button, Card, Badge, Input, Tabs, Avatar, Tooltip, ScrollArea, Separator, Toast/Sonner) without React dependency
-- **Chat UI rewrite**: Ported React AI Assistant patch to vanilla JS — dark-mode slate-950 chat, matter context bar, orchestration step animation, citation/risk rendering, prompt chips with 8 legal actions
+## Bugs Fixed
+
+### Feb 20, 2026 — KS/MO Jurisdiction Migration
+- **Florida → Kansas/Missouri**: Complete jurisdiction migration from FL to dual KS/MO licensed practice
+- **Orchestrator system prompt**: Replaced FL identity with KS-MO senior equity partner (25+ years, dual-licensed)
+- **Researcher knowledge base**: Replaced 14 FL statutes + 12 FL cases with KS statutes (K.S.A.), MO statutes (RSMo), KS case law, MO case law, and Federal authorities for both 10th and 8th Circuits
+- **Drafter templates**: Updated all 7 templates with KS/MO procedural rules (Kansas Supreme Court Rules, Missouri Supreme Court Rules, K.S.A. citations, RSMo citations)
+- **Strategist agent**: Updated settlement modeling with KS/MO-specific comparative fault rules (KS 50% bar vs MO pure comparative), ADR strategies, and court preferences
+- **UI jurisdiction selector**: Changed from FL/Federal/Multi-state to Kansas/Missouri/Federal/Multi-state
+- **Chat prompt chips**: Updated from FL-specific actions to KS/MO research, motions, SOL lookups
+- **Agent descriptions**: Updated all agent metadata from FL to KS/MO in /api/ai/agents endpoint
+- **Default jurisdiction**: Changed from 'florida' to 'kansas' in all defaults (DB schema, API routes, memory system)
+- **Jurisdiction mapping**: Added case-insensitive jurisdiction label mapping (kansas→Kansas, missouri→Missouri, multistate→Multi-state KS/MO)
+- **Zero Florida references**: Verified 0 occurrences of "Florida", "FL Statutes", or "HB 837" in production bundle
+
+### Feb 20, 2026 — Chat UI & Build Fixes
+- **Dynamic Tailwind classes**: Replaced string-concatenated badge classes with static class lookups via agentStyles/confStyles maps
+- **renderMarkdown code-block ordering**: Fixed regex precedence bug with extract-process-restore pattern
+- **shadcn/ui design system**: Added CSS variables (HSL tokens), component classes without React dependency
+- **Chat UI rewrite**: Ported React AI Assistant patch to vanilla JS — dark-mode chat, matter context bar, orchestration step animation
+- **Missing modules**: Created mem0.ts and llm.ts — imported by orchestrator/agents but didn't exist
+- **Memory column mismatch**: Added safe column mapping for agent_memory table
+- **Error handling**: Added try/catch wrapper to POST /api/ai/chat
 
 ## Deployment
 - **Platform**: Cloudflare Pages

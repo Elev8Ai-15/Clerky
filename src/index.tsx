@@ -358,7 +358,7 @@ function getAppHTML(): string {
       </div>
       <div class="mt-10 text-xs text-slate-500 flex items-center justify-center gap-6">
         <div>\uD83D\uDD12 SOC-2 Ready \u2022 End-to-End Encrypted</div>
-        <div>\uD83C\uDDFA\uD83C\uDDF8 US Jurisdictions \u2022 Florida-Optimized</div>
+        <div>\uD83C\uDDFA\uD83C\uDDF8 Kansas & Missouri \u2022 Dual-Jurisdiction</div>
       </div>
     </div>
   </div>
@@ -1080,7 +1080,7 @@ async function loadBilling() {
 // === AI CO-COUNSEL CHAT (Dark Mode — ported from React patch) ===
 var chatSessionId = 'session_' + Date.now();
 var chatCaseId = null;
-var chatJurisdiction = 'florida';
+var chatJurisdiction = 'kansas';
 var chatMessages = [];
 var currentMatterContext = null;
 
@@ -1110,7 +1110,7 @@ async function loadAIChat() {
             <div>
               <div class="font-semibold text-white flex items-center gap-2">Lawyrs AI Partner <span class="w-2 h-2 bg-emerald-400 rounded-full inline-block"></span></div>
               <div class="text-xs text-emerald-400 flex items-center gap-1">
-                <i class="fas fa-diagram-project text-[10px]"></i> 4 specialist agents \u2022 \${chatJurisdiction === 'florida' ? 'Florida' : chatJurisdiction === 'federal' ? 'Federal' : 'Multi-state'} jurisdiction
+                <i class="fas fa-diagram-project text-[10px]"></i> 4 specialist agents \u2022 \${chatJurisdiction === 'kansas' ? 'Kansas' : chatJurisdiction === 'missouri' ? 'Missouri' : chatJurisdiction === 'federal' ? 'Federal' : 'Multi-state'} jurisdiction
               </div>
             </div>
           </div>
@@ -1120,7 +1120,8 @@ async function loadAIChat() {
               \${cases.map(c => '<option value="'+c.id+'" '+(chatCaseId==c.id?'selected':'')+'>'+c.case_number+' \u2014 '+c.title.substring(0,35)+'</option>').join('')}
             </select>
             <select id="chatJurisdiction" onchange="chatJurisdiction=this.value" class="text-xs py-1.5 px-3 w-auto rounded-lg border-slate-700 text-slate-300" style="background:#1e293b; border:1px solid #334155">
-              <option value="florida" \${chatJurisdiction==='florida'?'selected':''}>Florida</option>
+              <option value="kansas" \${chatJurisdiction==='kansas'?'selected':''}>Kansas</option>
+              <option value="missouri" \${chatJurisdiction==='missouri'?'selected':''}>Missouri</option>
               <option value="federal" \${chatJurisdiction==='federal'?'selected':''}>Federal</option>
               <option value="multistate" \${chatJurisdiction==='multistate'?'selected':''}>Multi-state</option>
             </select>
@@ -1146,13 +1147,13 @@ async function loadAIChat() {
         <div class="px-4 py-3 border-b border-slate-800" style="background:#0f172a">
           <div class="text-[10px] uppercase tracking-widest text-slate-600 mb-2 font-semibold">Quick legal actions</div>
           <div class="flex flex-wrap gap-1.5">
-            <button onclick="injectChip('Research Florida case law on comparative negligence with citations and key holdings')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all" style="background:#1e293b; border-color:#334155">\u2696\uFE0F Research case law</button>
-            <button onclick="injectChip('Draft a demand letter under Florida law based on the current matter facts')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all" style="background:#1e293b; border-color:#334155">\uD83D\uDCDD Draft demand letter</button>
-            <button onclick="injectChip('Confirm statute of limitations for this claim in Florida and flag any risks')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all" style="background:#1e293b; border-color:#334155">\u23F0 SOL check</button>
-            <button onclick="injectChip('Analyze for inconsistencies, risks, and impeachment opportunities')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all" style="background:#1e293b; border-color:#334155">\uD83D\uDD0D Deposition analysis</button>
+            <button onclick="injectChip('Research Kansas and Missouri case law on comparative negligence with citations and key holdings')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all" style="background:#1e293b; border-color:#334155">\u2696\uFE0F Research case law</button>
+            <button onclick="injectChip('Draft a demand letter under Kansas or Missouri law based on the current matter facts')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all" style="background:#1e293b; border-color:#334155">\uD83D\uDCDD Draft demand letter</button>
+            <button onclick="injectChip('Confirm statute of limitations for this claim and flag any KS vs MO differences')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all" style="background:#1e293b; border-color:#334155">\u23F0 SOL check</button>
+            <button onclick="injectChip('Compare KS 50% bar vs MO pure comparative fault and recommend best forum')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all" style="background:#1e293b; border-color:#334155">\u2696\uFE0F Comparative fault</button>
             <button onclick="injectChip('Provide full risk assessment and 3 settlement strategy options with expected value calculations')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all" style="background:#1e293b; border-color:#334155">\uD83D\uDCCA Risk & settlement</button>
-            <button onclick="injectChip('Generate complete matter timeline with all Florida Rules of Civil Procedure deadlines')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all" style="background:#1e293b; border-color:#334155">\uD83D\uDCC5 Build timeline</button>
-            <button onclick="injectChip('Create motion to dismiss with supporting authorities')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all" style="background:#1e293b; border-color:#334155">\uD83D\uDCDD Motion to Dismiss</button>
+            <button onclick="injectChip('Generate complete matter timeline with all Kansas or Missouri Rules of Civil Procedure deadlines')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all" style="background:#1e293b; border-color:#334155">\uD83D\uDCC5 Build timeline</button>
+            <button onclick="injectChip('Create motion to dismiss with supporting KS/MO authorities')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all" style="background:#1e293b; border-color:#334155">\uD83D\uDCDD Motion to Dismiss</button>
             <button onclick="injectChip('What am I missing? Give proactive recommendations for this matter')" class="text-xs py-1 px-3 rounded-full border font-semibold text-emerald-400 hover:bg-emerald-950 transition-all" style="background:#1e293b; border-color:#065f46">\uD83C\uDFAF What am I missing?</button>
           </div>
         </div>
@@ -1168,7 +1169,7 @@ async function loadAIChat() {
               <p class="text-slate-400 text-sm max-w-md mb-3">Your always-on senior partner. I have full context on your matters \u2014 research, draft, analyze, or strategize.</p>
               <div class="flex items-center gap-4 text-xs text-slate-500">
                 <span>\uD83D\uDD12 Privileged & Confidential</span>
-                <span>\u2696\uFE0F FL Bar Member</span>
+                <span>\u2696\uFE0F KS & MO Licensed</span>
                 <span>\uD83E\uDDE0 4 AI Agents</span>
               </div>
             </div>
@@ -1569,8 +1570,8 @@ async function loadAIWorkflow() {
     
     const agents = agentInfo.agents && agentInfo.agents.length > 0 ? agentInfo.agents : [
       { id:'orchestrator', name:'Orchestrator', icon:'diagram-project', description:'Routes to specialist agents, manages Mem0 memory', color:'#6366f1', capabilities:['Intent classification','Multi-agent co-routing','Mem0 context injection'] },
-      { id:'researcher', name:'Researcher', icon:'magnifying-glass', description:'Case law, statutes, citation verification, FL/Federal RAG', color:'#8b5cf6', capabilities:['FL Statutes RAG','Case law DB','Citation verification'] },
-      { id:'drafter', name:'Drafter', icon:'file-pen', description:'Motions, demand letters, FL-specific clauses, 7 templates', color:'#ec4899', capabilities:['7 templates','FL rule compliance','Caption generation'] },
+      { id:'researcher', name:'Researcher', icon:'magnifying-glass', description:'Case law, statutes, citation verification, KS/MO/Federal RAG', color:'#8b5cf6', capabilities:['KS & MO Statutes RAG','Case law DB','Citation verification'] },
+      { id:'drafter', name:'Drafter', icon:'file-pen', description:'Motions, demand letters, KS/MO-specific clauses, 7 templates', color:'#ec4899', capabilities:['7 templates','KS/MO rule compliance','Caption generation'] },
       { id:'analyst', name:'Analyst', icon:'chart-line', description:'Risk scoring (6-factor), SWOT, damages calc, evidence audit', color:'#10b981', capabilities:['6-factor risk model','SWOT','Damages modeling'] },
       { id:'strategist', name:'Strategist', icon:'chess', description:'Settlement modeling (3 options), timelines, budgets, ADR', color:'#f59e0b', capabilities:['Settlement modeling','Timeline gen','Budget projection'] }
     ];

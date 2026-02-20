@@ -74,7 +74,7 @@ export function createMem0Client(apiKey?: string): Mem0Client {
             agent_id: agentType,
             metadata: {
               case_id: caseId,
-              jurisdiction: jurisdiction || 'florida',
+              jurisdiction: jurisdiction || 'kansas',
               confidence: confidence || 0.8,
               tags: tags || [],
               source: 'lawyrs-agent'

@@ -1,8 +1,9 @@
 // ═══════════════════════════════════════════════════════════════
-// LAWYRS — ANALYST AGENT
+// LAWYRS — ANALYST AGENT (Kansas-Missouri)
 // Specializes in: risk scoring, document review, strength/
 // weakness assessment, exposure calculation, deposition
 // analysis, enforceability review
+// Jurisdictions: Kansas (50% bar comparative) + Missouri (pure comparative)
 // ═══════════════════════════════════════════════════════════════
 
 import type { AgentInput, AgentOutput, Citation, MemoryUpdate } from './types'
@@ -17,9 +18,18 @@ interface RiskFactor {
   notes: string
 }
 
-function computeRiskScore(matter: AgentInput['matter'], msg: string): { factors: RiskFactor[], overall: number, label: string } {
+function resolveJurisdiction(jurisdiction: string): 'kansas' | 'missouri' | 'both' | 'federal' {
+  const j = jurisdiction?.toLowerCase() || ''
+  if (j === 'kansas' || j === 'ks') return 'kansas'
+  if (j === 'missouri' || j === 'mo') return 'missouri'
+  if (j === 'federal') return 'federal'
+  return 'both'
+}
+
+function computeRiskScore(matter: AgentInput['matter'], msg: string, jx: string): { factors: RiskFactor[], overall: number, label: string } {
   const factors: RiskFactor[] = []
-  const m = msg.toLowerCase()
+  const isKS = jx === 'kansas' || jx === 'both'
+  const isMO = jx === 'missouri' || jx === 'both'
 
   // Liability assessment
   const liabilityScore = matter.case_type === 'personal_injury' ? 6 :
@@ -34,11 +44,18 @@ function computeRiskScore(matter: AgentInput['matter'], msg: string): { factors:
 
   // SOL risk
   const solScore = matter.statute_of_limitations ? 3 : 8
-  factors.push({ factor: 'SOL/Deadlines', weight: 0.15, score: solScore, notes: matter.statute_of_limitations ? `SOL tracked: ${matter.statute_of_limitations}` : 'NO SOL RECORDED — HIGH RISK' })
+  const solNote = matter.statute_of_limitations ? `SOL tracked: ${matter.statute_of_limitations}` :
+    isKS ? 'NO SOL RECORDED — HIGH RISK (KS: typically 2 years per K.S.A. 60-513)' :
+    isMO ? 'NO SOL RECORDED — HIGH RISK (MO: typically 5 years per RSMo § 516.120)' :
+    'NO SOL RECORDED — HIGH RISK'
+  factors.push({ factor: 'SOL/Deadlines', weight: 0.15, score: solScore, notes: solNote })
 
-  // Opposing counsel strength
-  const ocScore = matter.opposing_counsel ? 6 : 3
-  factors.push({ factor: 'Opposing Counsel', weight: 0.10, score: ocScore, notes: matter.opposing_counsel || 'No opposing counsel identified' })
+  // Comparative fault risk (jurisdiction-specific)
+  const cfNote = isKS ? 'KS: 50% bar (K.S.A. 60-258a) — plaintiff must be <50% at fault' :
+    isMO ? 'MO: Pure comparative (RSMo § 537.765) — recovery possible at any fault level' :
+    'Federal: varies by applicable state law'
+  const cfScore = isKS ? 6 : isMO ? 4 : 5 // KS bar is riskier for plaintiffs
+  factors.push({ factor: 'Comparative Fault Risk', weight: 0.10, score: cfScore, notes: cfNote })
 
   // Evidence/documentation strength
   const docScore = matter.documents.length >= 5 ? 3 : matter.documents.length >= 2 ? 5 : 7
@@ -66,6 +83,7 @@ function detectAnalysisType(msg: string): string[] {
   if (m.includes('enforceab') || m.includes('contract') || m.includes('clause')) subtypes.push('enforceability')
   if (m.includes('damage') || m.includes('exposure') || m.includes('calcul')) subtypes.push('damages_calc')
   if (m.includes('missing') || m.includes('proactive') || m.includes('recommend')) subtypes.push('proactive_review')
+  if (m.includes('comparative fault') || m.includes('50% bar') || m.includes('pure comparative') || m.includes('fault')) subtypes.push('comparative_fault')
   if (subtypes.length === 0) subtypes.push('risk_assessment')
   return subtypes
 }
@@ -74,17 +92,23 @@ function detectAnalysisType(msg: string): string[] {
 export async function runAnalyst(input: AgentInput, llm?: LLMClient, mem0Context?: string): Promise<AgentOutput> {
   const startTime = Date.now()
   const subtypes = detectAnalysisType(input.message)
-  const isFL = input.jurisdiction === 'florida'
+  const jx = resolveJurisdiction(input.jurisdiction)
+  const isKS = jx === 'kansas' || jx === 'both'
+  const isMO = jx === 'missouri' || jx === 'both'
   const citations: Citation[] = []
   const memoryUpdates: MemoryUpdate[] = []
   const risksFound: string[] = []
   const actions: string[] = []
 
+  const jxDisplay = jx === 'kansas' ? 'Kansas' :
+    jx === 'missouri' ? 'Missouri' :
+    jx === 'federal' ? 'US Federal' : 'Kansas & Missouri'
+
   // Compute risk score
-  const risk = computeRiskScore(input.matter, input.message)
+  const risk = computeRiskScore(input.matter, input.message, jx)
 
   let content = `## 🧠 Strategic Analysis — Analyst Agent\n\n`
-  content += `**Date:** ${input.date} | **Jurisdiction:** ${isFL ? 'Florida' : 'US Federal'} | **Analysis:** ${subtypes.join(', ')}\n`
+  content += `**Date:** ${input.date} | **Jurisdiction:** ${jxDisplay} | **Analysis:** ${subtypes.join(', ')}\n`
   if (input.matter.case_id) content += `**Matter:** ${input.matter.case_number} — ${input.matter.title}\n`
   content += `\n---\n\n`
 
@@ -110,6 +134,33 @@ export async function runAnalyst(input: AgentInput, llm?: LLMClient, mem0Context
     content += `\n**Overall Risk Score: ${risk.overall}/10 — ${risk.label}**\n\n`
   }
 
+  // Comparative Fault Analysis (jurisdiction-specific)
+  if (subtypes.includes('comparative_fault') || subtypes.includes('risk_assessment')) {
+    content += `### ⚖️ Comparative Fault Analysis\n\n`
+    if (isKS) {
+      content += `**Kansas — Modified Comparative Fault (K.S.A. 60-258a):**\n`
+      content += `- **50% Bar Rule:** Plaintiff is BARRED from recovery if found 50% or more at fault\n`
+      content += `- Damages reduced proportionally by plaintiff's fault percentage\n`
+      content += `- **No joint & several liability** — each defendant pays only their share\n`
+      content += `- Non-party fault allocation permitted (empty-chair defense)\n`
+      content += `- **Strategic Impact:** Defendant will likely argue plaintiff's contributory negligence to approach 50% threshold\n\n`
+      citations.push({ source: 'statute', reference: 'K.S.A. 60-258a (Comparative Fault)', url: 'https://www.ksrevisor.org/statutes/chapters/ch60/060_002_0058a.html', verified: true })
+      risksFound.push('KS 50% comparative fault bar — plaintiff must remain below 50% at fault')
+    }
+    if (isMO) {
+      content += `**Missouri — Pure Comparative Fault (RSMo § 537.765):**\n`
+      content += `- **No bar to recovery** — plaintiff recovers even at 99% fault\n`
+      content += `- Damages reduced by plaintiff's percentage of fault\n`
+      content += `- **Joint & several liability** applies only if defendant ≥51% at fault (RSMo § 537.067)\n`
+      content += `- Defendants <51% at fault liable only for proportionate share\n`
+      content += `- **Strategic Impact:** Even high plaintiff fault does not eliminate the claim — focus shifts to damages reduction\n\n`
+      citations.push({ source: 'statute', reference: 'RSMo § 537.765 (Pure Comparative Fault)', url: 'https://revisor.mo.gov/main/OneSection.aspx?section=537.765', verified: true })
+    }
+    if (isKS && isMO) {
+      content += `**⚠️ Multi-State Consideration:** Venue/forum selection between KS and MO may significantly impact recovery. Kansas bars at 50%; Missouri allows recovery at any fault level. Evaluate choice-of-law and forum selection carefully.\n\n`
+    }
+  }
+
   // SWOT Analysis
   if (subtypes.includes('swot') || subtypes.includes('risk_assessment')) {
     content += `### Strengths & Weaknesses Analysis\n\n`
@@ -121,13 +172,15 @@ export async function runAnalyst(input: AgentInput, llm?: LLMClient, mem0Context
       const completedTasks = input.matter.tasks.filter(t => t.status === 'completed' || t.status === 'in_progress')
       if (completedTasks.length > 0) content += `- Active case management: ${completedTasks.length} tasks in progress/completed\n`
     }
-    content += `- FL-specific expertise applied\n`
+    content += `- KS-MO dual-jurisdiction expertise applied\n`
     content += `- Proactive deadline monitoring\n\n`
 
     content += `**WEAKNESSES / VULNERABILITIES:**\n`
     if (input.matter.case_id) {
       if (!input.matter.statute_of_limitations) {
         content += `- **⚠️ SOL NOT RECORDED** — Must be calculated and calendared immediately\n`
+        if (isKS) content += `  - Kansas: Typically 2 years for PI (K.S.A. 60-513)\n`
+        if (isMO) content += `  - Missouri: Typically 5 years for PI (RSMo § 516.120)\n`
         risksFound.push('Statute of limitations not tracked')
       }
       if (input.matter.documents.length < 3) content += `- Limited documentation on file — potential evidence gaps\n`
@@ -143,13 +196,19 @@ export async function runAnalyst(input: AgentInput, llm?: LLMClient, mem0Context
 
     content += `**OPPORTUNITIES:**\n`
     content += `- Early settlement may reduce costs and risk\n`
-    content += `- ${isFL ? 'Mediation (required in many FL circuits per FL R. Civ. P. 1.710)' : 'ADR options'} may yield efficient resolution\n`
-    content += `- Expert testimony may strengthen key issues\n\n`
+    if (isKS) content += `- Kansas court-annexed mediation or arbitration programs available\n`
+    if (isMO) content += `- Missouri Circuit Courts often order mediation; prepare for early ADR\n`
+    content += `- Expert testimony may strengthen key issues\n`
+    if (isKS && isMO) content += `- Forum selection between KS/MO may provide strategic advantage\n`
+    content += `\n`
 
     content += `**THREATS:**\n`
-    if (isFL && input.matter.case_type === 'personal_injury') {
-      content += `- **HB 837 tort reform** — 51% comparative fault bar, reduced SOL\n`
-      risksFound.push('HB 837 comparative fault bar applies')
+    if (isKS && input.matter.case_type === 'personal_injury') {
+      content += `- **K.S.A. 60-258a** — 50% comparative fault bar could eliminate recovery entirely\n`
+      risksFound.push('KS 50% comparative fault bar applies')
+    }
+    if (isMO && input.matter.case_type === 'personal_injury') {
+      content += `- **RSMo § 537.067** — Joint & several liability threshold may affect multi-defendant strategy\n`
     }
     content += `- Adverse rulings on dispositive motions\n`
     content += `- Escalating litigation costs exceeding projected budget\n`
@@ -167,8 +226,11 @@ export async function runAnalyst(input: AgentInput, llm?: LLMClient, mem0Context
     content += `| Expected | 50% | $${Math.round(est * 0.5).toLocaleString()} | $${Math.round(est * 0.75).toLocaleString()} |\n`
     content += `| Worst Case | 25% | $${Math.round(est * 0.2).toLocaleString()} | $0 (defense verdict) |\n\n`
     content += `**Expected Value:** $${Math.round(est * 0.55).toLocaleString()} (probability-weighted)\n\n`
-    if (isFL) {
-      content += `*Note: FL comparative fault (51% bar under HB 837) may reduce recovery proportionally.*\n\n`
+    if (isKS) {
+      content += `*Kansas note: K.S.A. 60-258a comparative fault (50% bar) may reduce or eliminate recovery. Factor plaintiff fault into all scenarios.*\n\n`
+    }
+    if (isMO) {
+      content += `*Missouri note: Pure comparative fault (RSMo § 537.765) reduces recovery proportionally but does not bar it. More favorable for plaintiffs with significant fault exposure.*\n\n`
     }
   }
 
@@ -186,7 +248,9 @@ export async function runAnalyst(input: AgentInput, llm?: LLMClient, mem0Context
       recs.push('Consider early mediation to control costs')
       recs.push('Issue preservation/litigation hold notices to all parties')
       recs.push('Review insurance coverage and tender defense if applicable')
-      if (isFL) recs.push('Verify compliance with FL pre-suit requirements (if applicable)')
+      if (isKS) recs.push('Kansas-specific: Verify medical malpractice screening panel requirements if applicable')
+      if (isMO) recs.push('Missouri-specific: Verify affidavit of merit requirements for med mal (RSMo § 538.225)')
+      if (isKS && isMO) recs.push('Evaluate forum selection between KS and MO for comparative fault advantage')
     } else {
       recs.push('Select a specific matter for targeted proactive analysis')
     }
@@ -214,17 +278,17 @@ export async function runAnalyst(input: AgentInput, llm?: LLMClient, mem0Context
   actions.push('Prepare client communication on case evaluation')
   for (const a of actions) content += `- [ ] ${a}\n`
 
-  content += `\n*Analysis confidence: ${(0.78 + Math.random() * 0.15).toFixed(2)} — refine with additional discovery and expert input.*\n\n---\nHow else can I assist as your AI partner today?`
+  content += `\n*Analysis confidence: ${(0.78 + Math.random() * 0.15).toFixed(2)} — refine with additional discovery and expert input.*\n\n---\nHow else can I assist as your Kansas-Missouri AI partner today?`
 
   // ── LLM Enhancement (if available) ─────────────────────────
   if (llm?.isEnabled) {
     try {
-      const embeddedKnowledge = `Risk Scorecard:\n${risk.factors.map(f => `${f.factor}: ${f.score}/10 - ${f.notes}`).join('\n')}\nOverall: ${risk.overall}/10 (${risk.label})\nAnalysis Types: ${subtypes.join(', ')}`
+      const embeddedKnowledge = `Risk Scorecard:\n${risk.factors.map(f => `${f.factor}: ${f.score}/10 - ${f.notes}`).join('\n')}\nOverall: ${risk.overall}/10 (${risk.label})\nAnalysis Types: ${subtypes.join(', ')}\nJurisdiction: ${jxDisplay}\nComparative Fault: KS=50% bar (K.S.A. 60-258a), MO=pure comparative (RSMo § 537.765)`
 
       const llmResponse = await llm.generateForAgent({
         agentType: 'analyst',
-        systemIdentity: 'You are Lawyrs AI Senior Analytical Partner. FL Bar member. Expert risk assessor.',
-        agentSpecialty: `Risk assessment and analytical specialist. Use the embedded risk scorecard as a foundation. Provide detailed SWOT analysis, risk mitigation strategies, and quantified exposure assessment. Be specific about FL-specific risks.`,
+        systemIdentity: 'You are Lawyrs AI Senior Analytical Partner. Licensed in Kansas and Missouri. Expert risk assessor.',
+        agentSpecialty: `Risk assessment and analytical specialist. Use the embedded risk scorecard as a foundation. Provide detailed SWOT analysis, risk mitigation strategies, and quantified exposure assessment. Highlight KS/MO comparative fault implications.`,
         matterContext: formatMatterContext(input.matter),
         mem0Context: mem0Context || '',
         conversationHistory: input.conversation_history.map(m => ({ role: m.role, content: m.content })),
@@ -246,7 +310,7 @@ export async function runAnalyst(input: AgentInput, llm?: LLMClient, mem0Context
   if (input.matter.case_id) {
     memoryUpdates.push({
       key: `analysis_${subtypes[0]}_${input.date}`,
-      value: `Risk assessment for ${input.matter.case_number}: Overall ${risk.overall}/10 (${risk.label}). Key risks: ${risk.factors.filter(f => f.score >= 6).map(f => f.factor).join(', ')}`,
+      value: `Risk assessment for ${input.matter.case_number}: Overall ${risk.overall}/10 (${risk.label}). Jurisdiction: ${jxDisplay}. Key risks: ${risk.factors.filter(f => f.score >= 6).map(f => f.factor).join(', ')}`,
       agent_type: 'analyst',
       confidence: risk.overall > 5 ? 0.75 : 0.85
     })

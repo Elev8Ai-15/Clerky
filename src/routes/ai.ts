@@ -22,7 +22,7 @@ async function ensureTables(db: D1Database) {
     case_id INTEGER,
     role TEXT NOT NULL CHECK(role IN ('user','assistant','system')),
     content TEXT NOT NULL,
-    jurisdiction TEXT DEFAULT 'florida',
+    jurisdiction TEXT DEFAULT 'kansas',
     agent_type TEXT,
     tokens_used INTEGER DEFAULT 0,
     confidence REAL DEFAULT 0,
@@ -56,7 +56,7 @@ ai.get('/chat/history', async (c) => {
 ai.post('/chat', async (c) => {
   try {
   const body = await c.req.json()
-  const { message, session_id = 'default', case_id, jurisdiction = 'florida' } = body
+  const { message, session_id = 'default', case_id, jurisdiction = 'kansas' } = body
   await ensureTables(c.env.DB)
 
   // Save user message
@@ -106,7 +106,7 @@ ai.post('/chat', async (c) => {
     role: 'assistant',
     content: result.content,
     agent_used: result.agent_type,
-    jurisdiction: jurisdiction === 'florida' ? 'Florida' : jurisdiction === 'federal' ? 'US Federal' : 'Multi-state',
+    jurisdiction: jurisdiction.toLowerCase() === 'kansas' ? 'Kansas' : jurisdiction.toLowerCase() === 'missouri' ? 'Missouri' : jurisdiction.toLowerCase() === 'federal' ? 'US Federal' : jurisdiction.toLowerCase() === 'multistate' || jurisdiction.toLowerCase() === 'multi-state' ? 'Multi-state (KS/MO)' : 'Multi-state',
     tokens_used: result.tokens_used,
     duration_ms: result.duration_ms,
     confidence: result.confidence,
@@ -258,14 +258,14 @@ ai.get('/agents', async (c) => {
       },
       {
         id: 'researcher', name: 'Researcher', role: 'Legal Research Specialist',
-        description: 'Case law lookup, statute analysis, citation verification, precedent matching, FL/Federal RAG',
-        capabilities: ['FL Statutes RAG (14 statutes)', 'Case law DB (12 cases)', 'Citation verification', 'SOL lookup', 'HB 837 analysis'],
+        description: 'Case law lookup, statute analysis, citation verification, precedent matching, KS/MO/Federal RAG',
+        capabilities: ['KS & MO Statutes RAG', 'Case law DB (KS/MO/Federal)', 'Citation verification', 'SOL lookup (KS 2yr / MO 5yr)', 'Comparative fault analysis'],
         icon: 'magnifying-glass', color: '#8b5cf6'
       },
       {
         id: 'drafter', name: 'Drafter', role: 'Document Generation Specialist',
-        description: 'Motion drafting, demand letters, engagement letters, FL-specific clauses, 7 document templates',
-        capabilities: ['7 document templates', 'FL rule compliance', 'Caption generation', 'Template variable injection', 'Format checking'],
+        description: 'Motion drafting, demand letters, engagement letters, KS/MO-specific clauses, 7 document templates',
+        capabilities: ['7 document templates', 'KS/MO rule compliance', 'Caption generation', 'Template variable injection', 'Format checking'],
         icon: 'file-pen', color: '#ec4899'
       },
       {
@@ -359,7 +359,7 @@ ai.post('/run', async (c) => {
     `Run ${agent_type} agent: ${action || 'auto_process'}${input_data ? '. Context: ' + JSON.stringify(input_data) : ''}`,
     'workflow_' + Date.now(),
     case_id ? Number(case_id) : null,
-    'florida',
+    'kansas',
     1,
     { DB: c.env.DB, MEM0_API_KEY: c.env.MEM0_API_KEY, OPENAI_API_KEY: c.env.OPENAI_API_KEY }
   )

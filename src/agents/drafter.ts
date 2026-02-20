@@ -1,8 +1,9 @@
 // ═══════════════════════════════════════════════════════════════
-// LAWYRS — DRAFTER AGENT
+// LAWYRS — DRAFTER AGENT (Kansas-Missouri)
 // Specializes in: document generation, motion drafting, demand
-// letters, engagement letters, Florida-specific clauses,
+// letters, engagement letters, KS/MO-specific clauses,
 // citation injection, template engine
+// Jurisdictions: Kansas (K.S.A. Ch. 60) + Missouri (Mo.Sup.Ct.R.)
 // ═══════════════════════════════════════════════════════════════
 
 import type { AgentInput, AgentOutput, Citation, MemoryUpdate } from './types'
@@ -13,7 +14,8 @@ import type { LLMClient } from './llm'
 interface DocTemplate {
   type: string
   sections: string[]
-  fl_rules: string[]
+  ks_rules: string[]
+  mo_rules: string[]
   warnings: string[]
 }
 
@@ -21,44 +23,51 @@ const DOC_TEMPLATES: Record<string, DocTemplate> = {
   'demand_letter': {
     type: 'Demand Letter',
     sections: ['Header/Letterhead', 'Factual Background', 'Legal Basis for Claim', 'Damages Calculation', 'Demand Amount & Terms', 'Response Deadline', 'Consequences of Non-Response'],
-    fl_rules: ['FL Bar Rule 4-3.4 (fairness to opposing party)', 'FL Bar Rule 4-4.1 (truthfulness)', 'F.S. §768.79 (offer of judgment considerations)'],
-    warnings: ['Ensure no improper threats per FL Bar Rule 4-8.4', 'Verify demand amount is supported by evidence', 'Calendar response deadline']
+    ks_rules: ['Kansas KRPC 3.4 (fairness to opposing party)', 'Kansas KRPC 4.1 (truthfulness)', 'K.S.A. 60-2002 (offer of judgment considerations)'],
+    mo_rules: ['Missouri Rule 4-3.4 (fairness to opposing party)', 'Missouri Rule 4-4.1 (truthfulness)', 'RSMo § 77.590 (offer of judgment)'],
+    warnings: ['Ensure no improper threats per applicable Rules of Professional Conduct', 'Verify demand amount is supported by evidence', 'Calendar response deadline', 'Consider comparative fault implications on demand amount (KS: 50% bar / MO: pure comparative)']
   },
   'motion_dismiss': {
     type: 'Motion to Dismiss',
-    sections: ['Caption', 'Preliminary Statement', 'Statement of Facts', 'Legal Standard — FL R. Civ. P. 1.140(b)', 'Argument with Point Headings', 'Prayer for Relief', 'Certificate of Service', 'Certificate of Good Faith Conference (if required)'],
-    fl_rules: ['FL R. Civ. P. 1.140(b) — grounds for dismissal', 'FL R. Civ. P. 1.140(e) — 20-day filing deadline', 'FL R. Jud. Admin. 2.520 — format requirements'],
-    warnings: ['Must be filed within 20 days of service per FL R. Civ. P. 1.140(a)(1)', 'F.S. §57.105 — sanctions for frivolous motions', 'Verify good faith conference requirement under local rules']
+    sections: ['Caption', 'Preliminary Statement', 'Statement of Facts', 'Legal Standard', 'Argument with Point Headings', 'Prayer for Relief', 'Certificate of Service', 'Certificate of Conference (if required)'],
+    ks_rules: ['K.S.A. 60-212(b) — grounds for dismissal', 'K.S.A. 60-212(a)(1) — 21-day filing deadline after service', 'Kansas Supreme Court Rule 170 — format requirements'],
+    mo_rules: ['Mo.Sup.Ct.R. 55.27(a) — grounds for dismissal', 'Mo.Sup.Ct.R. 55.27(a) — must be filed before or with responsive pleading', 'Mo.Sup.Ct.R. 55.03 — pleading requirements'],
+    warnings: ['KS: Must be filed within 21 days of service per K.S.A. 60-212(a)(1)', 'MO: Must be raised before or in responsive pleading per Mo.Sup.Ct.R. 55.27(a)', 'Verify local court rules for conference requirements', 'K.S.A. 60-211 / Mo.Sup.Ct.R. 55.03(c) — sanctions for frivolous motions']
   },
   'motion_compel': {
     type: 'Motion to Compel Discovery',
-    sections: ['Caption', 'Preliminary Statement', 'Discovery Requests at Issue', 'Good Faith Certification', 'Legal Standard — FL R. Civ. P. 1.380', 'Argument', 'Request for Sanctions/Fees', 'Certificate of Service'],
-    fl_rules: ['FL R. Civ. P. 1.380 — motion to compel', 'FL R. Civ. P. 1.280(b)(1) — scope of discovery', 'FL R. Civ. P. 1.340, 1.350, 1.351 — specific discovery tools'],
-    warnings: ['Good faith certification REQUIRED per FL R. Civ. P. 1.380(a)(2)', 'Attorney fees may be awarded to prevailing party', 'Verify local rules for discovery dispute procedures']
+    sections: ['Caption', 'Preliminary Statement', 'Discovery Requests at Issue', 'Good Faith Certification', 'Legal Standard', 'Argument', 'Request for Sanctions/Fees', 'Certificate of Service'],
+    ks_rules: ['K.S.A. 60-237(a) — motion to compel', 'K.S.A. 60-226(b) — scope of discovery', 'K.S.A. 60-233 (interrogatories), K.S.A. 60-234 (production)', 'Kansas D.Ct. Rule 140 — discovery dispute procedures'],
+    mo_rules: ['Mo.Sup.Ct.R. 61.01 — motion to compel', 'Mo.Sup.Ct.R. 56.01(b) — scope of discovery (proportionality emphasis)', 'Mo.Sup.Ct.R. 57 (interrogatories), Mo.Sup.Ct.R. 58 (production)', 'Note: MO has unique ESI proportionality rules'],
+    warnings: ['Good faith conference/certification REQUIRED in both KS and MO', 'Attorney fees may be awarded to prevailing party', 'MO: Proportionality analysis under Mo.Sup.Ct.R. 56.01(b) is critical', 'KS: Verify local district court discovery dispute procedures']
   },
   'engagement_letter': {
     type: 'Client Engagement Letter',
     sections: ['Scope of Representation', 'Fee Arrangement', 'Retainer/Trust Account', 'Billing Practices', 'Client Responsibilities', 'Communication Protocol', 'File Retention Policy', 'Termination Provisions', 'Conflict Waiver (if applicable)', 'Signatures'],
-    fl_rules: ['FL Bar Rule 4-1.5 — fees', 'FL Bar Rule 4-1.5(e) — written fee agreement required for contingency', 'FL Bar Rule 5-1.1 — trust accounting (IOTA)', 'FL Bar Rule 4-1.4 — communication obligations'],
-    warnings: ['Must comply with FL Bar contingency fee schedule per Rule 4-1.5(f)(4)(B)', 'Include clear scope limitation to avoid malpractice exposure', 'Trust account terms must comply with IOTA requirements']
+    ks_rules: ['Kansas KRPC 1.5 — fees (must be reasonable)', 'Kansas KRPC 1.5(c) — contingency fee must be in writing', 'Kansas KRPC 1.15 — trust accounting (IOLTA)', 'Kansas KRPC 1.4 — communication obligations'],
+    mo_rules: ['Missouri Rule 4-1.5 — fees (must be reasonable)', 'Missouri Rule 4-1.5(c) — contingency fee must be in writing', 'Missouri Rule 4-1.15 — trust accounting (IOLTA)', 'Missouri Rule 4-1.4 — communication obligations'],
+    warnings: ['Written fee agreement REQUIRED for contingency fees in both KS and MO', 'Include clear scope limitation to avoid malpractice exposure', 'Trust account terms must comply with IOLTA requirements', 'KS: Kansas Supreme Court requires annual registration and CLE compliance']
   },
   'complaint': {
-    type: 'Civil Complaint',
+    type: 'Civil Complaint / Petition',
     sections: ['Caption', 'Jurisdictional Allegations', 'Parties', 'Factual Allegations', 'Causes of Action (separate counts)', 'Damages Allegations', 'Prayer for Relief', 'Jury Demand (if applicable)', 'Verification (if required)', 'Certificate of Service'],
-    fl_rules: ['FL R. Civ. P. 1.110 — general rules of pleading', 'FL R. Civ. P. 1.100 — forms of pleading', 'F.S. §48.193 — long-arm jurisdiction'],
-    warnings: ['Verify SOL before filing', 'Check pre-suit requirements (e.g., F.S. §766.106 for med mal)', 'Confirm proper venue per F.S. §47.011']
+    ks_rules: ['K.S.A. 60-208 — general rules of pleading', 'K.S.A. 60-204 — civil cover sheet required', 'K.S.A. 60-308 — service of process', 'K.S.A. 60-601 et seq. — venue'],
+    mo_rules: ['Mo.Sup.Ct.R. 55.05 — petition requirements (fact pleading required)', 'Mo.Sup.Ct.R. 54.01 — civil cover sheet', 'Mo.Sup.Ct.R. 54.13-14 — service of process', 'RSMo § 508.010 — venue'],
+    warnings: ['Verify SOL before filing (KS: K.S.A. 60-513 / MO: RSMo § 516.120)', 'MO requires FACT pleading (not notice pleading) — more detail required than federal courts', 'KS: Verify pre-suit requirements for medical malpractice (screening panel)', 'Confirm proper venue (KS: K.S.A. 60-601 / MO: RSMo § 508.010)']
   },
   'summary_judgment': {
     type: 'Motion for Summary Judgment',
-    sections: ['Caption', 'Preliminary Statement', 'Statement of Undisputed Material Facts', 'Legal Standard — FL R. Civ. P. 1.510', 'Argument', 'Conclusion', 'Certificate of Service'],
-    fl_rules: ['FL R. Civ. P. 1.510 (amended 2021 — federal Celotex standard adopted)', 'In re Amendments to FL R. Civ. P. 1.510, 317 So.3d 1090 (Fla. 2021)'],
-    warnings: ['FL adopted federal Celotex standard in 2021 — movant no longer must conclusively disprove opponent case', 'Must file with supporting evidence (affidavits, depositions, etc.)', 'Verify local rules for hearing scheduling requirements']
+    sections: ['Caption', 'Preliminary Statement', 'Statement of Uncontroverted Facts', 'Legal Standard', 'Argument', 'Conclusion', 'Certificate of Service'],
+    ks_rules: ['K.S.A. 60-256 — summary judgment (follows federal Celotex standard)', 'Kansas Supreme Court Rule 141 — statement of uncontroverted facts required', 'Shamberg, Johnson & Bergman v. Oliver, 289 Kan. 891 (2009) — KS standard'],
+    mo_rules: ['Mo.Sup.Ct.R. 74.04 — summary judgment', 'Mo.Sup.Ct.R. 74.04(c) — statement of uncontroverted material facts REQUIRED', 'ITT Commercial Finance Corp. v. Mid-America Marine, 854 S.W.2d 371 (Mo. 1993) — MO standard'],
+    warnings: ['Both KS and MO require separate statement of uncontroverted facts', 'MO: Mo.Sup.Ct.R. 74.04(c) is strictly enforced — failure to comply can be fatal', 'Must file with supporting evidence (affidavits, depositions, etc.)', 'Verify local rules for hearing scheduling requirements']
   },
   'discovery_responses': {
     type: 'Discovery Responses',
     sections: ['Caption', 'Preliminary Statement/Objections', 'General Objections', 'Specific Responses to Each Request', 'Privilege Log (if applicable)', 'Verification/Oath', 'Certificate of Service'],
-    fl_rules: ['FL R. Civ. P. 1.340 — interrogatories (30-day response)', 'FL R. Civ. P. 1.350 — production (30-day response)', 'FL R. Civ. P. 1.351 — subpoena for production'],
-    warnings: ['30-day response deadline per FL Rules (verify service date)', 'Objections must be stated with specificity', 'Privilege log required for withheld documents']
+    ks_rules: ['K.S.A. 60-233 — interrogatories (30-day response)', 'K.S.A. 60-234 — production of documents (30-day response)', 'K.S.A. 60-236 — requests for admission (30-day response)'],
+    mo_rules: ['Mo.Sup.Ct.R. 57.01 — interrogatories (30-day response)', 'Mo.Sup.Ct.R. 58.01 — production (30-day response)', 'Mo.Sup.Ct.R. 59.01 — requests for admission (30-day response)', 'Note: MO proportionality rules apply to ESI and burden analysis'],
+    warnings: ['30-day response deadline in both KS and MO (verify service date)', 'Objections must be stated with specificity', 'Privilege log required for withheld documents', 'MO: ESI proportionality under Mo.Sup.Ct.R. 56.01(b) — cost-shifting may apply']
   },
 }
 
@@ -75,26 +84,48 @@ function detectDocType(msg: string): string {
   return 'demand_letter' // default
 }
 
+// ── Resolve jurisdiction helper ─────────────────────────────
+function resolveJurisdiction(jurisdiction: string): 'kansas' | 'missouri' | 'both' | 'federal' {
+  const j = jurisdiction?.toLowerCase() || ''
+  if (j === 'kansas' || j === 'ks') return 'kansas'
+  if (j === 'missouri' || j === 'mo') return 'missouri'
+  if (j === 'federal') return 'federal'
+  return 'both'
+}
+
 // ═══ MAIN AGENT EXECUTION ═══════════════════════════════════
 export async function runDrafter(input: AgentInput, llm?: LLMClient, mem0Context?: string): Promise<AgentOutput> {
   const startTime = Date.now()
   const docType = detectDocType(input.message)
   const template = DOC_TEMPLATES[docType] || DOC_TEMPLATES['demand_letter']
-  const isFL = input.jurisdiction === 'florida'
+  const jx = resolveJurisdiction(input.jurisdiction)
+  const isKS = jx === 'kansas' || jx === 'both'
+  const isMO = jx === 'missouri' || jx === 'both'
   const ctx = formatMatterContext(input.matter)
   const citations: Citation[] = []
   const memoryUpdates: MemoryUpdate[] = []
   const risksFound: string[] = []
   const actions: string[] = []
 
+  const jxDisplay = jx === 'kansas' ? 'Kansas' :
+    jx === 'missouri' ? 'Missouri' :
+    jx === 'federal' ? 'US Federal' : 'Kansas & Missouri'
+
   // Build citations from template rules
-  for (const rule of template.fl_rules) {
-    citations.push({ source: 'rule', reference: rule, verified: true })
+  if (isKS) {
+    for (const rule of template.ks_rules) {
+      citations.push({ source: 'rule', reference: rule, verified: true })
+    }
+  }
+  if (isMO) {
+    for (const rule of template.mo_rules) {
+      citations.push({ source: 'rule', reference: rule, verified: true })
+    }
   }
 
   // ── Build response ────────────────────────────────────────
   let content = `## 📝 Document Drafting — Drafter Agent\n\n`
-  content += `**Date:** ${input.date} | **Jurisdiction:** ${isFL ? 'Florida' : 'US Federal'} | **Document:** ${template.type}\n`
+  content += `**Date:** ${input.date} | **Jurisdiction:** ${jxDisplay} | **Document:** ${template.type}\n`
   if (input.matter.case_id) content += `**Matter:** ${input.matter.case_number} — ${input.matter.title}\n`
   content += `\n---\n\n`
 
@@ -112,25 +143,35 @@ export async function runDrafter(input: AgentInput, llm?: LLMClient, mem0Context
     content += `${i + 1}. **${template.sections[i]}**\n`
   }
 
-  // Applicable rules
-  content += `\n### Applicable Rules & Authority\n`
-  for (const rule of template.fl_rules) {
-    content += `- ${rule}\n`
+  // Applicable rules (jurisdiction-aware)
+  if (isKS) {
+    content += `\n### Kansas Rules & Authority\n`
+    for (const rule of template.ks_rules) {
+      content += `- ${rule}\n`
+    }
+  }
+  if (isMO) {
+    content += `\n### Missouri Rules & Authority\n`
+    for (const rule of template.mo_rules) {
+      content += `- ${rule}\n`
+    }
   }
 
   // Draft outline with matter context
   content += `\n### Draft Outline\n\n`
   if (input.matter.case_id) {
+    const courtName = input.matter.court_name?.toUpperCase() || (isKS ? 'DISTRICT COURT OF [COUNTY] COUNTY, KANSAS' : isMO ? 'CIRCUIT COURT OF [COUNTY] COUNTY, MISSOURI' : 'DISTRICT COURT')
+    const filingTerm = isMO ? 'Petitioner' : 'Plaintiff'
+    const respondTerm = isMO ? 'Respondent' : 'Defendant'
+
     content += `**CAPTION:**\n`
     content += `\`\`\`\n`
-    content += `IN THE ${input.matter.court_name?.toUpperCase() || 'CIRCUIT COURT OF THE [XX] JUDICIAL CIRCUIT'}\n`
-    content += `IN AND FOR ${isFL ? '[COUNTY] COUNTY, FLORIDA' : '[DISTRICT]'}\n\n`
-    content += `${input.matter.client_name?.toUpperCase() || 'PLAINTIFF'},\n`
-    content += `     ${input.matter.case_type === 'family' ? 'Petitioner' : 'Plaintiff'},\n\n`
-    content += `vs.                                 Case No.: ${input.matter.court_name ? input.matter.case_number : '____-____'}\n\n`
+    content += `IN THE ${courtName}\n\n`
+    content += `${input.matter.client_name?.toUpperCase() || filingTerm.toUpperCase()},\n`
+    content += `     ${input.matter.case_type === 'family' ? 'Petitioner' : filingTerm},\n\n`
+    content += `vs.                                 Case No.: ${input.matter.court_name ? input.matter.case_number : '____-CV-____'}\n\n`
     content += `${input.matter.opposing_party?.toUpperCase() || '[OPPOSING PARTY]'},\n`
-    content += `     ${input.matter.case_type === 'family' ? 'Respondent' : 'Defendant'}.\n`
-    content += `_______________________________/\n`
+    content += `     ${input.matter.case_type === 'family' ? 'Respondent' : respondTerm}.\n`
     content += `\`\`\`\n\n`
 
     content += `**PRELIMINARY STATEMENT:**\n`
@@ -153,21 +194,42 @@ export async function runDrafter(input: AgentInput, llm?: LLMClient, mem0Context
     content += `*Select a matter to generate a case-specific draft outline with caption, facts, and document references.*\n`
   }
 
-  // Florida-specific clauses
-  if (isFL) {
-    content += `\n### Florida-Specific Requirements\n`
-    content += `- **Certificate of Service** per FL R. Civ. P. 1.080\n`
-    content += `- **Format** per FL R. Jud. Admin. 2.520 (double-spaced, 12pt, 1-inch margins)\n`
-    content += `- **E-filing** required via Florida Courts E-Filing Portal\n`
+  // Jurisdiction-specific requirements
+  content += `\n### Jurisdiction-Specific Requirements\n`
+  if (isKS) {
+    content += `**Kansas:**\n`
+    content += `- **Certificate of Service** per K.S.A. 60-205\n`
+    content += `- **Format** per Kansas Supreme Court Rule 170 (double-spaced, 12pt Times New Roman or similar)\n`
+    content += `- **E-filing** required via Kansas Courts E-Filing System\n`
     if (docType === 'demand_letter') {
-      content += `- Consider **F.S. §768.79 offer of judgment** implications\n`
-      content += `- Include PFS (Proposal for Settlement) language if applicable\n`
+      content += `- Consider **K.S.A. 60-2002 offer of judgment** implications\n`
     }
     if (docType === 'complaint' || docType === 'motion_dismiss') {
-      content += `- Verify **F.S. §57.105** sanctions standards before filing\n`
+      content += `- Verify **K.S.A. 60-211** sanctions standards before filing\n`
     }
     if (input.matter.case_type === 'personal_injury') {
-      content += `- **HB 837 (2023)** — Modified comparative fault (51% bar), reduced fee multiplier\n`
+      content += `- **K.S.A. 60-258a** — Modified comparative fault (50% bar) affects damages allegations\n`
+      content += `- **No joint & several liability** — each defendant liable only for proportionate share\n`
+    }
+    if (input.matter.case_type === 'medical_malpractice') {
+      content += `- **Screening panel** may be required per K.S.A. 65-4901 et seq.\n`
+    }
+  }
+  if (isMO) {
+    content += `**Missouri:**\n`
+    content += `- **Certificate of Service** per Mo.Sup.Ct.R. 43.01\n`
+    content += `- **Format** per Mo.Sup.Ct.R. 55.03 (specific pleading requirements)\n`
+    content += `- **E-filing** required via Missouri Courts Electronic Filing System\n`
+    content += `- **⚠️ FACT PLEADING required** — Missouri requires more specific factual allegations than federal notice pleading\n`
+    if (docType === 'complaint' || docType === 'motion_dismiss') {
+      content += `- Verify **Mo.Sup.Ct.R. 55.03(c)** sanctions standards\n`
+    }
+    if (input.matter.case_type === 'personal_injury') {
+      content += `- **RSMo § 537.765** — Pure comparative fault; no bar to recovery regardless of plaintiff's fault percentage\n`
+      content += `- **RSMo § 537.067** — Joint & several only for defendants ≥51% at fault\n`
+    }
+    if (input.matter.case_type === 'medical_malpractice') {
+      content += `- **RSMo § 538.225** — Affidavit of merit required with petition\n`
     }
   }
 
@@ -182,23 +244,24 @@ export async function runDrafter(input: AgentInput, llm?: LLMClient, mem0Context
   content += `\n### Pre-Filing Review Checklist\n`
   actions.push(`Draft ${template.type} incorporating matter-specific facts`)
   actions.push('Verify all citations and authorities are current')
-  actions.push(`Ensure compliance with ${isFL ? 'FL R. Jud. Admin. 2.520 formatting' : 'local court formatting rules'}`)
+  actions.push(`Ensure compliance with ${isKS ? 'Kansas Supreme Court Rule 170' : ''}${isKS && isMO ? ' and ' : ''}${isMO ? 'Missouri Supreme Court Rules' : ''} formatting`)
   actions.push('Have supervising attorney review before filing')
   actions.push('Calendar response deadline and any hearing dates')
   actions.push('Prepare certificate of service')
   for (const a of actions) content += `- [ ] ${a}\n`
 
-  content += `\n*Drafter agent ready to generate full document text once specific facts and legal theories are confirmed. Agent confidence: ${(0.85 + Math.random() * 0.10).toFixed(2)}*\n\n---\nHow else can I assist as your AI partner today?`
+  content += `\n*Drafter agent ready to generate full document text once specific facts and legal theories are confirmed. Agent confidence: ${(0.85 + Math.random() * 0.10).toFixed(2)}*\n\n---\nHow else can I assist as your Kansas-Missouri AI partner today?`
 
   // ── LLM Enhancement (if available) ─────────────────────────
   if (llm?.isEnabled) {
     try {
-      const embeddedKnowledge = `Document Type: ${template.type}\nSections: ${template.sections.join(', ')}\nFL Rules: ${template.fl_rules.join(', ')}\nWarnings: ${template.warnings.join(', ')}`
+      const rules = isKS ? template.ks_rules : template.mo_rules
+      const embeddedKnowledge = `Document Type: ${template.type}\nSections: ${template.sections.join(', ')}\nKS Rules: ${template.ks_rules.join(', ')}\nMO Rules: ${template.mo_rules.join(', ')}\nWarnings: ${template.warnings.join(', ')}`
 
       const llmResponse = await llm.generateForAgent({
         agentType: 'drafter',
-        systemIdentity: 'You are Lawyrs AI Senior Drafting Partner. FL Bar member. Expert document drafter.',
-        agentSpecialty: `Document drafting specialist. Generate a complete ${template.type} using the embedded template structure. Include all required sections with proper legal formatting. Include FL-specific requirements and citations.`,
+        systemIdentity: 'You are Lawyrs AI Senior Drafting Partner. Licensed in Kansas and Missouri. Expert document drafter.',
+        agentSpecialty: `Document drafting specialist. Generate a complete ${template.type} using the embedded template structure. Include all required sections with proper legal formatting. Include KS/MO-specific requirements and citations.`,
         matterContext: formatMatterContext(input.matter),
         mem0Context: mem0Context || '',
         conversationHistory: input.conversation_history.map(m => ({ role: m.role, content: m.content })),
@@ -220,7 +283,7 @@ export async function runDrafter(input: AgentInput, llm?: LLMClient, mem0Context
   if (input.matter.case_id) {
     memoryUpdates.push({
       key: `draft_${docType}_${input.date}`,
-      value: `Drafted ${template.type} outline for ${input.matter.case_number}. Sections: ${template.sections.length}. FL rules cited: ${template.fl_rules.length}.`,
+      value: `Drafted ${template.type} outline for ${input.matter.case_number}. Sections: ${template.sections.length}. KS rules: ${template.ks_rules.length}. MO rules: ${template.mo_rules.length}.`,
       agent_type: 'drafter',
       confidence: 0.88
     })

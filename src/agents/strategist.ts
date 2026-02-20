@@ -1,8 +1,9 @@
 // ═══════════════════════════════════════════════════════════════
-// LAWYRS — STRATEGIST AGENT
+// LAWYRS — STRATEGIST AGENT (Kansas-Missouri)
 // Specializes in: scenario planning, settlement modeling,
 // timeline generation, proactive recommendations, ADR strategy,
 // litigation budgeting, case theory development
+// Jurisdictions: Kansas (10th Cir.) + Missouri (8th Cir.)
 // ═══════════════════════════════════════════════════════════════
 
 import type { AgentInput, AgentOutput, Citation, MemoryUpdate } from './types'
@@ -20,22 +21,37 @@ function detectStrategyType(msg: string): string[] {
   if (m.includes('trial') || m.includes('hearing') || m.includes('jury')) subtypes.push('trial_prep')
   if (m.includes('missing') || m.includes('proactive') || m.includes('recommend') || m.includes('what am i')) subtypes.push('proactive')
   if (m.includes('scenario') || m.includes('option') || m.includes('strateg') || m.includes('plan')) subtypes.push('scenario_planning')
+  if (m.includes('venue') || m.includes('forum') || m.includes('choice of law')) subtypes.push('venue_analysis')
   if (subtypes.length === 0) subtypes.push('scenario_planning')
   return subtypes
+}
+
+function resolveJurisdiction(jurisdiction: string): 'kansas' | 'missouri' | 'both' | 'federal' {
+  const j = jurisdiction?.toLowerCase() || ''
+  if (j === 'kansas' || j === 'ks') return 'kansas'
+  if (j === 'missouri' || j === 'mo') return 'missouri'
+  if (j === 'federal') return 'federal'
+  return 'both'
 }
 
 // ═══ MAIN AGENT EXECUTION ═══════════════════════════════════
 export async function runStrategist(input: AgentInput, llm?: LLMClient, mem0Context?: string): Promise<AgentOutput> {
   const startTime = Date.now()
   const subtypes = detectStrategyType(input.message)
-  const isFL = input.jurisdiction === 'florida'
+  const jx = resolveJurisdiction(input.jurisdiction)
+  const isKS = jx === 'kansas' || jx === 'both'
+  const isMO = jx === 'missouri' || jx === 'both'
   const citations: Citation[] = []
   const memoryUpdates: MemoryUpdate[] = []
   const risksFound: string[] = []
   const actions: string[] = []
 
+  const jxDisplay = jx === 'kansas' ? 'Kansas' :
+    jx === 'missouri' ? 'Missouri' :
+    jx === 'federal' ? 'US Federal' : 'Kansas & Missouri'
+
   let content = `## 🎯 Strategic Planning — Strategist Agent\n\n`
-  content += `**Date:** ${input.date} | **Jurisdiction:** ${isFL ? 'Florida' : 'US Federal'} | **Strategy:** ${subtypes.join(', ')}\n`
+  content += `**Date:** ${input.date} | **Jurisdiction:** ${jxDisplay} | **Strategy:** ${subtypes.join(', ')}\n`
   if (input.matter.case_id) content += `**Matter:** ${input.matter.case_number} — ${input.matter.title}\n`
   content += `\n---\n\n`
 
@@ -66,14 +82,39 @@ export async function runStrategist(input: AgentInput, llm?: LLMClient, mem0Cont
     content += `- **Best If:** Clear liability, strong damages evidence, client willing to accept binary outcome\n`
     content += `- **Timing:** 18–24 months from filing\n\n`
 
-    if (isFL) {
-      content += `**Florida-Specific Considerations:**\n`
-      content += `- **F.S. §768.79 — Offer of Judgment/Proposal for Settlement (PFS)** — Strategic timing critical for fee-shifting\n`
-      content += `- **HB 837** — 51% comparative fault bar affects settlement calculus\n`
-      content += `- **FL R. Civ. P. 1.710** — Court-ordered mediation likely; prepare for early mediation\n\n`
-      citations.push({ source: 'statute', reference: 'F.S. §768.79 (Offer of Judgment)', verified: true })
-      citations.push({ source: 'rule', reference: 'FL R. Civ. P. 1.710 (Mediation)', verified: true })
+    if (isKS) {
+      content += `**Kansas-Specific Considerations:**\n`
+      content += `- **K.S.A. 60-2002 — Offer of Judgment** — Strategic timing critical; recipient who rejects and fails to improve bears costs\n`
+      content += `- **K.S.A. 60-258a — 50% comparative fault bar** — Settlement calculus must account for plaintiff's potential fault exposure\n`
+      content += `- **Kansas court-annexed mediation** — Many districts have mandatory mediation programs\n`
+      content += `- **No joint & several liability** — Must evaluate settlement against each defendant individually\n\n`
+      citations.push({ source: 'statute', reference: 'K.S.A. 60-2002 (Offer of Judgment)', verified: true })
+      citations.push({ source: 'statute', reference: 'K.S.A. 60-258a (Comparative Fault)', verified: true })
     }
+    if (isMO) {
+      content += `**Missouri-Specific Considerations:**\n`
+      content += `- **Mo.Sup.Ct.R. 68 — Offer of Judgment** — Strategic fee-shifting considerations\n`
+      content += `- **RSMo § 537.765 — Pure comparative fault** — No bar to recovery; focus on damages reduction\n`
+      content += `- **RSMo § 537.067 — Joint & several liability** — Only for defendants ≥51% at fault; evaluate multi-defendant strategy\n`
+      content += `- **Missouri mediation** — Circuit courts frequently order mediation; consider volunteering early\n\n`
+      citations.push({ source: 'statute', reference: 'RSMo § 537.765 (Pure Comparative Fault)', verified: true })
+      citations.push({ source: 'rule', reference: 'Mo.Sup.Ct.R. 68 (Offer of Judgment)', verified: true })
+    }
+  }
+
+  // ── Venue/Forum Selection Analysis ─────────────────────────
+  if (subtypes.includes('venue_analysis') || (isKS && isMO && subtypes.includes('scenario_planning'))) {
+    content += `### 🏛️ Venue / Forum Selection Analysis\n\n`
+    content += `For matters with connections to both Kansas and Missouri, forum selection is a critical strategic decision:\n\n`
+    content += `| Factor | Kansas | Missouri |\n`
+    content += `|--------|--------|----------|\n`
+    content += `| Comparative Fault | 50% bar (K.S.A. 60-258a) | Pure comparative (RSMo § 537.765) |\n`
+    content += `| PI SOL | 2 years (K.S.A. 60-513) | 5 years (RSMo § 516.120) |\n`
+    content += `| Joint & Several | No — proportionate only | Yes, if defendant ≥51% at fault |\n`
+    content += `| Pleading Standard | Notice pleading | **Fact pleading** (more specific) |\n`
+    content += `| Discovery Rules | K.S.A. Chapter 60 | Mo.Sup.Ct.R. (unique ESI/proportionality) |\n`
+    content += `| Federal Circuit | 10th Circuit | 8th Circuit |\n\n`
+    content += `**Recommendation:** For plaintiff-side PI cases, Missouri generally offers advantages (longer SOL, no comparative fault bar, joint & several for high-fault defendants). For defense, Kansas may be more favorable.\n\n`
   }
 
   // ── Timeline Generation ───────────────────────────────────
@@ -82,14 +123,15 @@ export async function runStrategist(input: AgentInput, llm?: LLMClient, mem0Cont
     const filed = input.matter.date_filed || input.date
     content += `| Phase | Estimated Dates | Key Deadlines | Status |\n`
     content += `|-------|----------------|---------------|--------|\n`
-    content += `| Filing/Service | ${filed} | Service within 120 days | ${input.matter.status === 'open' ? '🟡 In Progress' : '✅ Complete'} |\n`
-    content += `| Initial Disclosures | +30 days | ${isFL ? 'FL R. Civ. P. 1.280' : 'FRCP 26(a)(1)'} | ⏳ Pending |\n`
+    content += `| Filing/Service | ${filed} | ${isKS ? 'Service within 90 days (K.S.A. 60-203)' : isMO ? 'Service within 30 days (Mo.Sup.Ct.R. 54.01)' : 'Per local rule'} | ${input.matter.status === 'open' ? '🟡 In Progress' : '✅ Complete'} |\n`
+    content += `| Responsive Pleading | +21–30 days | ${isKS ? 'K.S.A. 60-212(a) — 21 days' : isMO ? 'Mo.Sup.Ct.R. 55.25 — 30 days' : 'FRCP 12(a) — 21 days'} | ⏳ Pending |\n`
+    content += `| Initial Disclosures | +30–45 days | ${isKS ? 'K.S.A. 60-226(a)' : isMO ? 'Per scheduling order' : 'FRCP 26(a)(1)'} | ⏳ Pending |\n`
     content += `| Written Discovery | +60–120 days | Interrogatories, RFPs, RFAs | ⏳ Pending |\n`
     content += `| Depositions | +120–180 days | Key witnesses identified | ⏳ Pending |\n`
-    content += `| Expert Disclosures | +150–210 days | ${isFL ? 'Per case management order' : 'FRCP 26(a)(2)'} | ⏳ Pending |\n`
+    content += `| Expert Disclosures | +150–210 days | Per scheduling/case management order | ⏳ Pending |\n`
     content += `| Discovery Close | +180–240 days | All discovery complete | ⏳ Pending |\n`
-    content += `| Dispositive Motions | +210–270 days | MSJ deadline | ⏳ Pending |\n`
-    content += `| Mediation | +240–300 days | ${isFL ? 'Court-ordered per FL R. Civ. P. 1.710' : 'Per scheduling order'} | ⏳ Pending |\n`
+    content += `| Dispositive Motions | +210–270 days | ${isKS ? 'K.S.A. 60-256 MSJ deadline' : isMO ? 'Mo.Sup.Ct.R. 74.04 MSJ deadline' : 'Per scheduling order'} | ⏳ Pending |\n`
+    content += `| Mediation / ADR | +240–300 days | ${isKS ? 'Court-annexed program if ordered' : isMO ? 'Circuit court mediation order' : 'Per scheduling order'} | ⏳ Pending |\n`
     content += `| Pretrial Conference | +300–330 days | Pretrial order due | ⏳ Pending |\n`
     content += `| Trial | +330–365 days | Trial period | ⏳ Pending |\n\n`
 
@@ -117,13 +159,13 @@ export async function runStrategist(input: AgentInput, llm?: LLMClient, mem0Cont
     const isHighValue = (input.matter.estimated_value || 0) > 500000
     content += `| Phase | Hours Est. | Rate | Cost Est. | Cumulative |\n`
     content += `|-------|-----------|------|-----------|------------|\n`
-    content += `| Initial Assessment | ${isHighValue ? '15–25' : '8–15'} | $400–550 | $${isHighValue ? '8,000–13,750' : '3,200–8,250'} | $${isHighValue ? '13,750' : '8,250'} |\n`
-    content += `| Pleadings | ${isHighValue ? '20–35' : '10–20'} | $400–550 | $${isHighValue ? '10,000–19,250' : '4,000–11,000'} | $${isHighValue ? '32,000' : '19,250'} |\n`
-    content += `| Discovery | ${isHighValue ? '50–100' : '25–50'} | $200–550 | $${isHighValue ? '25,000–55,000' : '5,000–27,500'} | $${isHighValue ? '87,000' : '46,750'} |\n`
-    content += `| Depositions | ${isHighValue ? '30–60' : '15–30'} | $400–550 | $${isHighValue ? '15,000–33,000' : '6,000–16,500'} | $${isHighValue ? '120,000' : '63,250'} |\n`
-    content += `| Motion Practice | ${isHighValue ? '20–40' : '10–20'} | $400–550 | $${isHighValue ? '10,000–22,000' : '4,000–11,000'} | $${isHighValue ? '142,000' : '74,250'} |\n`
-    content += `| Trial Prep | ${isHighValue ? '40–80' : '20–40'} | $400–550 | $${isHighValue ? '20,000–44,000' : '8,000–22,000'} | $${isHighValue ? '186,000' : '96,250'} |\n`
-    content += `| Trial (5–7 days) | ${isHighValue ? '50–70' : '30–50'} | $400–550 | $${isHighValue ? '25,000–38,500' : '12,000–27,500'} | $${isHighValue ? '224,500' : '123,750'} |\n\n`
+    content += `| Initial Assessment | ${isHighValue ? '15–25' : '8–15'} | $350–500 | $${isHighValue ? '7,500–12,500' : '2,800–7,500'} | $${isHighValue ? '12,500' : '7,500'} |\n`
+    content += `| Pleadings | ${isHighValue ? '20–35' : '10–20'} | $350–500 | $${isHighValue ? '8,750–17,500' : '3,500–10,000'} | $${isHighValue ? '30,000' : '17,500'} |\n`
+    content += `| Discovery | ${isHighValue ? '50–100' : '25–50'} | $200–500 | $${isHighValue ? '22,500–50,000' : '5,000–25,000'} | $${isHighValue ? '80,000' : '42,500'} |\n`
+    content += `| Depositions | ${isHighValue ? '30–60' : '15–30'} | $350–500 | $${isHighValue ? '13,500–30,000' : '5,250–15,000'} | $${isHighValue ? '110,000' : '57,500'} |\n`
+    content += `| Motion Practice | ${isHighValue ? '20–40' : '10–20'} | $350–500 | $${isHighValue ? '8,750–20,000' : '3,500–10,000'} | $${isHighValue ? '130,000' : '67,500'} |\n`
+    content += `| Trial Prep | ${isHighValue ? '40–80' : '20–40'} | $350–500 | $${isHighValue ? '17,500–40,000' : '7,000–20,000'} | $${isHighValue ? '170,000' : '87,500'} |\n`
+    content += `| Trial (5–7 days) | ${isHighValue ? '50–70' : '30–50'} | $350–500 | $${isHighValue ? '22,500–35,000' : '10,500–25,000'} | $${isHighValue ? '205,000' : '112,500'} |\n\n`
 
     if (input.matter.billing_summary && input.matter.billing_summary.total_billed > 0) {
       const b = input.matter.billing_summary
@@ -134,9 +176,13 @@ export async function runStrategist(input: AgentInput, llm?: LLMClient, mem0Cont
       content += `- Hours logged: ${b.total_hours}\n\n`
     }
 
-    if (isFL) {
-      content += `*FL-specific: Contingency fee structure per FL Bar Rule 4-1.5(f)(4)(B) may apply.*\n\n`
+    if (isKS) {
+      content += `*Kansas: Contingency fee schedule per Kansas KRPC 1.5(c) requirements. Written agreement required.*\n`
     }
+    if (isMO) {
+      content += `*Missouri: Contingency fee structure per Missouri Rule 4-1.5(c). Written agreement required.*\n`
+    }
+    content += '\n'
   }
 
   // ── Proactive "What Am I Missing?" ────────────────────────
@@ -148,7 +194,10 @@ export async function runStrategist(input: AgentInput, llm?: LLMClient, mem0Cont
     // Critical items
     if (input.matter.case_id && !input.matter.statute_of_limitations) {
       content += `**${recNum++}. 🚨 STATUTE OF LIMITATIONS NOT TRACKED**\n`
-      content += `   No SOL is recorded for this matter. This is the single most critical deadline in any case. Calculate and calendar immediately with 90/60/30-day advance reminders.\n\n`
+      content += `   No SOL is recorded for this matter. This is the single most critical deadline in any case.\n`
+      if (isKS) content += `   - Kansas: Typically 2 years for PI (K.S.A. 60-513), 5 years written contract (K.S.A. 60-511)\n`
+      if (isMO) content += `   - Missouri: Typically 5 years for PI (RSMo § 516.120), 10 years written contract (RSMo § 516.110)\n`
+      content += `   Calculate and calendar immediately with 90/60/30-day advance reminders.\n\n`
       risksFound.push('Statute of limitations not tracked — critical gap')
     }
 
@@ -173,20 +222,24 @@ export async function runStrategist(input: AgentInput, llm?: LLMClient, mem0Cont
     content += `   Verify whether any insurance policies provide coverage or duty to defend. Tender defense if applicable.\n\n`
 
     content += `**${recNum++}. Expert Witness Engagement**\n`
-    content += `   Identify and retain necessary experts early. ${isFL ? 'FL requires pre-suit expert opinion for medical malpractice per F.S. §766.203.' : 'Expert disclosure deadlines per scheduling order.'}\n\n`
+    content += `   Identify and retain necessary experts early. `
+    if (isKS) content += `Kansas: Medical malpractice screening panel per K.S.A. 65-4901 may apply. `
+    if (isMO) content += `Missouri: Affidavit of merit per RSMo § 538.225 for med mal. `
+    content += `Expert disclosure deadlines per scheduling order.\n\n`
 
     content += `**${recNum++}. Client Communication Cadence**\n`
-    content += `   Ensure regular status updates per ${isFL ? 'FL Bar Rule 4-1.4' : 'Model Rule 1.4'}. Recommend biweekly or monthly updates.\n\n`
+    content += `   Ensure regular status updates per ${isKS ? 'Kansas KRPC 1.4' : ''}${isKS && isMO ? ' / ' : ''}${isMO ? 'Missouri Rule 4-1.4' : ''}. Recommend biweekly or monthly updates.\n\n`
 
     content += `**${recNum++}. Early Case Assessment (ECA) Memo**\n`
     content += `   If not already completed, prepare a formal ECA for file documenting: case theory, key issues, discovery plan, budget estimate, settlement range.\n\n`
 
-    if (isFL) {
-      content += `**${recNum++}. Florida-Specific Checklist**\n`
-      content += `   - Pre-suit requirements (if applicable)\n`
-      content += `   - Court-ordered mediation scheduling per FL R. Civ. P. 1.710\n`
-      content += `   - E-filing compliance via Florida Courts E-Filing Portal\n`
-      content += `   - Proposal for Settlement (PFS) strategy per F.S. §768.79\n\n`
+    if (isKS && isMO) {
+      content += `**${recNum++}. Forum Selection Analysis**\n`
+      content += `   This matter may have connections to both Kansas and Missouri. Evaluate venue selection for:\n`
+      content += `   - Comparative fault advantage (KS: 50% bar vs MO: pure comparative)\n`
+      content += `   - SOL differences (KS: 2yr PI vs MO: 5yr PI)\n`
+      content += `   - Joint & several liability (MO for defendants ≥51%)\n`
+      content += `   - Pleading requirements (MO fact pleading is stricter)\n\n`
     }
   }
 
@@ -220,15 +273,15 @@ export async function runStrategist(input: AgentInput, llm?: LLMClient, mem0Cont
   actions.push('Update case management system with strategy decisions')
   for (const a of actions) content += `- [ ] ${a}\n`
 
-  content += `\n*Strategist agent confidence: ${(0.80 + Math.random() * 0.12).toFixed(2)} — refine as case develops.*\n\n---\nHow else can I assist as your AI partner today?`
+  content += `\n*Strategist agent confidence: ${(0.80 + Math.random() * 0.12).toFixed(2)} — refine as case develops.*\n\n---\nHow else can I assist as your Kansas-Missouri AI partner today?`
 
   // ── LLM Enhancement (if available) ─────────────────────────
   if (llm?.isEnabled) {
     try {
       const llmResponse = await llm.generateForAgent({
         agentType: 'strategist',
-        systemIdentity: 'You are Lawyrs AI Senior Strategy Partner. FL Bar member. Expert litigation strategist.',
-        agentSpecialty: `Strategic planning specialist: settlement modeling, scenario planning, timeline generation, budget projection, ADR strategy, proactive recommendations. Provide 3+ strategic options with pros/cons/timing. Include FL-specific considerations.`,
+        systemIdentity: 'You are Lawyrs AI Senior Strategy Partner. Licensed in Kansas and Missouri. Expert litigation strategist.',
+        agentSpecialty: `Strategic planning specialist: settlement modeling, scenario planning, timeline generation, budget projection, ADR strategy, proactive recommendations. Kansas (10th Circuit) and Missouri (8th Circuit) expertise. Include comparative fault implications for both jurisdictions.`,
         matterContext: formatMatterContext(input.matter),
         mem0Context: mem0Context || '',
         conversationHistory: input.conversation_history.map(m => ({ role: m.role, content: m.content })),
@@ -249,7 +302,7 @@ export async function runStrategist(input: AgentInput, llm?: LLMClient, mem0Cont
   if (input.matter.case_id) {
     memoryUpdates.push({
       key: `strategy_${subtypes[0]}_${input.date}`,
-      value: `Strategy session for ${input.matter.case_number}: ${subtypes.join(', ')}. ${actions.length} actions generated.`,
+      value: `Strategy session for ${input.matter.case_number}: ${subtypes.join(', ')}. Jurisdiction: ${jxDisplay}. ${actions.length} actions generated.`,
       agent_type: 'strategist',
       confidence: 0.82
     })

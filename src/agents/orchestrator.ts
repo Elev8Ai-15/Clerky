@@ -1,5 +1,6 @@
 // ═══════════════════════════════════════════════════════════════
-// LAWYRS — ORCHESTRATOR (MAIN AGENT) v3.0
+// LAWYRS — ORCHESTRATOR (MAIN AGENT) v3.1
+// Kansas-Missouri Dual-Jurisdiction Legal AI
 // Routes user queries to specialist agents, assembles context,
 // manages multi-agent workflows, merges responses.
 // Now with Mem0 cloud memory + LLM hybrid + enhanced routing
@@ -15,18 +16,25 @@ import { createMem0Client, Mem0Client } from './mem0'
 import { createLLMClient, LLMClient } from './llm'
 
 // ── System prompt (shared across all agents) ────────────────
-const SYSTEM_IDENTITY = `You are Lawyrs AI, a world-class senior equity partner at a top AmLaw 50 firm with 25+ years of experience across all US jurisdictions (Florida bar member).
-You are meticulous, ethical, proactive, and obsessed with accuracy. You act as the lawyer's trusted co-counsel, researcher, analyst, strategist, and drafting partner.
+const SYSTEM_IDENTITY = `You are Lawyrs AI, a world-class senior equity partner at a top Midwest firm with 25+ years of experience, licensed in both Kansas and Missouri.
+You are meticulous, ethical, proactive, and obsessed with accuracy. You act as the lawyer's trusted co-counsel, researcher, analyst, strategist, and drafting partner across Kansas, Missouri, and federal courts.
 
 CORE RULES (never break these):
 1. Always think step-by-step and show your reasoning.
-2. NEVER hallucinate cases, statutes, rules, or citations.
-3. Always cite authoritative sources (FL Statutes, US Code, case law, secondary sources).
-4. Flag risks, conflicts, statute of limitations, ethical issues immediately.
-5. Maintain strict client confidentiality.
-6. Structure every response: Summary → Analysis → Recommendations → Next Actions → Sources.
-7. Be proactive: suggest follow-up questions, missing documents, strategy improvements.
-8. For Florida matters: prioritize FL Rules of Procedure, FL Statutes, 11th Circuit.`
+2. NEVER hallucinate cases, statutes, rules, or citations. If uncertain: "I recommend verifying this primary source: [exact citation] on ksrevisor.gov or revisor.mo.gov".
+3. Always cite authoritative sources with pinpoint citations.
+4. Flag risks, conflicts, statute of limitations, ethical issues, and comparative-fault implications IMMEDIATELY.
+5. Maintain strict client confidentiality — never reference other matters.
+6. Use clear, professional language. Structure every response: Summary → Analysis → Recommendations → Next Actions → Sources.
+7. Be proactive: suggest follow-up questions, missing documents, or strategy improvements.
+8. For Kansas matters: prioritize K.S.A., Kansas Rules of Civil Procedure (Chapter 60), Kansas Supreme Court / Court of Appeals / District Courts, 10th Circuit.
+9. For Missouri matters: prioritize RSMo, Missouri Supreme Court Rules (esp. discovery proportionality & ESI), Missouri Supreme Court / Court of Appeals (Eastern/Western/Southern Districts) / Circuit Courts, 8th Circuit.
+
+JURISDICTION-SPECIFIC PRIORITIES (auto-apply based on matter):
+• Kansas Statute of Limitations: 2 years from date of injury for most negligence/PI claims (K.S.A. 60-513). Flag any discovery-rule or minor exceptions.
+• Kansas Comparative Fault: Modified comparative with 50% bar (K.S.A. 60-258a). Plaintiff recovers only if <50% at fault; damages reduced proportionally. No joint & several liability.
+• Missouri Statute of Limitations: 5 years from date injury is ascertainable for most PI/negligence (RSMo § 516.120). Medical malpractice = 2 years. Monitor any future legislative changes.
+• Missouri Comparative Fault: Pure comparative — plaintiff recovers even at 99% fault, reduced by their percentage (RSMo § 537.765 & tort rules). Joint & several only if defendant ≥51% fault (RSMo § 537.067).`
 
 // ── Intent classification with confidence scoring ───────────
 function classifyIntent(message: string, history: ChatMessage[]): AgentRoute {
@@ -36,7 +44,11 @@ function classifyIntent(message: string, history: ChatMessage[]): AgentRoute {
   // ─── Researcher signals ───────────────────────────────────
   const researchKeywords = ['research', 'case law', 'precedent', 'statute', 'find', 'search', 'cite', 'citation', 'authority', 'holding', 'ruling', 'sol', 'limitation', 'rule', 'regulation', 'code', 'preemption']
   for (const k of researchKeywords) { if (msg.includes(k)) scores.researcher += 3 }
-  if (msg.match(/f\.?s\.?\s*§|usc\s|u\.s\.c\.|frcp|fla\.\s|florida\sstatute/i)) scores.researcher += 5
+  // Kansas-specific statutory patterns
+  if (msg.match(/k\.?s\.?a\.?\s|kansas\sstatute|chapter\s60|10th\scircuit/i)) scores.researcher += 5
+  // Missouri-specific statutory patterns
+  if (msg.match(/rsmo\s|r\.?s\.?mo\.?\s|missouri\sstatute|missouri\ssupreme\scourt\srule|8th\scircuit/i)) scores.researcher += 5
+  // General legal research patterns
   if (msg.match(/what\s+(is|are)\s+the\s+(law|rule|statute|standard)/i)) scores.researcher += 4
 
   // ─── Drafter signals ──────────────────────────────────────
@@ -46,11 +58,12 @@ function classifyIntent(message: string, history: ChatMessage[]): AgentRoute {
   if (msg.match(/motion\s+to\s+(dismiss|compel|strike|suppress)/i)) scores.drafter += 6
 
   // ─── Analyst signals ──────────────────────────────────────
-  const analystKeywords = ['risk', 'assess', 'evaluat', 'analyz', 'review', 'strength', 'weakness', 'exposure', 'damage', 'inconsisten', 'deposition', 'enforceab', 'score', 'audit', 'calculate']
+  const analystKeywords = ['risk', 'assess', 'evaluat', 'analyz', 'review', 'strength', 'weakness', 'exposure', 'damage', 'inconsisten', 'deposition', 'enforceab', 'score', 'audit', 'calculate', 'comparative fault']
   for (const k of analystKeywords) { if (msg.includes(k)) scores.analyst += 3 }
   if (msg.match(/risk\s+assess/i)) scores.analyst += 5
   if (msg.match(/strength.+weakness|weakness.+strength/i)) scores.analyst += 5
   if (msg.match(/what\s+am\s+i\s+missing/i)) scores.analyst += 4
+  if (msg.match(/50%\s+bar|pure\s+comparative|comparative\s+fault/i)) scores.analyst += 4
 
   // ─── Strategist signals ───────────────────────────────────
   const strategistKeywords = ['strateg', 'settle', 'settlement', 'timeline', 'calendar', 'deadline', 'budget', 'scenario', 'option', 'plan', 'mediat', 'arbitrat', 'trial', 'recommend', 'proactive', 'missing', 'next step', 'appeal']
@@ -196,7 +209,7 @@ export async function orchestrate(
     }
   }
 
-  // 9. Prepend routing header (FIXED — no longer drops first line)
+  // 9. Prepend routing header
   const routingHeader = buildRoutingHeader(route, mem0Loaded)
   result.content = routingHeader + '\n\n' + result.content
 
@@ -217,7 +230,7 @@ export async function orchestrate(
   return { ...result, routing: route, mem0_context_loaded: mem0Loaded }
 }
 
-// ── Build routing header (FIXED — prepends, doesn't replace) ─
+// ── Build routing header ────────────────────────────────────
 function buildRoutingHeader(route: AgentRoute, mem0Loaded: boolean): string {
   const agentEmoji: Record<string, string> = {
     researcher: '🔍', drafter: '📝', analyst: '🧠', strategist: '🎯'
