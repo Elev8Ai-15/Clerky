@@ -97,8 +97,8 @@ export async function assembleMatterContext(
     db.prepare(`SELECT id, title, priority, status, due_date, task_type FROM tasks_deadlines WHERE case_id = ? ORDER BY due_date ASC LIMIT 10`).bind(caseId).all(),
     db.prepare(`SELECT id, title, event_type, start_datetime, end_datetime, location FROM calendar_events WHERE case_id = ? AND start_datetime >= datetime('now') ORDER BY start_datetime ASC LIMIT 5`).bind(caseId).all(),
     db.prepare(`SELECT COALESCE(SUM(bi.total_amount),0) as total_billed, COALESCE(SUM(bi.amount_paid),0) as total_paid, COALESCE(SUM(te.hours),0) as total_hours, COALESCE(AVG(te.rate),0) as avg_rate FROM billing_invoices bi LEFT JOIN time_entries te ON te.case_id = bi.case_id WHERE bi.case_id = ?`).bind(caseId).first(),
-    db.prepare(`SELECT id, agent_type, memory_key as key, memory_value as value, confidence, created_at FROM agent_memory WHERE case_id = ? AND agent_type = 'researcher' ORDER BY created_at DESC LIMIT 5`).bind(caseId).all(),
-    db.prepare(`SELECT id, agent_type, memory_key as key, memory_value as value, confidence, created_at FROM agent_memory WHERE case_id = ? AND agent_type = 'analyst' ORDER BY created_at DESC LIMIT 5`).bind(caseId).all()
+    db.prepare(`SELECT id, agent_type, memory_key, memory_value, confidence, created_at FROM agent_memory WHERE case_id = ? AND agent_type = 'researcher' ORDER BY created_at DESC LIMIT 5`).bind(caseId).all(),
+    db.prepare(`SELECT id, agent_type, memory_key, memory_value, confidence, created_at FROM agent_memory WHERE case_id = ? AND agent_type = 'analyst' ORDER BY created_at DESC LIMIT 5`).bind(caseId).all()
   ])
 
   base.documents = (docs.results || []) as unknown as DocumentRef[]
@@ -114,8 +114,8 @@ export async function assembleMatterContext(
     avg_rate: b?.avg_rate || 0
   }
 
-  base.prior_research = (research.results || []) as unknown as MemoryEntry[]
-  base.prior_analysis = (analysis.results || []) as unknown as MemoryEntry[]
+  base.prior_research = ((research.results || []) as any[]).map(r => ({ id: r.id, agent_type: r.agent_type, key: r.memory_key || r.key || '', value: r.memory_value || r.value || '', confidence: r.confidence, created_at: r.created_at })) as MemoryEntry[]
+  base.prior_analysis = ((analysis.results || []) as any[]).map(r => ({ id: r.id, agent_type: r.agent_type, key: r.memory_key || r.key || '', value: r.memory_value || r.value || '', confidence: r.confidence, created_at: r.created_at })) as MemoryEntry[]
 
   return base
 }

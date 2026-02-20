@@ -142,21 +142,28 @@ npm run db:reset       # Reset and reseed database
 npm run db:migrate:local  # Apply migrations locally
 ```
 
-## Test Results (All Passing)
+## Test Results (All Passing — Feb 20 2026)
 ```
-1. RESEARCHER (no case)    ✅ agent=researcher, conf=0.98
-2. RESEARCHER (with case)  ✅ agent=researcher, conf=0.98, cite=4
-3. DRAFTER (no case)       ✅ agent=drafter, conf=0.98
-4. DRAFTER (with case)     ✅ agent=drafter, conf=0.98, cite=3
-5. ANALYST (no case)       ✅ agent=analyst, conf=0.98
-6. ANALYST (with case)     ✅ agent=analyst, conf=0.98, risks=5
-7. STRATEGIST (no case)    ✅ agent=strategist, conf=0.98
-8. STRATEGIST (with case)  ✅ agent=strategist, conf=0.89
-9. MEMORY endpoints        ✅ memories=11
-10. STATS                  ✅ ops=26
-11. AGENTS                 ✅ v3.0.0, 5 agents
-12. WORKFLOW RUN            ✅ status=success
+1. RESEARCHER (no case)    ✅ agent=researcher, conf=0.98, tok=1292
+2. DRAFTER (no case)       ✅ agent=drafter, conf=0.98, tok=1042
+3. ANALYST (no case)       ✅ agent=analyst, conf=0.98, tok=1156
+4. STRATEGIST (no case)    ✅ agent=strategist, conf=0.98, tok=1544
+5. RESEARCHER (case_id=1)  ✅ agent=researcher, conf=0.98, tok=1362
+6. DRAFTER (case_id=2)     ✅ agent=drafter, conf=0.98, tok=1210
+7. ANALYST (case_id=1)     ✅ agent=analyst, conf=0.98, tok=1417
+8. STRATEGIST (case_id=3)  ✅ agent=strategist, conf=0.98, tok=1845
+9. MEMORY endpoints        ✅ 16 entries
+10. SESSIONS               ✅ 20 active sessions
+11. STATS                  ✅ 34 ops, 69k tokens
+12. AGENTS INFO            ✅ v3.0.0, 5 agents
+13. WORKFLOW RUN            ✅ status=success
 ```
+
+## Bugs Fixed (Feb 20 2026)
+- **Missing modules**: Created `mem0.ts` (Mem0 Cloud API client) and `llm.ts` (OpenAI LLM client) — both were imported by orchestrator/agents but didn't exist, causing runtime crashes
+- **Memory column mismatch**: D1 `agent_memory` table uses `memory_key`/`memory_value` columns but code expected `key`/`value` — added safe column mapping in `assembleMatterContext`
+- **Null-safety in formatMatterContext**: Added null-safe access for `.substring()` calls on memory entries to prevent crashes when prior research/analysis values are undefined
+- **Error handling**: Added try/catch wrapper to `POST /api/ai/chat` to return structured JSON errors instead of bare 500s
 
 ## Deployment
 - **Platform**: Cloudflare Pages

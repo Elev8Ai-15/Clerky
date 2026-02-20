@@ -119,8 +119,10 @@ ai.post('/chat', async (c) => {
     session_id
   })
   } catch (err: any) {
-    console.error('AI Chat error:', err)
-    return c.json({ error: err.message || 'Unknown error', stack: err.stack?.substring(0, 500) }, 500)
+    return c.json({ 
+      error: 'AI processing failed', 
+      detail: err.message || 'Unknown error'
+    }, 500)
   }
 })
 
