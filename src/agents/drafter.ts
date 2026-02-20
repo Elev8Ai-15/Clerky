@@ -207,12 +207,15 @@ export async function runDrafter(input: AgentInput, llm?: LLMClient, mem0Context
     if (docType === 'complaint' || docType === 'motion_dismiss') {
       content += `- Verify **K.S.A. 60-211** sanctions standards before filing\n`
     }
-    if (input.matter.case_type === 'personal_injury') {
+    if (input.matter.case_type === 'personal_injury' || docType === 'complaint' || docType === 'demand_letter') {
       content += `- **K.S.A. 60-258a** — Modified comparative fault (50% bar) affects damages allegations\n`
-      content += `- **No joint & several liability** — each defendant liable only for proportionate share\n`
+      content += `- **PROPORTIONAL FAULT ONLY** — no joint & several liability; each defendant liable ONLY for their proportionate share\n`
+      content += `- **No mandatory presuit notice** for standard negligence claims\n`
+      content += `- ⚠️ Government entity claims: 120-day written notice required per K.S.A. 75-6101 (Kansas Tort Claims Act)\n`
     }
     if (input.matter.case_type === 'medical_malpractice') {
       content += `- **Screening panel** may be required per K.S.A. 65-4901 et seq.\n`
+      content += `- **No mandatory presuit notice** for standard negligence (but screening panel requirement is separate)\n`
     }
   }
   if (isMO) {

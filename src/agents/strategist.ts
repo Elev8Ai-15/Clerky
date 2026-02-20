@@ -84,10 +84,11 @@ export async function runStrategist(input: AgentInput, llm?: LLMClient, mem0Cont
 
     if (isKS) {
       content += `**Kansas-Specific Considerations:**\n`
-      content += `- **K.S.A. 60-2002 — Offer of Judgment** — Strategic timing critical; recipient who rejects and fails to improve bears costs\n`
       content += `- **K.S.A. 60-258a — 50% comparative fault bar** — Settlement calculus must account for plaintiff's potential fault exposure\n`
+      content += `- **PROPORTIONAL FAULT ONLY** — No joint & several liability; must evaluate settlement against each defendant individually based on their proportionate share\n`
+      content += `- **No mandatory presuit notice** for standard negligence (only KTCA for government entities)\n`
       content += `- **Kansas court-annexed mediation** — Many districts have mandatory mediation programs\n`
-      content += `- **No joint & several liability** — Must evaluate settlement against each defendant individually\n\n`
+      content += `- **K.S.A. 60-2002 — Offer of Judgment** — Strategic timing critical; recipient who rejects and fails to improve bears costs\n\n`
       citations.push({ source: 'statute', reference: 'K.S.A. 60-2002 (Offer of Judgment)', verified: true })
       citations.push({ source: 'statute', reference: 'K.S.A. 60-258a (Comparative Fault)', verified: true })
     }
@@ -110,11 +111,12 @@ export async function runStrategist(input: AgentInput, llm?: LLMClient, mem0Cont
     content += `|--------|--------|----------|\n`
     content += `| Comparative Fault | 50% bar (K.S.A. 60-258a) | Pure comparative (RSMo § 537.765) |\n`
     content += `| PI SOL | 2 years (K.S.A. 60-513) | 5 years (RSMo § 516.120) |\n`
-    content += `| Joint & Several | No — proportionate only | Yes, if defendant ≥51% at fault |\n`
+    content += `| Joint & Several | **No — proportional ONLY** (K.S.A. 60-258a) | Yes, if defendant ≥51% at fault |\n`
+    content += `| Presuit Notice | **None** for standard negligence | None for standard negligence |\n`
     content += `| Pleading Standard | Notice pleading | **Fact pleading** (more specific) |\n`
     content += `| Discovery Rules | K.S.A. Chapter 60 | Mo.Sup.Ct.R. (unique ESI/proportionality) |\n`
     content += `| Federal Circuit | 10th Circuit | 8th Circuit |\n\n`
-    content += `**Recommendation:** For plaintiff-side PI cases, Missouri generally offers advantages (longer SOL, no comparative fault bar, joint & several for high-fault defendants). For defense, Kansas may be more favorable.\n\n`
+    content += `**Recommendation:** For plaintiff-side PI cases, Missouri generally offers advantages (longer SOL, no comparative fault bar, joint & several for high-fault defendants). For defense, Kansas may be more favorable (50% bar eliminates high-fault plaintiffs, proportional-only allocation limits defendant exposure). In Kansas, no presuit notice is needed for standard negligence.\n\n`
   }
 
   // ── Timeline Generation ───────────────────────────────────
@@ -236,9 +238,10 @@ export async function runStrategist(input: AgentInput, llm?: LLMClient, mem0Cont
     if (isKS && isMO) {
       content += `**${recNum++}. Forum Selection Analysis**\n`
       content += `   This matter may have connections to both Kansas and Missouri. Evaluate venue selection for:\n`
-      content += `   - Comparative fault advantage (KS: 50% bar vs MO: pure comparative)\n`
+      content += `   - **Proportional fault only in KS** (no joint & several — limits multi-defendant exposure)\n`
       content += `   - SOL differences (KS: 2yr PI vs MO: 5yr PI)\n`
       content += `   - Joint & several liability (MO for defendants ≥51%)\n`
+      content += `   - **No presuit notice needed in KS** for standard negligence\n`
       content += `   - Pleading requirements (MO fact pleading is stricter)\n\n`
     }
   }

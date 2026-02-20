@@ -4,8 +4,8 @@
 - **Name**: Lawyrs
 - **Goal**: Full-featured legal practice management platform with multi-agent AI co-counsel
 - **Stack**: Hono + Cloudflare D1 + TailwindCSS + Cloudflare Pages
-- **Architecture**: Multi-Agent Orchestrated Pipeline v3.0
-- **Jurisdictions**: Kansas (primary) & Missouri (dual-licensed KS/MO)
+- **Architecture**: Multi-Agent Orchestrated Pipeline v3.1 — **KANSAS MODE ACTIVE**
+- **Jurisdictions**: Kansas (PRIMARY) & Missouri (dual-licensed KS/MO)
 
 ## Live URL
 - **Sandbox**: Port 3000
@@ -23,13 +23,18 @@ User Query → Orchestrator (intent classification + confidence scoring)
 
 ### System Identity
 > Lawyrs AI — Senior equity partner, 25+ years experience, licensed in Kansas & Missouri.
+> **KANSAS MODE** — Primary jurisdiction active. Auto-flags on every KS response:
+> - 2-year SOL (K.S.A. 60-513) — always stated
+> - 50% comparative fault bar (K.S.A. 60-258a) — always flagged
+> - Proportional fault ONLY — no joint & several liability
+> - No mandatory presuit notice for standard negligence (≠ KTCA for govt entities)
 > Core rules: step-by-step reasoning, no hallucinations, cite sources, flag risks, confidentiality.
 > Response structure: Summary → Analysis → Recommendations → Next Actions → Sources.
 
 ### Jurisdiction Priorities
 | Jurisdiction | Statutes | Courts | Key Rules |
 |-------------|----------|--------|-----------|
-| **Kansas** | K.S.A., Rules Civ Proc | KS District/Supreme, 10th Circuit | SOL 2yr (K.S.A. 60-513), 50% comp fault bar (K.S.A. 60-258a) |
+| **Kansas** | K.S.A. (2025–2026), Rules Civ Proc Ch. 60 | KS District/Supreme, 10th Circuit | SOL 2yr (K.S.A. 60-513), 50% comp fault bar (K.S.A. 60-258a), **proportional fault ONLY** (no J&S), no presuit notice |
 | **Missouri** | RSMo, Supreme Court Rules | MO Circuit/Supreme, 8th Circuit | SOL 5yr (RSMo § 516.120), 2yr med-mal, pure comp fault (RSMo § 537.765), joint-several ≥51% |
 | **Federal** | USC, FRCP, FRE | 10th Cir (KS), 8th Cir (MO) | Federal questions, diversity jurisdiction |
 | **Multi-state** | KS + MO combined | Both circuits | Cross-border analysis, choice of law |
@@ -38,7 +43,7 @@ User Query → Orchestrator (intent classification + confidence scoring)
 | Agent | Specialties | Key Features |
 |-------|-----------|-------------|
 | **Orchestrator** | Intent routing, multi-agent co-routing | Keyword scoring, conversation continuity, confidence calibration |
-| **Researcher** | KS & MO statutes, case law, citations, Federal RAG | SOL lookup (KS 2yr / MO 5yr), comparative fault analysis, Shepardize warnings |
+| **Researcher** | KS & MO statutes, case law, citations, Federal RAG | SOL lookup (KS 2yr / MO 5yr), comparative fault analysis, auto-injects K.S.A. 60-258a + presuit rules for KS PI, Shepardize warnings |
 | **Drafter** | 7 templates (demand letter, MTD, MTC, engagement, complaint, MSJ, discovery) | Caption generation, KS/MO-specific clauses, review checklists |
 | **Analyst** | Risk scoring (6 factors), SWOT, damages modeling | Liability/exposure/SOL/opposing counsel/evidence/deadline scoring |
 | **Strategist** | Settlement (3 scenarios), timeline, budget, ADR | KS/MO-specific strategy, cross-border analysis, cost projections |
@@ -159,32 +164,42 @@ npm run db:migrate:local  # Apply migrations locally
 
 ## Test Results (All Passing — Feb 20 2026)
 ```
---- KS/MO Agent Tests (7/7 pass) ---
-1. RESEARCHER (Kansas SOL)      ✅ conf=0.94, tok=1178, cit=4, risks=2
-2. RESEARCHER (MO comp fault)   ✅ conf=0.83, tok=1063, cit=1, risks=2
-3. DRAFTER (KS complaint)       ✅ conf=0.92, tok=1294, cit=4, risks=4
-4. DRAFTER (MO summary judg.)   ✅ conf=0.91, tok=1296, cit=3, risks=4
-5. ANALYST (KS 50% bar)         ✅ conf=0.93, tok=1040, cit=1, risks=1
-6. STRATEGIST (MO settlement)   ✅ conf=0.75, tok=1819, cit=2, risks=0
-7. STRATEGIST (Multi-state)     ✅ conf=0.80, tok=2813, cit=12, risks=2
+--- KANSAS MODE Agent Tests (5/5 pass) ---
+1. RESEARCHER (KS SOL auto-flag)    ✅ conf=0.98, tok=1826, cit=6
+   ✔ 2yr SOL ✔ 50% bar ✔ proportional-only ✔ no J&S ✔ no presuit notice
+2. RESEARCHER (KS negligence auto)  ✅ conf=0.98, tok=1925, cit=6
+   ✔ K.S.A. 60-258a ✔ proportional ✔ empty-chair defense ✔ no presuit
+3. DRAFTER (KS complaint)           ✅ conf=0.92, tok=1224, cit=4
+   ✔ PROPORTIONAL FAULT ONLY ✔ no presuit ✔ KTCA exception (75-6101)
+4. ANALYST (KS 50% bar risk)        ✅ conf=0.84, tok=1390, cit=1
+   ✔ 50% bar ✔ PROPORTIONAL ✔ no J&S ✔ empty-chair ✔ no presuit
+5. STRATEGIST (KS settlement)       ✅ conf=0.80, tok=1221, cit=2
+   ✔ PROPORTIONAL ✔ 50% bar ✔ no presuit ✔ K.S.A. 60-258a
 
---- E2E Chat Flow (6/6 pass) ---
-8.  Chat history (28 messages)  ✅
-9.  Delete session              ✅
-10. Verify empty after clear    ✅
-11. Agent info (5 agents, v3.0) ✅
-12. Stats (77 ops, 127k tokens) ✅
-13. Memory (27 D1 entries)      ✅
-
---- Jurisdiction Verification ---
-14. Florida references in bundle  ✅ 0 (completely removed)
-15. Kansas refs in responses      ✅ present (K.S.A., Kansas)
-16. Missouri refs in responses    ✅ present (RSMo, Missouri)
-17. Closing line present          ✅ "Kansas-Missouri AI partner"
-18. Bundle size                   ✅ 284.99 kB
+--- Bundle Verification ---
+6.  KANSAS MODE in bundle        ✅ 1 occurrence
+7.  PROPORTIONAL FAULT ONLY      ✅ 7 occurrences
+8.  No mandatory presuit          ✅ 8 occurrences
+9.  Empty-chair defense           ✅ 5 occurrences
+10. K.S.A. 75-6101 (KTCA)        ✅ 5 occurrences
+11. Bundle size                   ✅ 290.96 kB
 ```
 
 ## Bugs Fixed
+
+### Feb 20, 2026 — KANSAS MODE Activation (v3.1)
+- **Orchestrator system prompt**: Added KANSAS MODE priority block with auto-apply rules for every KS response
+- **Auto-flag: 2-year SOL** (K.S.A. 60-513) — automatically stated in all PI/negligence responses
+- **Auto-flag: 50% comparative fault bar** (K.S.A. 60-258a) — always flagged with risk implications
+- **Proportional fault ONLY**: All agents now emphasize no joint & several liability in Kansas; each defendant liable only for proportionate share
+- **No mandatory presuit notice**: Explicitly stated for standard negligence; distinguishes KTCA (K.S.A. 75-6101) 120-day notice for government entities
+- **Empty-chair defense**: Referenced in researcher + analyst for non-party fault allocation
+- **Researcher auto-inject**: KS comparative_fault and presuit_notice KB entries auto-injected for any PI/negligence query
+- **Drafter templates**: Added PROPORTIONAL FAULT ONLY + no presuit notice to complaint/demand letter sections
+- **Analyst risk scoring**: Updated comparative fault risk factor notes with proportional-only language
+- **Strategist venue analysis**: Updated to emphasize proportional-only vs MO joint-several difference
+- **UI chips**: Refined to Kansas-first language (KS case law, K.S.A. 60-258a, 50% bar / proportional fault)
+- **Orchestrator routing**: Boosted KS statutory pattern detection (K.S.A., 60-513, 60-258a)
 
 ### Feb 20, 2026 — KS/MO Jurisdiction Migration
 - **Florida → Kansas/Missouri**: Complete jurisdiction migration from FL to dual KS/MO licensed practice

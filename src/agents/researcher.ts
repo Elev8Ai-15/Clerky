@@ -22,7 +22,8 @@ const KS_STATUTES: Record<string, { title: string; text: string; url: string }> 
   'family': { title: 'K.S.A. 23-2101 et seq.', text: 'Kansas Family Law — dissolution, custody (best interests standard per K.S.A. 23-3222), child support guidelines K.S.A. 23-3001, equitable division of property.', url: 'https://www.ksrevisor.org/statutes/chapters/ch23/023_021_0001.html' },
   'corporate': { title: 'K.S.A. 17-6001 et seq.', text: 'Kansas General Corporation Code — formation, governance, mergers, dissolution. LLC Act: K.S.A. 17-7662 et seq.', url: 'https://www.ksrevisor.org/statutes/chapters/ch17/017_060_0001.html' },
   'real_estate': { title: 'K.S.A. 58-2201 et seq.', text: 'Kansas Conveyancing and Recording — deed requirements, recording, title standards per KBA Title Standards.', url: 'https://www.ksrevisor.org/statutes/chapters/ch58/058_022_0001.html' },
-  'comparative_fault': { title: 'K.S.A. 60-258a', text: 'Modified comparative fault — 50% bar. Plaintiff recovers only if less than 50% at fault. Damages reduced by plaintiff percentage of fault. No joint and several liability; each defendant liable only for their proportionate share.', url: 'https://www.ksrevisor.org/statutes/chapters/ch60/060_002_0058a.html' },
+  'comparative_fault': { title: 'K.S.A. 60-258a', text: 'Modified comparative fault — 50% bar. Plaintiff recovers only if less than 50% at fault. Damages reduced by plaintiff percentage of fault. PROPORTIONAL FAULT ONLY — no joint & several liability; each defendant liable only for their proportionate share. Non-party fault allocation permitted (empty-chair defense).', url: 'https://www.ksrevisor.org/statutes/chapters/ch60/060_002_0058a.html' },
+  'presuit_notice': { title: 'K.S.A. 60-513 / Standard Negligence', text: 'No mandatory presuit notice required for standard negligence actions in Kansas. NOTE: Government entity claims under the Kansas Tort Claims Act (K.S.A. 75-6101 et seq.) DO require written notice within 120 days for personal injury. Medical malpractice screening panel may apply per K.S.A. 65-4901.', url: 'https://www.ksrevisor.org/statutes/chapters/ch60/060_005_0013.html' },
   'workers_comp': { title: 'K.S.A. 44-501 et seq.', text: 'Kansas Workers Compensation Act — exclusive remedy for workplace injuries. 200-week cap for temporary total disability. Functional impairment basis for permanent partial.', url: 'https://www.ksrevisor.org/statutes/chapters/ch44/044_005_0001.html' },
   'sovereign_immunity': { title: 'K.S.A. 75-6101 et seq.', text: 'Kansas Tort Claims Act — $500K cap per occurrence. Written notice required within 120 days for personal injury. Governmental function immunity with exceptions.', url: 'https://www.ksrevisor.org/statutes/chapters/ch75/075_061_0001.html' },
 }
@@ -157,6 +158,21 @@ export async function runResearcher(input: AgentInput, llm?: LLMClient, mem0Cont
   const risksFound: string[] = []
   const actions: string[] = []
 
+  // ── KANSAS MODE: auto-inject critical KS statutes ─────────
+  if (isKS) {
+    // Always include comparative fault and SOL for Kansas PI/negligence queries
+    if (!caseKeys.includes('comparative_fault') && (caseKeys.includes('personal_injury') || input.message.toLowerCase().match(/negligence|tort|injury|fault|liability/))) {
+      caseKeys.push('comparative_fault')
+    }
+    if (!caseKeys.includes('personal_injury') && input.message.toLowerCase().match(/sol|limitation|deadline|2[- ]year/)) {
+      caseKeys.push('personal_injury')
+    }
+    // Auto-include presuit notice info for KS negligence/PI
+    if (!caseKeys.includes('presuit_notice') && (caseKeys.includes('personal_injury') || input.message.toLowerCase().match(/negligence|presuit|pre-suit|notice/))) {
+      caseKeys.push('presuit_notice')
+    }
+  }
+
   // ── Gather relevant statutes ──────────────────────────────
   const ksStatutes = isKS ? caseKeys.filter(k => KS_STATUTES[k]).map(k => KS_STATUTES[k]) : []
   const moStatutes = isMO ? caseKeys.filter(k => MO_STATUTES[k]).map(k => MO_STATUTES[k]) : []
@@ -239,6 +255,20 @@ export async function runResearcher(input: AgentInput, llm?: LLMClient, mem0Cont
     }
   }
 
+  // ── KANSAS MODE: Auto-Flag SOL & Presuit ──────────────────
+  if (isKS && (caseKeys.includes('personal_injury') || caseKeys.includes('presuit_notice'))) {
+    content += `### ⏰ Kansas SOL & Presuit Requirements\n\n`
+    content += `**K.S.A. 60-513 — 2-Year Statute of Limitations:**\n`
+    content += `- Personal injury / negligence: **2 years** from date of injury\n`
+    content += `- Discovery rule: accrual tolled until plaintiff knew or should have known of injury and its cause (*Baska v. Scherzer*, 283 Kan. 750 (2007))\n`
+    content += `- Medical malpractice: 2 years with 4-year repose (K.S.A. 60-513a)\n\n`
+    content += `**Presuit Notice — Standard Negligence:**\n`
+    content += `- **No mandatory presuit notice** required for standard negligence claims in Kansas\n`
+    content += `- ⚠️ **Exception — Government entities:** Kansas Tort Claims Act (K.S.A. 75-6101 et seq.) requires **120-day written notice** for personal injury claims against state/local government\n`
+    content += `- ⚠️ **Exception — Medical malpractice:** Screening panel may be required per K.S.A. 65-4901 et seq.\n\n`
+    risksFound.push('KS 2-year SOL (K.S.A. 60-513) — verify accrual date and calendar deadline')
+  }
+
   // ── Comparative Fault Analysis (auto-included for PI) ─────
   if (caseKeys.includes('personal_injury') || caseKeys.includes('comparative_fault')) {
     content += `### ⚖️ Comparative Fault — Jurisdiction Comparison\n\n`
@@ -246,8 +276,10 @@ export async function runResearcher(input: AgentInput, llm?: LLMClient, mem0Cont
       content += `**Kansas (K.S.A. 60-258a):** Modified comparative fault with **50% bar**.\n`
       content += `- Plaintiff recovers ONLY if **less than 50% at fault**\n`
       content += `- Damages reduced by plaintiff's percentage of fault\n`
-      content += `- **No joint & several liability** — each defendant liable only for proportionate share\n`
-      content += `- All parties (including non-parties) included in fault apportionment\n\n`
+      content += `- **PROPORTIONAL FAULT ONLY — NO joint & several liability** (K.S.A. 60-258a)\n`
+      content += `- Each defendant liable ONLY for their proportionate share of fault\n`
+      content += `- Non-party fault allocation permitted (empty-chair defense) — all parties including non-parties in apportionment\n`
+      content += `- **No mandatory presuit notice** for standard negligence (≠ government claims under KTCA)\n\n`
     }
     if (isMO) {
       content += `**Missouri (RSMo § 537.765):** **Pure comparative fault**.\n`

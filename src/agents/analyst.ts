@@ -50,9 +50,9 @@ function computeRiskScore(matter: AgentInput['matter'], msg: string, jx: string)
     'NO SOL RECORDED — HIGH RISK'
   factors.push({ factor: 'SOL/Deadlines', weight: 0.15, score: solScore, notes: solNote })
 
-  // Comparative fault risk (jurisdiction-specific)
-  const cfNote = isKS ? 'KS: 50% bar (K.S.A. 60-258a) — plaintiff must be <50% at fault' :
-    isMO ? 'MO: Pure comparative (RSMo § 537.765) — recovery possible at any fault level' :
+  // Comparative fault risk (KANSAS MODE: proportional only, no joint-several)
+  const cfNote = isKS ? 'KS: 50% bar (K.S.A. 60-258a) — plaintiff must be <50% at fault. PROPORTIONAL FAULT ONLY — no joint & several. No presuit notice for standard negligence.' :
+    isMO ? 'MO: Pure comparative (RSMo § 537.765) — recovery possible at any fault level. Joint & several if defendant ≥51%.' :
     'Federal: varies by applicable state law'
   const cfScore = isKS ? 6 : isMO ? 4 : 5 // KS bar is riskier for plaintiffs
   factors.push({ factor: 'Comparative Fault Risk', weight: 0.10, score: cfScore, notes: cfNote })
@@ -141,9 +141,11 @@ export async function runAnalyst(input: AgentInput, llm?: LLMClient, mem0Context
       content += `**Kansas — Modified Comparative Fault (K.S.A. 60-258a):**\n`
       content += `- **50% Bar Rule:** Plaintiff is BARRED from recovery if found 50% or more at fault\n`
       content += `- Damages reduced proportionally by plaintiff's fault percentage\n`
-      content += `- **No joint & several liability** — each defendant pays only their share\n`
+      content += `- **PROPORTIONAL FAULT ONLY — NO joint & several liability** (K.S.A. 60-258a)\n`
+      content += `- Each defendant pays ONLY their proportionate share of fault\n`
       content += `- Non-party fault allocation permitted (empty-chair defense)\n`
-      content += `- **Strategic Impact:** Defendant will likely argue plaintiff's contributory negligence to approach 50% threshold\n\n`
+      content += `- **No mandatory presuit notice** for standard negligence (≠ Kansas Tort Claims Act for government entities)\n`
+      content += `- **Strategic Impact:** Defendant will likely argue plaintiff's contributory negligence to approach 50% threshold; proportional-only allocation means plaintiffs cannot collect full damages from any single defendant\n\n`
       citations.push({ source: 'statute', reference: 'K.S.A. 60-258a (Comparative Fault)', url: 'https://www.ksrevisor.org/statutes/chapters/ch60/060_002_0058a.html', verified: true })
       risksFound.push('KS 50% comparative fault bar — plaintiff must remain below 50% at fault')
     }
@@ -205,7 +207,8 @@ export async function runAnalyst(input: AgentInput, llm?: LLMClient, mem0Context
     content += `**THREATS:**\n`
     if (isKS && input.matter.case_type === 'personal_injury') {
       content += `- **K.S.A. 60-258a** — 50% comparative fault bar could eliminate recovery entirely\n`
-      risksFound.push('KS 50% comparative fault bar applies')
+      content += `- **Proportional fault only** — no joint & several; cannot collect full damages from one defendant\n`
+      risksFound.push('KS 50% comparative fault bar applies — proportional fault only, no joint & several')
     }
     if (isMO && input.matter.case_type === 'personal_injury') {
       content += `- **RSMo § 537.067** — Joint & several liability threshold may affect multi-defendant strategy\n`
