@@ -172,6 +172,14 @@ function getAppHTML(): string {
     .scrollbar-thin::-webkit-scrollbar { width: 6px; }
     .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
     .ai-glow { box-shadow: 0 0 20px rgba(139, 92, 246, 0.3); }
+    .chip { padding: 4px 12px; border-radius: 9999px; font-size: 0.7rem; font-weight: 500; cursor: pointer; transition: all 0.15s; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; white-space: nowrap; }
+    .chip:hover { background: #ecfdf5; border-color: #10b981; color: #059669; transform: translateY(-1px); }
+    .chip-glow { background: #ecfdf5; border-color: #10b981; color: #059669; font-weight: 600; }
+    .chip-glow:hover { background: #d1fae5; box-shadow: 0 0 12px rgba(16,185,129,0.3); }
+    .chat-content h3 { margin-top: 12px; }
+    .chat-content h4 { margin-top: 8px; }
+    .chat-content hr { margin: 12px 0; border-color: #e2e8f0; }
+    .prose-sm { line-height: 1.65; }
     #splash { position: fixed; inset: 0; z-index: 9999; transition: opacity 0.8s ease, visibility 0.8s ease; }
     #splash.hide { opacity: 0; visibility: hidden; pointer-events: none; }
     .hero-bg { background: linear-gradient(135deg, #0a2540 0%, #1e3a8a 100%); }
@@ -912,154 +920,169 @@ async function loadBilling() {
   } catch(e) { showError('billing'); }
 }
 
-// === AI WORKFLOW ===
 // === AI CO-COUNSEL CHAT ===
-let chatSessionId = 'session_' + Date.now();
-let chatJurisdiction = 'florida';
-let chatCaseId = null;
+var chatSessionId = 'session_' + Date.now();
+var chatCaseId = null;
+var chatJurisdiction = 'florida';
+var chatMessages = [];
 
 async function loadAIChat() {
   try {
-    const [casesRes, historyRes] = await Promise.all([
-      axios.get(API + '/cases'),
-      axios.get(API + '/ai/chat/history?session_id=' + chatSessionId)
-    ]);
+    const casesRes = await axios.get(API + '/cases');
     const cases = casesRes.data.cases;
-    const messages = historyRes.data.messages || [];
+    let historyRes;
+    try { historyRes = await axios.get(API + '/ai/chat/history?session_id=' + chatSessionId); } catch(e) { historyRes = { data: { messages: [] } }; }
+    chatMessages = historyRes.data.messages || [];
 
     document.getElementById('pageContent').innerHTML = \`
-      <div class="fade-in flex flex-col h-full" style="max-height:calc(100vh - 80px)">
+      <div class="fade-in flex flex-col h-full" style="max-height:calc(100vh - 73px)">
         <!-- Chat Header -->
-        <div class="flex items-center justify-between mb-4 flex-shrink-0">
+        <div class="flex items-center justify-between pb-4 border-b border-dark-200 flex-shrink-0">
           <div class="flex items-center gap-3">
-            <div class="w-11 h-11 bg-emerald-100 rounded-xl flex items-center justify-center">
-              <i class="fas fa-scale-balanced text-emerald-600 text-lg"></i>
-            </div>
+            <div class="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-bold">\u2696\uFE0F</div>
             <div>
-              <h2 class="text-xl font-bold text-dark-900">Lawyrs AI Co-Counsel</h2>
-              <p class="text-dark-500 text-xs">Senior Partner \u2022 25+ Years \u2022 All US Jurisdictions \u2022 FL Bar Member</p>
+              <h2 class="text-lg font-bold text-dark-900 flex items-center gap-2">Lawyrs AI Co-Counsel <span class="w-2 h-2 bg-emerald-500 rounded-full inline-block"></span></h2>
+              <p class="text-xs text-dark-400">Senior Partner \u2022 25+ yrs \u2022 FL Bar \u2022 All US Jurisdictions</p>
             </div>
-            <div class="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse ml-2"></div>
           </div>
           <div class="flex items-center gap-3">
-            <select id="chatJurisdiction" onchange="chatJurisdiction=this.value" class="text-sm py-1.5 px-3 w-auto bg-dark-50">
-              <option value="florida" selected>\uD83C\uDDFA\uD83C\uDDF8 Florida</option>
-              <option value="federal">\uD83C\uDFDB\uFE0F US Federal</option>
-              <option value="multistate">\uD83D\uDDFA\uFE0F Multi-state</option>
+            <select id="chatJurisdiction" onchange="chatJurisdiction=this.value" class="text-xs py-1.5 px-3 w-auto rounded-lg bg-dark-50 border-dark-200">
+              <option value="florida" \${chatJurisdiction==='florida'?'selected':''}>🇺🇸 Florida</option>
+              <option value="federal" \${chatJurisdiction==='federal'?'selected':''}>🏛️ US Federal</option>
+              <option value="multistate" \${chatJurisdiction==='multistate'?'selected':''}>🗺️ Multi-state</option>
             </select>
-            <select id="chatCaseSelect" onchange="chatCaseId=this.value||null" class="text-sm py-1.5 px-3 w-auto bg-dark-50">
+            <select id="chatCaseSelect" onchange="chatCaseId=this.value||null" class="text-xs py-1.5 px-3 w-auto rounded-lg bg-dark-50 border-dark-200" style="max-width:220px">
               <option value="">No matter selected</option>
-              \${cases.map(c => '<option value="'+c.id+'">'+c.case_number+' \u2014 '+c.title+'</option>').join('')}
+              \${cases.map(c => '<option value="'+c.id+'" '+(chatCaseId==c.id?'selected':'')+'>'+c.case_number+' — '+c.title.substring(0,30)+'</option>').join('')}
             </select>
-            <button onclick="clearChat()" class="btn btn-secondary text-xs"><i class="fas fa-trash-can mr-1"></i>Clear</button>
+            <button onclick="clearChat()" class="btn btn-secondary text-xs py-1.5"><i class="fas fa-trash-alt mr-1"></i>Clear</button>
           </div>
         </div>
 
         <!-- Chat Messages -->
-        <div id="chatMessages" class="flex-1 overflow-y-auto space-y-4 pr-2 scrollbar-thin" style="min-height:0">
-          \${messages.length > 0 ? messages.map(m => renderChatMessage(m)).join('') : \`
-            <div class="text-center py-12">
-              <div class="w-20 h-20 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-emerald-200">
-                <i class="fas fa-scale-balanced text-emerald-500 text-3xl"></i>
+        <div id="chatMessages" class="flex-1 overflow-y-auto py-4 space-y-4 scrollbar-thin">
+          \${chatMessages.length === 0 ? \`
+            <div class="flex flex-col items-center justify-center h-full text-center">
+              <div class="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mb-4 border border-emerald-200">
+                <i class="fas fa-scale-balanced text-emerald-500 text-2xl"></i>
               </div>
-              <h3 class="text-lg font-bold text-dark-800 mb-2">Welcome to Lawyrs AI</h3>
-              <p class="text-dark-500 text-sm max-w-lg mx-auto mb-6">I'm your AI co-counsel \u2014 a senior equity partner with 25+ years across all US jurisdictions. I can research, draft, analyze, and strategize. What are we working on?</p>
-              <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 max-w-2xl mx-auto">
-                <button onclick="sendQuickChat('Research Florida statute of limitations for personal injury claims')" class="card p-3 text-left hover:border-emerald-300 cursor-pointer">
-                  <i class="fas fa-magnifying-glass text-emerald-500 text-sm mb-1"></i>
-                  <p class="text-xs font-medium text-dark-700">FL SOL Research</p>
-                  <p class="text-xs text-dark-400">Personal injury</p>
-                </button>
-                <button onclick="sendQuickChat('Draft a motion to compel discovery responses in Florida')" class="card p-3 text-left hover:border-emerald-300 cursor-pointer">
-                  <i class="fas fa-file-pen text-emerald-500 text-sm mb-1"></i>
-                  <p class="text-xs font-medium text-dark-700">Draft Motion</p>
-                  <p class="text-xs text-dark-400">Compel discovery</p>
-                </button>
-                <button onclick="sendQuickChat('Analyze the risks and strategy for a wrongful termination case in Florida')" class="card p-3 text-left hover:border-emerald-300 cursor-pointer">
-                  <i class="fas fa-brain text-emerald-500 text-sm mb-1"></i>
-                  <p class="text-xs font-medium text-dark-700">Risk Analysis</p>
-                  <p class="text-xs text-dark-400">Wrongful termination</p>
-                </button>
-                <button onclick="sendQuickChat('What are the Florida Bar rules for contingency fee agreements?')" class="card p-3 text-left hover:border-emerald-300 cursor-pointer">
-                  <i class="fas fa-receipt text-emerald-500 text-sm mb-1"></i>
-                  <p class="text-xs font-medium text-dark-700">Fee Rules</p>
-                  <p class="text-xs text-dark-400">Contingency fees</p>
-                </button>
+              <h3 class="text-lg font-bold text-dark-800 mb-1">Lawyrs AI Co-Counsel</h3>
+              <p class="text-dark-400 text-sm max-w-md mb-2">Your always-on senior partner, researcher, analyst & drafter. Ask anything or use the quick actions below.</p>
+              <div class="flex items-center gap-4 text-xs text-dark-400 mt-1">
+                <span>\uD83D\uDD12 Privileged & Confidential</span>
+                <span>\u2696\uFE0F FL Bar Member</span>
+                <span>\uD83E\uDDE0 8 AI Agents</span>
               </div>
             </div>
-          \`}
+          \` : chatMessages.map(m => renderChatMessage(m)).join('')}
+        </div>
+
+        <!-- Quick Action Chips -->
+        <div id="chatChips" class="flex-shrink-0 border-t border-dark-200 pt-3 pb-2">
+          <div class="flex items-center gap-1.5 mb-1.5">
+            <span class="text-xs font-semibold text-dark-400 uppercase tracking-wider mr-1">\uD83D\uDD0D Research</span>
+            <button onclick="injectChip('Research Florida case law on [issue] with citations and key holdings')" class="chip">Case Law</button>
+            <button onclick="injectChip('Find statute of limitations for [claim type] in Florida')" class="chip">SOL Lookup</button>
+            <button onclick="injectChip('Compare strengths and weaknesses of our position vs opposing party')" class="chip">Compare</button>
+          </div>
+          <div class="flex items-center gap-1.5 mb-1.5">
+            <span class="text-xs font-semibold text-dark-400 uppercase tracking-wider mr-1">\u{1F4DD} Drafting</span>
+            <button onclick="injectChip('Draft a demand letter under Florida law based on the current matter facts')" class="chip">Demand Letter</button>
+            <button onclick="injectChip('Create motion to dismiss with supporting authorities')" class="chip">Motion to Dismiss</button>
+            <button onclick="injectChip('Draft client engagement letter with Florida-specific clauses')" class="chip">Engagement Letter</button>
+          </div>
+          <div class="flex items-center gap-1.5 mb-1.5">
+            <span class="text-xs font-semibold text-dark-400 uppercase tracking-wider mr-1">\u{1F9E0} Analysis</span>
+            <button onclick="injectChip('Risk assessment: analyze strengths and weaknesses of our case')" class="chip">Risk Assessment</button>
+            <button onclick="injectChip('Review for Florida enforceability issues and flag risks')" class="chip">Enforceability</button>
+            <button onclick="injectChip('Analyze for inconsistencies, risks, and impeachment opportunities')" class="chip">Depo Analysis</button>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="text-xs font-semibold text-dark-400 uppercase tracking-wider mr-1">\u{1F3AF} Strategy</span>
+            <button onclick="injectChip('Propose 3 settlement strategies with pros and cons for each')" class="chip">Settlement</button>
+            <button onclick="injectChip('Generate timeline and deadline calendar for this matter')" class="chip">Timeline</button>
+            <button onclick="injectChip('What am I missing? Give proactive recommendations for this matter')" class="chip chip-glow">What Am I Missing?</button>
+          </div>
         </div>
 
         <!-- Chat Input -->
-        <div class="flex-shrink-0 pt-4 border-t border-dark-200 mt-4">
-          <div class="flex gap-3">
+        <div class="flex-shrink-0 border-t border-dark-200 pt-3 pb-1">
+          <div class="flex gap-2">
             <div class="flex-1 relative">
-              <textarea id="chatInput" rows="2" placeholder="Ask Lawyrs AI anything \u2014 research, draft, analyze, strategize..." class="w-full resize-none pr-12" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
-              <div class="absolute right-2 bottom-2 text-xs text-dark-400">Shift+Enter for new line</div>
+              <textarea id="chatInput" rows="2" placeholder="Ask Lawyrs AI anything — research, draft, analyze, strategize..." class="w-full pr-12 resize-none" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
+              <div class="absolute right-2 bottom-2 text-xs text-dark-400" id="chatJxLabel">\uD83C\uDDFA\uD83C\uDDF8 FL</div>
             </div>
-            <button onclick="sendChat()" id="chatSendBtn" class="btn bg-emerald-600 text-white hover:bg-emerald-700 self-end px-5 py-3">
+            <button onclick="sendChat()" id="chatSendBtn" class="btn bg-emerald-600 text-white hover:bg-emerald-700 self-end px-5 h-[52px]">
               <i class="fas fa-paper-plane"></i>
             </button>
           </div>
           <div class="flex items-center justify-between mt-2 text-xs text-dark-400">
-            <div><i class="fas fa-shield-check text-emerald-500 mr-1"></i>Confidential \u2022 Attorney Work Product \u2022 Privileged</div>
-            <div id="chatStatus"></div>
+            <span>\uD83D\uDD12 All communications are privileged and confidential</span>
+            <span id="chatStatus"></span>
           </div>
         </div>
       </div>
     \`;
-
-    // Scroll to bottom
-    const container = document.getElementById('chatMessages');
-    if (container) container.scrollTop = container.scrollHeight;
-  } catch(e) { showError('AI Chat'); }
+    scrollChatToBottom();
+  } catch(e) { showError('AI Co-Counsel'); }
 }
 
 function renderChatMessage(m) {
   if (m.role === 'user') {
-    return \`
-      <div class="flex justify-end">
-        <div class="bg-brand-600 text-white rounded-2xl rounded-tr-sm px-5 py-3 max-w-2xl">
-          <p class="text-sm whitespace-pre-wrap">\${escapeHtml(m.content)}</p>
-          <p class="text-xs opacity-60 mt-1 text-right">\${formatTime(m.created_at)}</p>
-        </div>
-      </div>\`;
-  } else {
-    return \`
-      <div class="flex gap-3">
-        <div class="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
-          <i class="fas fa-scale-balanced text-emerald-600 text-xs"></i>
-        </div>
-        <div class="card px-5 py-4 max-w-4xl flex-1 border-emerald-100">
-          \${m.agent_type ? '<div class="flex items-center gap-2 mb-2"><span class="badge bg-emerald-100 text-emerald-700 text-xs"><i class="fas fa-robot mr-1"></i>'+m.agent_type+' agent</span>' + (m.tokens_used ? '<span class="text-xs text-dark-400">'+m.tokens_used+' tokens</span>' : '') + '</div>' : ''}
-          <div class="text-sm text-dark-700 prose-sm ai-response">\${renderMarkdown(m.content)}</div>
-          <p class="text-xs text-dark-400 mt-2">\${formatTime(m.created_at)}</p>
-        </div>
-      </div>\`;
+    return \`<div class="flex justify-end"><div class="bg-brand-600 text-white rounded-2xl rounded-br-md px-5 py-3 max-w-[75%] shadow-sm">
+      <p class="text-sm whitespace-pre-wrap">\${escapeHtml(m.content)}</p>
+      <p class="text-xs opacity-60 mt-1 text-right">\${formatTime(m.created_at)}</p>
+    </div></div>\`;
   }
+  return \`<div class="flex gap-3">
+    <div class="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white text-sm flex-shrink-0 mt-1">\u2696\uFE0F</div>
+    <div class="bg-white border border-dark-200 rounded-2xl rounded-bl-md px-5 py-4 max-w-[85%] shadow-sm">
+      \${m.agent_type ? '<div class="flex items-center gap-2 mb-2"><span class="badge bg-emerald-100 text-emerald-700 text-xs"><i class="fas fa-robot mr-1"></i>'+m.agent_type+' agent</span><span class="badge bg-dark-100 text-dark-500 text-xs">'+m.jurisdiction+'</span></div>' : ''}
+      <div class="text-sm text-dark-800 prose-sm chat-content">\${renderMarkdown(m.content)}</div>
+      <p class="text-xs text-dark-400 mt-2">\${formatTime(m.created_at)}\${m.tokens_used ? ' \u2022 '+m.tokens_used+' tokens' : ''}</p>
+    </div>
+  </div>\`;
 }
 
 function renderMarkdown(text) {
   if (!text) return '';
   return text
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/^## (.+)$/gm, '<h3 class="text-base font-bold text-dark-900 mt-3 mb-2">$1</h3>')
-    .replace(/^### (.+)$/gm, '<h4 class="text-sm font-semibold text-dark-800 mt-2 mb-1">$1</h4>')
-    .replace(/\\*\\*(.+?)\\*\\*/g, '<strong class="font-semibold text-dark-900">$1</strong>')
-    .replace(/\\*(.+?)\\*/g, '<em>$1</em>')
-    .replace(/^- \\[ \\] (.+)$/gm, '<div class="flex items-center gap-2 ml-2 my-0.5"><input type="checkbox" disabled class="rounded"><span class="text-sm">$1</span></div>')
-    .replace(/^- (.+)$/gm, '<div class="flex items-start gap-2 ml-2 my-0.5"><span class="text-emerald-500 mt-0.5">\u2022</span><span>$1</span></div>')
-    .replace(/^\\d+\\. (.+)$/gm, '<div class="ml-2 my-0.5"><span>$1</span></div>')
-    .replace(/\\| (.+)/g, '<div class="font-mono text-xs bg-dark-50 px-2 py-0.5 rounded my-0.5">$1</div>')
-    .replace(/\\[(.+?)\\]\\((.+?)\\)/g, '<a href="$2" target="_blank" class="text-brand-600 underline">$1</a>')
-    .replace(/---/g, '<hr class="my-3 border-dark-200">')
+    .replace(/^### (.+)$/gm, '<h4 class="text-sm font-bold text-dark-800 mt-2 mb-1">$1</h4>')
+    .replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>')
+    .replace(/^- \\[ \\] (.+)$/gm, '<div class="flex items-center gap-2 text-dark-600 ml-2"><i class="far fa-square text-dark-400 text-xs"></i> $1</div>')
+    .replace(/^- (.+)$/gm, '<div class="flex items-start gap-2 ml-2"><span class="text-dark-400 mt-0.5">\u2022</span> $1</div>')
+    .replace(/^\\d+\\. (.+)$/gm, '<div class="ml-2">$1</div>')
+    .replace(/\\| (.+?) \\|/g, function(match) { return '<span class="font-mono text-xs bg-dark-50 px-1 rounded">' + match + '</span>'; })
+    .replace(/\\n---\\n/g, '<hr class="my-3 border-dark-200">')
+    .replace(/\\n\\n/g, '<div class="mb-2"></div>')
     .replace(/\\n/g, '<br>')
+    .replace(/\\*(.+?)\\*/g, '<em>$1</em>')
+    .replace(/\`(.+?)\`/g, '<code class="bg-dark-100 px-1.5 py-0.5 rounded text-xs font-mono">$1</code>');
 }
 
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
+function escapeHtml(t) {
+  const d = document.createElement('div'); d.textContent = t; return d.innerHTML;
+}
+
+function injectChip(text) {
+  const input = document.getElementById('chatInput');
+  // If a case is selected, try to enrich the prompt with case context
+  const caseSelect = document.getElementById('chatCaseSelect');
+  const caseName = caseSelect?.selectedOptions?.[0]?.text;
+  let enriched = text;
+  if (chatCaseId && caseName && caseName !== 'No matter selected') {
+    enriched = text
+      .replace('[issue]', 'the issues in ' + caseName)
+      .replace('[claim type]', 'the claims in ' + caseName)
+      .replace('[matter facts]', 'the facts of ' + caseName)
+      .replace('[grounds]', 'applicable grounds for ' + caseName);
+  } else {
+    enriched = text.replace(/\\[.+?\\]/g, '...');
+  }
+  input.value = enriched;
+  input.focus();
+  input.setSelectionRange(enriched.indexOf('...'), enriched.indexOf('...') + 3);
 }
 
 async function sendChat() {
@@ -1067,48 +1090,23 @@ async function sendChat() {
   const message = input.value.trim();
   if (!message) return;
 
-  const container = document.getElementById('chatMessages');
-  const statusEl = document.getElementById('chatStatus');
-  const sendBtn = document.getElementById('chatSendBtn');
-
-  // Clear welcome screen if first message
-  if (container.querySelector('.text-center.py-12')) container.innerHTML = '';
-
-  // Add user message
-  container.innerHTML += \`
-    <div class="flex justify-end fade-in">
-      <div class="bg-brand-600 text-white rounded-2xl rounded-tr-sm px-5 py-3 max-w-2xl">
-        <p class="text-sm whitespace-pre-wrap">\${escapeHtml(message)}</p>
-        <p class="text-xs opacity-60 mt-1 text-right">Just now</p>
-      </div>
-    </div>\`;
-
   input.value = '';
-  input.focus();
-  container.scrollTop = container.scrollHeight;
-
-  // Show typing indicator
-  const typingId = 'typing_' + Date.now();
-  container.innerHTML += \`
-    <div id="\${typingId}" class="flex gap-3 fade-in">
-      <div class="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
-        <i class="fas fa-scale-balanced text-emerald-600 text-xs"></i>
-      </div>
-      <div class="card px-5 py-4 border-emerald-100">
-        <div class="flex items-center gap-2">
-          <div class="flex gap-1">
-            <div class="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style="animation-delay:0ms"></div>
-            <div class="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style="animation-delay:150ms"></div>
-            <div class="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style="animation-delay:300ms"></div>
-          </div>
-          <span class="text-xs text-dark-400">Lawyrs AI is analyzing...</span>
-        </div>
-      </div>
-    </div>\`;
-  container.scrollTop = container.scrollHeight;
-
-  statusEl.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Processing...';
+  const sendBtn = document.getElementById('chatSendBtn');
   sendBtn.disabled = true;
+  sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+  // Show user message immediately
+  const msgContainer = document.getElementById('chatMessages');
+  const emptyState = msgContainer.querySelector('.flex.flex-col.items-center');
+  if (emptyState) emptyState.remove();
+  
+  msgContainer.innerHTML += renderChatMessage({ role: 'user', content: message, created_at: new Date().toISOString() });
+  
+  // Show typing indicator
+  msgContainer.innerHTML += '<div id="typingIndicator" class="flex gap-3"><div class="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white text-sm flex-shrink-0">\u2696\uFE0F</div><div class="bg-white border border-dark-200 rounded-2xl px-5 py-4 shadow-sm"><div class="flex items-center gap-2"><div class="flex gap-1"><span class="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style="animation-delay:0ms"></span><span class="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style="animation-delay:150ms"></span><span class="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style="animation-delay:300ms"></span></div><span class="text-xs text-dark-400 ml-2">Analyzing...</span></div></div></div>';
+  scrollChatToBottom();
+
+  document.getElementById('chatStatus').textContent = '\u{1F9E0} Processing...';
 
   try {
     const { data } = await axios.post(API + '/ai/chat', {
@@ -1119,52 +1117,46 @@ async function sendChat() {
     });
 
     // Remove typing indicator
-    const typingEl = document.getElementById(typingId);
-    if (typingEl) typingEl.remove();
+    const ti = document.getElementById('typingIndicator');
+    if (ti) ti.remove();
 
     // Add AI response
-    container.innerHTML += \`
-      <div class="flex gap-3 fade-in">
-        <div class="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-1">
-          <i class="fas fa-scale-balanced text-emerald-600 text-xs"></i>
-        </div>
-        <div class="card px-5 py-4 max-w-4xl flex-1 border-emerald-100">
-          <div class="flex items-center gap-2 mb-2">
-            <span class="badge bg-emerald-100 text-emerald-700 text-xs"><i class="fas fa-robot mr-1"></i>\${data.agent_used} agent</span>
-            <span class="text-xs text-dark-400">\${data.tokens_used} tokens \u2022 \${data.jurisdiction}</span>
-          </div>
-          <div class="text-sm text-dark-700 ai-response">\${renderMarkdown(data.content)}</div>
-          <p class="text-xs text-dark-400 mt-2">Just now</p>
-        </div>
-      </div>\`;
+    msgContainer.innerHTML += renderChatMessage({
+      role: 'assistant',
+      content: data.content,
+      agent_type: data.agent_used,
+      jurisdiction: data.jurisdiction,
+      tokens_used: data.tokens_used,
+      created_at: new Date().toISOString()
+    });
 
-    statusEl.innerHTML = '<i class="fas fa-check text-emerald-500 mr-1"></i>Response received \u2022 ' + data.tokens_used + ' tokens';
-    container.scrollTop = container.scrollHeight;
+    document.getElementById('chatStatus').textContent = '\u2705 ' + data.agent_used + ' agent \u2022 ' + data.tokens_used + ' tokens \u2022 ' + data.duration_ms + 'ms';
   } catch(e) {
-    const typingEl = document.getElementById(typingId);
-    if (typingEl) typingEl.remove();
-    container.innerHTML += '<div class="text-center py-4"><p class="text-red-500 text-sm">Error getting response. <button onclick="sendChat()" class="underline">Retry</button></p></div>';
-    statusEl.innerHTML = '<i class="fas fa-exclamation-triangle text-red-500 mr-1"></i>Error';
+    const ti = document.getElementById('typingIndicator');
+    if (ti) ti.remove();
+    msgContainer.innerHTML += '<div class="text-center py-2"><span class="badge bg-red-100 text-red-700">Error: ' + (e.message || 'Network error') + '. Try again.</span></div>';
+    document.getElementById('chatStatus').textContent = '\u274C Error';
   }
 
   sendBtn.disabled = false;
-}
-
-function sendQuickChat(message) {
-  document.getElementById('chatInput').value = message;
-  sendChat();
+  sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i>';
+  scrollChatToBottom();
 }
 
 async function clearChat() {
-  if (!confirm('Clear all chat history for this session?')) return;
-  try {
-    await axios.delete(API + '/ai/chat/' + chatSessionId);
-    chatSessionId = 'session_' + Date.now();
-    loadAIChat();
-  } catch(e) {}
+  if (!confirm('Clear this chat session?')) return;
+  try { await axios.delete(API + '/ai/chat/' + chatSessionId); } catch(e) {}
+  chatSessionId = 'session_' + Date.now();
+  chatMessages = [];
+  loadAIChat();
 }
 
-// === AI WORKFLOW (existing) ===
+function scrollChatToBottom() {
+  const c = document.getElementById('chatMessages');
+  if (c) setTimeout(() => c.scrollTop = c.scrollHeight, 100);
+}
+
+// === AI WORKFLOW ===
 async function loadAIWorkflow() {
   try {
     const [statsRes, logsRes, casesRes] = await Promise.all([
