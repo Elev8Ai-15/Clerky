@@ -1265,7 +1265,7 @@ async function loadAIChat() {
         <div class="p-3 sm:p-4 border-t" style="border-color:#2a4068; background:#1e3354">
           <div class="relative">
             <textarea id="chatInput" rows="2" placeholder="Ask anything..." class="w-full pr-14 resize-none text-slate-200 placeholder-slate-500 text-sm" style="background:#0d1a2e; border:1px solid #334155; min-height:48px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
-            <button onclick="sendChat()" id="chatSendBtn" class="btn btn-sm absolute right-2 bottom-2 text-white" style="background:#cc2229" onmouseover="this.style.background='#e02e35'" onmouseout="this.style.background='#cc2229'" style="width:36px;height:36px;padding:0">
+            <button onclick="sendChat()" id="chatSendBtn" class="btn btn-sm absolute right-2 bottom-2 text-white" style="background:#cc2229; width:36px;height:36px;padding:0" onmouseover="this.style.background='#e02e35'" onmouseout="this.style.background='#cc2229'">
               <i class="fas fa-paper-plane text-sm"></i>
             </button>
           </div>
@@ -1445,7 +1445,7 @@ function renderMarkdown(text) {
   processed = processed.replace(/^> (.+)$/gm, '<div class="border-l-3 border-red-700 pl-3 py-1 my-2 text-sm text-slate-300 bg-slate-800/30 rounded-r-lg">$1</div>');
 
   // ── 4. Render links [text](url) ───────────────────────────
-  processed = processed.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href="$2" target="_blank" rel="noopener" class="underline" style="color:#cc2229" onmouseover="this.style.color='#e02e35'" onmouseout="this.style.color='#cc2229' underline-offset-2">$1</a>');
+  processed = processed.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href="$2" target="_blank" rel="noopener" class="underline underline-offset-2" style="color:#cc2229">$1</a>');
 
   // ── 5. Render <small> metadata tags ───────────────────────
   processed = processed.replace(/&lt;small&gt;(.+?)&lt;\\/small&gt;/g, '<div class="text-[10px] text-slate-500 mt-2">$1</div>');
@@ -1608,7 +1608,7 @@ async function sendChat() {
         const stepsHtml = du.pipeline_steps.map(function(step, i) {
           const isLast = i === du.pipeline_steps.length - 1;
           const icon = step.includes('Error') ? 'fa-times-circle text-red-400' :
-                       step.includes('complete') || step.includes('Complete') ? 'fa-check-circle' + ' style="color:#cc2229"' :
+                       step.includes('complete') || step.includes('Complete') ? 'fa-check-circle text-red-500' :
                        step.includes('Document') || step.includes('doc') ? 'fa-file-alt text-blue-400' :
                        step.includes('task') || step.includes('Task') ? 'fa-tasks text-amber-400' :
                        step.includes('event') || step.includes('Event') || step.includes('Calendar') ? 'fa-calendar text-purple-400' :
