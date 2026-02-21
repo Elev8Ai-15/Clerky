@@ -122,7 +122,9 @@ function getAppHTML(): string {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>Clerky - Legal Practice Management</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.0/css/all.min.css" rel="stylesheet">
@@ -316,6 +318,55 @@ function getAppHTML(): string {
     #sidebarOverlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 40; backdrop-filter: blur(2px); }
     #sidebarOverlay.active { display: block; }
 
+    /* ── Bottom Navigation Bar (mobile) ── */
+    #mobileBottomNav { display: none; }
+    @media (max-width: 1023px) {
+      #mobileBottomNav {
+        display: flex;
+        position: fixed;
+        bottom: 0; left: 0; right: 0;
+        z-index: 45;
+        background: #1e3354;
+        border-top: 1px solid #2a4068;
+        padding: 0;
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+        justify-content: space-around;
+        align-items: stretch;
+        box-shadow: 0 -2px 12px rgba(0,0,0,0.3);
+      }
+      #mobileBottomNav button {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        padding: 8px 4px;
+        background: transparent;
+        border: none;
+        color: #6b7ea0;
+        font-size: 10px;
+        cursor: pointer;
+        transition: color 0.15s, background 0.15s;
+        position: relative;
+      }
+      #mobileBottomNav button i { font-size: 16px; }
+      #mobileBottomNav button.active { color: #cc2229; }
+      #mobileBottomNav button.active::after {
+        content: '';
+        position: absolute;
+        top: 0; left: 25%; right: 25%;
+        height: 2px;
+        background: #cc2229;
+        border-radius: 0 0 2px 2px;
+      }
+      #mobileBottomNav button:active { background: rgba(255,255,255,0.05); }
+      /* Push page content above bottom nav */
+      #pageContent { padding-bottom: 70px !important; }
+      /* Reduce page-level padding on mobile */
+      #pageContent { padding: 12px !important; padding-bottom: 70px !important; }
+    }
+
     @media (max-width: 1023px) {
       #sidebar {
         position: fixed;
@@ -329,26 +380,66 @@ function getAppHTML(): string {
       }
       /* Mobile header adjustments */
       .mobile-search { width: 100% !important; max-width: 180px; }
+      /* Page headers stack on mobile */
+      .mobile-header-stack { flex-direction: column !important; align-items: flex-start !important; gap: 0.75rem !important; }
+      .mobile-header-stack .flex { flex-wrap: wrap; gap: 0.5rem; }
+      /* Title text smaller on mobile */
+      .mobile-title-sm { font-size: 1.25rem !important; }
       /* Chat header stacks vertically on small screens */
       .chat-header-row { flex-wrap: wrap; gap: 0.5rem; }
       .chat-controls { flex-wrap: wrap; gap: 0.375rem; }
       .chat-controls select { max-width: 140px !important; font-size: 0.65rem; }
       /* Prompt chips scroll horizontally */
-      .chips-row { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; padding-bottom: 0.25rem; }
+      .chips-row { overflow-x: auto; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch; padding-bottom: 0.25rem; }
       .chips-row::-webkit-scrollbar { display: none; }
-      /* Stat cards single column on very small */
+      /* Stat cards 2-col on mobile */
       .stat-grid-mobile { grid-template-columns: repeat(2, 1fr) !important; }
       /* Table horizontal scroll */
       .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
       .table-scroll table { min-width: 640px; }
       /* Chat messages full width */
       .chat-msg-max { max-width: 95% !important; }
+      /* AI Chat header — stack controls */
+      .chat-head-mobile { flex-direction: column !important; align-items: stretch !important; gap: 0.5rem !important; }
+      .chat-head-mobile .flex { flex-wrap: wrap; }
+      .chat-head-controls { flex-wrap: wrap !important; gap: 0.375rem !important; }
+      .chat-head-controls select { flex: 1; min-width: 0; max-width: none !important; font-size: 0.7rem !important; }
+      /* Matter bar scroll on mobile */
+      .matter-bar-mobile { overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
+      .matter-bar-mobile::-webkit-scrollbar { display: none; }
+      /* Task card badges wrap */
+      .task-card-mobile { flex-wrap: wrap !important; gap: 0.5rem !important; }
+      .task-badges-mobile { display: flex; gap: 0.25rem; flex-wrap: wrap; margin-top: 0.25rem; }
+      /* Memory search bar stacks */
+      .memory-search-bar { flex-direction: column !important; }
+      .memory-search-bar select { width: 100% !important; }
+      /* AI Workflow architecture scrolls */
+      .workflow-arch-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .workflow-arch-scroll::-webkit-scrollbar { display: none; }
+      .workflow-arch-scroll > div { min-width: 600px; }
+      /* AI Workflow stats grid */
+      .workflow-stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+      /* Filter buttons scroll on mobile */
+      .filter-scroll { overflow-x: auto; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
+      .filter-scroll::-webkit-scrollbar { display: none; }
+      .filter-scroll button { flex-shrink: 0; }
+      /* Intake pipeline diagram scroll */
+      .intake-pipeline-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .intake-pipeline-scroll::-webkit-scrollbar { display: none; }
+      .intake-pipeline-scroll > div { min-width: 520px; }
+      /* Compact card padding */
+      .card { padding: 0.75rem; }
+      .card.p-5 { padding: 0.875rem !important; }
+      .card.p-6 { padding: 1rem !important; }
     }
 
     @media (max-width: 480px) {
       .stat-grid-mobile { grid-template-columns: 1fr !important; }
       .chat-controls select { max-width: 110px !important; }
       .mobile-search { max-width: 120px; }
+      .mobile-title-sm { font-size: 1.1rem !important; }
+      /* Even more compact */
+      .workflow-stats-grid { grid-template-columns: 1fr !important; }
     }
 
     .chat-content h3 { margin-top: 12px; }
@@ -510,6 +601,37 @@ function getAppHTML(): string {
     </main>
   </div>
 
+  <!-- Mobile Bottom Navigation -->
+  <nav id="mobileBottomNav">
+    <button onclick="navigate('dashboard')" data-mob="dashboard" class="active">
+      <i class="fas fa-chart-line"></i><span>Home</span>
+    </button>
+    <button onclick="navigate('cases')" data-mob="cases">
+      <i class="fas fa-briefcase"></i><span>Cases</span>
+    </button>
+    <button onclick="navigate('clients')" data-mob="clients">
+      <i class="fas fa-users"></i><span>Clients</span>
+    </button>
+    <button onclick="navigate('ai-chat')" data-mob="ai-chat">
+      <i class="fas fa-scale-balanced"></i><span>AI</span>
+    </button>
+    <button onclick="toggleMobileMore()" data-mob="more" id="mobileMoreBtn">
+      <i class="fas fa-ellipsis-h"></i><span>More</span>
+    </button>
+  </nav>
+
+  <!-- Mobile "More" Menu -->
+  <div id="mobileMoreMenu" style="display:none; position:fixed; bottom:60px; right:8px; z-index:46; background:#1e3354; border:1px solid #2a4068; border-radius:12px; padding:8px 0; min-width:180px; box-shadow:0 -4px 20px rgba(0,0,0,0.4);">
+    <button onclick="navigate('documents');closeMobileMore()" class="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-white/10 flex items-center gap-3"><i class="fas fa-file-alt w-5 text-center" style="color:#6b7ea0"></i> Documents</button>
+    <button onclick="navigate('calendar');closeMobileMore()" class="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-white/10 flex items-center gap-3"><i class="fas fa-calendar-days w-5 text-center" style="color:#6b7ea0"></i> Calendar</button>
+    <button onclick="navigate('tasks');closeMobileMore()" class="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-white/10 flex items-center gap-3"><i class="fas fa-check-circle w-5 text-center" style="color:#6b7ea0"></i> Tasks</button>
+    <button onclick="navigate('billing');closeMobileMore()" class="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-white/10 flex items-center gap-3"><i class="fas fa-receipt w-5 text-center" style="color:#6b7ea0"></i> Billing</button>
+    <div style="border-top:1px solid #2a4068; margin:4px 0;"></div>
+    <button onclick="navigate('ai-workflow');closeMobileMore()" class="w-full text-left px-4 py-2.5 text-sm flex items-center gap-3" style="color:#f09898"><i class="fas fa-robot w-5 text-center"></i> AI Workflow</button>
+    <button onclick="navigate('memory');closeMobileMore()" class="w-full text-left px-4 py-2.5 text-sm flex items-center gap-3" style="color:#f09898"><i class="fas fa-brain w-5 text-center"></i> Agent Memory</button>
+    <button onclick="navigate('intake');closeMobileMore()" class="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-white/10 flex items-center gap-3"><i class="fas fa-clipboard-list w-5 text-center" style="color:#6b7ea0"></i> Client Intake</button>
+  </div>
+
   <!-- Modal Container -->
   <div id="modalContainer"></div>
 
@@ -563,14 +685,37 @@ function navigate(page) {
   currentPage = page;
   // Close sidebar on mobile when navigating
   closeSidebar();
+  closeMobileMore();
   document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
   const link = document.querySelector('[data-page="'+page+'"]');
   if (link) link.classList.add('active');
+  // Update mobile bottom nav active state
+  document.querySelectorAll('#mobileBottomNav button').forEach(b => b.classList.remove('active'));
+  const mobBtn = document.querySelector('#mobileBottomNav [data-mob="'+page+'"]');
+  if (mobBtn) { mobBtn.classList.add('active'); }
+  else { const moreBtn = document.getElementById('mobileMoreBtn'); if (moreBtn) moreBtn.classList.add('active'); }
   document.getElementById('pageContent').innerHTML = '<div class="flex items-center justify-center h-32"><i class="fas fa-spinner fa-spin text-brand-500 text-xl mr-3"></i> Loading...</div>';
   
   const pages = { dashboard: loadDashboard, cases: loadCases, clients: loadClients, documents: loadDocuments, calendar: loadCalendar, tasks: loadTasks, billing: loadBilling, 'ai-chat': loadAIChat, 'ai-workflow': loadAIWorkflow, memory: loadMemory, intake: loadIntake };
   if (pages[page]) pages[page]();
 }
+
+function toggleMobileMore() {
+  const menu = document.getElementById('mobileMoreMenu');
+  menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+function closeMobileMore() {
+  const menu = document.getElementById('mobileMoreMenu');
+  if (menu) menu.style.display = 'none';
+}
+// Close more menu when tapping outside
+document.addEventListener('click', function(e) {
+  const menu = document.getElementById('mobileMoreMenu');
+  const btn = document.getElementById('mobileMoreBtn');
+  if (menu && menu.style.display !== 'none' && !menu.contains(e.target) && !btn.contains(e.target)) {
+    menu.style.display = 'none';
+  }
+});
 
 function toggleSidebar() {
   const sidebar = document.getElementById('sidebar');
@@ -607,9 +752,9 @@ async function loadDashboard() {
     };
     document.getElementById('pageContent').innerHTML = \`
       <div class="fade-in">
-        <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center justify-between mb-6 mobile-header-stack">
           <div>
-            <h2 class="text-2xl font-bold text-dark-900">Dashboard</h2>
+            <h2 class="text-2xl font-bold text-dark-900 mobile-title-sm">Dashboard</h2>
             <p class="text-dark-500 text-sm mt-1">Welcome back, Brad. Here's your practice overview.</p>
           </div>
           <div class="flex gap-2">
@@ -698,14 +843,14 @@ async function loadCases() {
     const { data } = await axios.get(API + '/cases');
     document.getElementById('pageContent').innerHTML = \`
       <div class="fade-in">
-        <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center justify-between mb-6 mobile-header-stack">
           <div>
-            <h2 class="text-2xl font-bold text-dark-900">Cases & Matters</h2>
+            <h2 class="text-2xl font-bold text-dark-900 mobile-title-sm">Cases & Matters</h2>
             <p class="text-dark-500 text-sm mt-1">\${data.cases.length} cases total</p>
           </div>
           <button onclick="showNewCaseModal()" class="btn btn-primary"><i class="fas fa-plus mr-2"></i>New Case</button>
         </div>
-        <div class="flex gap-2 mb-4 flex-wrap">
+        <div class="flex gap-2 mb-4 filter-scroll">
           <button onclick="filterCases('')" class="btn btn-secondary text-xs active" id="filterAll">All</button>
           <button onclick="filterCases('open')" class="btn btn-secondary text-xs">Open</button>
           <button onclick="filterCases('in_progress')" class="btn btn-secondary text-xs">In Progress</button>
@@ -861,9 +1006,9 @@ async function loadClients() {
     const { data } = await axios.get(API + '/clients');
     document.getElementById('pageContent').innerHTML = \`
       <div class="fade-in">
-        <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center justify-between mb-6 mobile-header-stack">
           <div>
-            <h2 class="text-2xl font-bold text-dark-900">Clients</h2>
+            <h2 class="text-2xl font-bold text-dark-900 mobile-title-sm">Clients</h2>
             <p class="text-dark-500 text-sm mt-1">\${data.clients.length} clients</p>
           </div>
           <button onclick="showNewClientModal()" class="btn btn-primary"><i class="fas fa-plus mr-2"></i>New Client</button>
@@ -946,9 +1091,9 @@ async function loadDocuments() {
     const { data } = await axios.get(API + '/documents');
     document.getElementById('pageContent').innerHTML = \`
       <div class="fade-in">
-        <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center justify-between mb-6 mobile-header-stack">
           <div>
-            <h2 class="text-2xl font-bold text-dark-900">Documents</h2>
+            <h2 class="text-2xl font-bold text-dark-900 mobile-title-sm">Documents</h2>
             <p class="text-dark-500 text-sm mt-1">\${data.documents.length} documents</p>
           </div>
           <button onclick="showNewDocModal()" class="btn btn-primary"><i class="fas fa-plus mr-2"></i>Upload Document</button>
@@ -1003,9 +1148,9 @@ async function loadCalendar() {
     const { data } = await axios.get(API + '/calendar');
     document.getElementById('pageContent').innerHTML = \`
       <div class="fade-in">
-        <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center justify-between mb-6 mobile-header-stack">
           <div>
-            <h2 class="text-2xl font-bold text-dark-900">Calendar</h2>
+            <h2 class="text-2xl font-bold text-dark-900 mobile-title-sm">Calendar</h2>
             <p class="text-dark-500 text-sm mt-1">\${data.events.length} events</p>
           </div>
           <button onclick="showNewEventModal()" class="btn btn-primary"><i class="fas fa-plus mr-2"></i>New Event</button>
@@ -1045,30 +1190,35 @@ async function loadTasks() {
     const { data } = await axios.get(API + '/tasks');
     document.getElementById('pageContent').innerHTML = \`
       <div class="fade-in">
-        <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center justify-between mb-6 mobile-header-stack">
           <div>
-            <h2 class="text-2xl font-bold text-dark-900">Tasks & Deadlines</h2>
+            <h2 class="text-2xl font-bold text-dark-900 mobile-title-sm">Tasks & Deadlines</h2>
             <p class="text-dark-500 text-sm mt-1">\${data.tasks.length} tasks</p>
           </div>
           <button onclick="showNewTaskModal()" class="btn btn-primary"><i class="fas fa-plus mr-2"></i>New Task</button>
         </div>
         <div class="space-y-3">
           \${data.tasks.map(t => \`
-            <div class="card p-4 flex items-center gap-4">
+            <div class="card p-4 flex items-center gap-4 task-card-mobile">
               <button onclick="toggleTask(\${t.id}, '\${t.status}')" class="w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 \${t.status === 'completed' ? 'bg-green-500 border-green-500 text-white' : 'border-dark-300 hover:border-brand-500'}">
                 \${t.status === 'completed' ? '<i class="fas fa-check text-xs"></i>' : ''}
               </button>
               <div class="flex-1 min-w-0">
                 <p class="font-medium text-dark-800 \${t.status === 'completed' ? 'line-through text-dark-400' : ''}">\${t.title}</p>
-                <div class="flex items-center gap-3 mt-1 text-xs text-dark-400">
+                <div class="flex items-center gap-3 mt-1 text-xs text-dark-400 flex-wrap">
                   <span><i class="fas fa-user mr-1"></i>\${t.assigned_name || '-'}</span>
                   \${t.case_number ? '<span><i class="fas fa-briefcase mr-1"></i>' + t.case_number + '</span>' : ''}
                   \${t.due_date ? '<span><i class="fas fa-calendar mr-1"></i>' + t.due_date + '</span>' : ''}
                 </div>
+                <div class="task-badges-mobile mt-1.5 sm:hidden">
+                  <span class="badge \${getPriorityColor(t.priority)} text-xs">\${t.priority}</span>
+                  <span class="badge \${getStatusColor(t.status)} text-xs">\${formatStatus(t.status)}</span>
+                  <span class="badge bg-dark-100 text-dark-600 text-xs">\${t.task_type}</span>
+                </div>
               </div>
-              <span class="badge \${getPriorityColor(t.priority)}">\${t.priority}</span>
-              <span class="badge \${getStatusColor(t.status)} text-xs">\${formatStatus(t.status)}</span>
-              <span class="badge bg-dark-100 text-dark-600 text-xs">\${t.task_type}</span>
+              <span class="badge \${getPriorityColor(t.priority)} hidden sm:inline-flex">\${t.priority}</span>
+              <span class="badge \${getStatusColor(t.status)} text-xs hidden sm:inline-flex">\${formatStatus(t.status)}</span>
+              <span class="badge bg-dark-100 text-dark-600 text-xs hidden sm:inline-flex">\${t.task_type}</span>
             </div>
           \`).join('')}
         </div>
@@ -1094,9 +1244,9 @@ async function loadBilling() {
     const invs = invoicesRes.data.invoices;
     document.getElementById('pageContent').innerHTML = \`
       <div class="fade-in">
-        <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center justify-between mb-6 mobile-header-stack">
           <div>
-            <h2 class="text-2xl font-bold text-dark-900">Billing & Invoices</h2>
+            <h2 class="text-2xl font-bold text-dark-900 mobile-title-sm">Billing & Invoices</h2>
             <p class="text-dark-500 text-sm mt-1">Financial overview</p>
           </div>
           <button onclick="showNewInvoiceModal()" class="btn btn-primary"><i class="fas fa-plus mr-2"></i>New Invoice</button>
@@ -1177,33 +1327,37 @@ async function loadAIChat() {
     const ctx = currentMatterContext;
 
     document.getElementById('pageContent').innerHTML = \`
-      <div class="fade-in flex flex-col h-full rounded-xl overflow-hidden border" style="max-height:calc(100vh - 73px); background: #0d1a2e; border-color:#2a4068">
+      <div class="fade-in flex flex-col h-full rounded-xl overflow-hidden border" style="max-height:calc(100vh - 73px - env(safe-area-inset-bottom, 0px)); background: #0d1a2e; border-color:#2a4068">
         <!-- Header -->
-        <div class="p-4 border-b flex items-center justify-between" style="background:#1e3354; border-color:#2a4068">
-          <div class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-2xl flex items-center justify-center text-white" style="background:#cc2229">
-              <i class="fas fa-robot text-sm"></i>
-            </div>
-            <div>
-              <div class="font-semibold text-white flex items-center gap-2">Clerky AI Partner <span class="w-2 h-2 rounded-full inline-block" style="background:#cc2229"></span></div>
-              <div class="text-xs flex items-center gap-1" style="color:#cc2229">
-                <i class="fas fa-diagram-project text-[10px]"></i> 4 specialist agents \u2022 \${chatJurisdiction === 'kansas' ? 'Kansas' : chatJurisdiction === 'missouri' ? 'Missouri' : chatJurisdiction === 'federal' ? 'Federal' : 'Multi-state'} jurisdiction
+        <div class="p-3 sm:p-4 border-b chat-head-mobile" style="background:#1e3354; border-color:#2a4068">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-2xl flex items-center justify-center text-white flex-shrink-0" style="background:#cc2229">
+                <i class="fas fa-robot text-sm"></i>
+              </div>
+              <div class="min-w-0">
+                <div class="font-semibold text-white flex items-center gap-2 text-sm">Clerky AI <span class="w-2 h-2 rounded-full inline-block flex-shrink-0" style="background:#cc2229"></span></div>
+                <div class="text-xs flex items-center gap-1 truncate" style="color:#cc2229">
+                  <i class="fas fa-diagram-project text-[10px]"></i> 4 agents \u2022 \${chatJurisdiction === 'kansas' ? 'KS' : chatJurisdiction === 'missouri' ? 'MO' : chatJurisdiction === 'federal' ? 'Fed' : 'Multi'}
+                </div>
               </div>
             </div>
+            <div class="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+              <button onclick="showCrewAISettings()" class="btn btn-ghost btn-sm text-slate-400 hover:text-white p-1.5" title="CrewAI Settings"><i class="fas fa-cog"></i></button>
+              <button onclick="clearChat()" class="btn btn-ghost btn-sm text-slate-400 hover:text-white p-1.5" title="Clear chat"><i class="fas fa-trash-alt"></i></button>
+            </div>
           </div>
-          <div class="flex items-center gap-2">
-            <select id="chatCaseSelect" onchange="chatCaseId=this.value||null;updateMatterBar()" class="text-xs py-1.5 px-3 w-auto rounded-lg text-slate-300" style="background:#2a4068; max-width:260px; border:1px solid #3d5a80">
-              <option value="">No matter selected</option>
-              \${cases.map(c => '<option value="'+c.id+'" '+(chatCaseId==c.id?'selected':'')+'>'+c.case_number+' \u2014 '+c.title.substring(0,35)+'</option>').join('')}
+          <div class="flex items-center gap-2 mt-2 chat-head-controls">
+            <select id="chatCaseSelect" onchange="chatCaseId=this.value||null;updateMatterBar()" class="text-xs py-1.5 px-2 rounded-lg text-slate-300 flex-1 min-w-0" style="background:#2a4068; border:1px solid #3d5a80">
+              <option value="">No matter</option>
+              \${cases.map(c => '<option value="'+c.id+'" '+(chatCaseId==c.id?'selected':'')+'>'+c.case_number+' \u2014 '+c.title.substring(0,25)+'</option>').join('')}
             </select>
-            <select id="chatJurisdiction" onchange="chatJurisdiction=this.value" class="text-xs py-1.5 px-3 w-auto rounded-lg text-slate-300" style="background:#2a4068; border:1px solid #3d5a80">
+            <select id="chatJurisdiction" onchange="chatJurisdiction=this.value" class="text-xs py-1.5 px-2 rounded-lg text-slate-300" style="background:#2a4068; border:1px solid #3d5a80; min-width:80px">
               <option value="kansas" \${chatJurisdiction==='kansas'?'selected':''}>Kansas</option>
               <option value="missouri" \${chatJurisdiction==='missouri'?'selected':''}>Missouri</option>
               <option value="federal" \${chatJurisdiction==='federal'?'selected':''}>Federal</option>
               <option value="multistate" \${chatJurisdiction==='multistate'?'selected':''}>Multi-state</option>
             </select>
-            <button onclick="showCrewAISettings()" class="btn btn-ghost btn-sm text-slate-400 hover:text-white" title="CrewAI Settings"><i class="fas fa-cog"></i></button>
-            <button onclick="clearChat()" class="btn btn-ghost btn-sm text-slate-400 hover:text-white" title="Clear chat"><i class="fas fa-trash-alt"></i></button>
           </div>
         </div>
 
@@ -1215,7 +1369,7 @@ async function loadAIChat() {
         </div>
 
         <!-- Matter Context Bar -->
-        <div id="matterBar" class="px-4 py-2 border-b flex items-center gap-4 text-xs" style="background:#1e3354; border-color:#2a4068; color:#6b7ea0; \${ctx ? '' : 'display:none'}">
+        <div id="matterBar" class="px-4 py-2 border-b flex items-center gap-4 text-xs matter-bar-mobile" style="background:#1e3354; border-color:#2a4068; color:#6b7ea0; \${ctx ? '' : 'display:none'}">
           \${ctx ? \`
             <div>Matter: <span class="text-white font-medium">\${ctx.case_number}</span></div>
             <div class="separator-vertical" style="height:12px; width:1px; background:#3d5a80"></div>
@@ -1231,7 +1385,7 @@ async function loadAIChat() {
         <!-- Prompt Chips -->
         <div class="px-4 py-3 border-b" style="background:#1e3354; border-color:#2a4068">
           <div class="text-[10px] uppercase tracking-widest text-slate-600 mb-2 font-semibold">Quick legal actions</div>
-          <div class="flex flex-wrap gap-1.5">
+          <div class="flex flex-wrap gap-1.5 chips-row">
             <button onclick="injectChip(chatJurisdiction==='missouri' ? 'Research Missouri case law on pure comparative fault under RSMo § 537.765 and joint & several liability under RSMo § 537.067 — cite 8th Circuit and MO Supreme Court holdings' : 'Research Kansas case law on comparative negligence under K.S.A. 60-258a — cite 10th Circuit and KS Supreme Court holdings')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-red-400 hover:border-red-700 transition-all flex-shrink-0" style="background:#2a4068; border-color:#3d5a80">\u2696\uFE0F Research case law</button>
             <button onclick="injectChip(chatJurisdiction==='missouri' ? 'Draft a demand letter under Missouri law — include RSMo § 537.765 pure comparative fault and RSMo § 516.120 5-year SOL deadline' : 'Draft a demand letter under Kansas law — include K.S.A. 60-258a proportional fault analysis and K.S.A. 60-513 SOL deadline')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-red-400 hover:border-red-700 transition-all flex-shrink-0" style="background:#2a4068; border-color:#3d5a80">\uD83D\uDCDD Draft demand letter</button>
             <button onclick="injectChip(chatJurisdiction==='missouri' ? 'Confirm the 5-year statute of limitations under RSMo § 516.120 for this claim — flag 2-year med-mal SOL and affidavit of merit requirements' : 'Confirm the 2-year statute of limitations under K.S.A. 60-513 for this claim — flag discovery rule exceptions and presuit requirements')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-red-400 hover:border-red-700 transition-all flex-shrink-0" style="background:#2a4068; border-color:#3d5a80">\u23F0 SOL check</button>
@@ -1935,9 +2089,9 @@ async function loadMemory() {
         </div>
 
         <div class="card p-4 mb-6">
-          <div class="flex gap-3">
+          <div class="flex gap-3 memory-search-bar">
             <div class="flex-1">
-              <input type="text" id="memorySearch" placeholder="Search memories semantically..." class="w-full" onkeydown="if(event.key==='Enter')searchMemories()">
+              <input type="text" id="memorySearch" placeholder="Search memories..." class="w-full" onkeydown="if(event.key==='Enter')searchMemories()">
             </div>
             <select id="memoryCaseFilter" class="w-48">
               <option value="">All cases</option>
@@ -2013,9 +2167,9 @@ async function loadAIWorkflow() {
 
     document.getElementById('pageContent').innerHTML = \`
       <div class="fade-in">
-        <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center justify-between mb-6 mobile-header-stack">
           <div>
-            <h2 class="text-2xl font-bold text-dark-900 flex items-center gap-2"><i class="fas fa-diagram-project text-purple-500"></i> Multi-Agent Workflow Engine</h2>
+            <h2 class="text-2xl font-bold text-dark-900 flex items-center gap-2 mobile-title-sm"><i class="fas fa-diagram-project text-purple-500"></i> Multi-Agent Workflow</h2>
             <p class="text-dark-500 text-sm mt-1">Orchestrated pipeline: Main Agent \u2192 Researcher | Drafter | Analyst | Strategist \u2014 shared Mem0 memory</p>
           </div>
           <div class="flex items-center gap-2">
@@ -2026,7 +2180,7 @@ async function loadAIWorkflow() {
         </div>
 
         <!-- Architecture Diagram -->
-        <div class="card p-5 mb-6 border-purple-200 bg-gradient-to-r from-purple-50 to-indigo-50">
+        <div class="card p-5 mb-6 border-purple-200 bg-gradient-to-r from-purple-50 to-indigo-50 workflow-arch-scroll">
           <div class="flex items-center gap-2 mb-4">
             <i class="fas fa-sitemap text-purple-600"></i>
             <h3 class="font-semibold text-dark-800">Agent Architecture v3.0</h3>
@@ -2064,7 +2218,7 @@ async function loadAIWorkflow() {
         </div>
 
         <!-- Stats -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3 mb-6">
+        <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3 mb-6 workflow-stats-grid">
           <div class="card p-4 text-center border-purple-200 bg-purple-50">
             <p class="text-xs text-purple-600 font-semibold">Operations</p>
             <p class="text-2xl font-bold text-purple-700">\${s.total_operations}</p>
@@ -2209,9 +2363,9 @@ async function loadIntake() {
 
     document.getElementById('pageContent').innerHTML = \`
     <div class="fade-in">
-      <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center justify-between mb-6 mobile-header-stack">
         <div>
-          <h2 class="text-2xl font-bold text-dark-900"><i class="fas fa-clipboard-list text-brand-500 mr-2"></i>AI-Powered Client Intake</h2>
+          <h2 class="text-2xl font-bold text-dark-900 mobile-title-sm"><i class="fas fa-clipboard-list text-brand-500 mr-2"></i>AI Client Intake</h2>
           <p class="text-dark-500 text-sm mt-1">Orchestrator \u2192 Intake Agent \u2192 Conflict Check \u2192 Case Assessment \u2192 Auto-Routing</p>
         </div>
         <div class="flex items-center gap-2">
@@ -2221,7 +2375,7 @@ async function loadIntake() {
       </div>
 
       <!-- Intake Pipeline Diagram -->
-      <div class="card p-4 mb-6 bg-gradient-to-r from-blue-50 to-purple-50 border-purple-200">
+      <div class="card p-4 mb-6 bg-gradient-to-r from-blue-50 to-purple-50 border-purple-200 intake-pipeline-scroll">
         <div class="flex items-center justify-center gap-2 flex-wrap text-xs">
           <span class="bg-white rounded-lg px-3 py-1.5 border border-blue-200 font-semibold text-blue-700"><i class="fas fa-clipboard-list mr-1"></i>Form Submission</span>
           <i class="fas fa-arrow-right text-purple-400"></i>

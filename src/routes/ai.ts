@@ -886,4 +886,127 @@ ai.post('/run', async (c) => {
   })
 })
 
+// ═══════════════════════════════════════════════════════════════
+// LEGAL RESEARCH DATABASES — CourtListener + Deep Links
+// Tier 1: Westlaw / Lexis+ / Google Scholar deep links on citations
+// Tier 2: CourtListener API (free federal + state case law search)
+// ═══════════════════════════════════════════════════════════════
+
+// Court code mapping for CourtListener
+const COURT_CODES: Record<string, string> = {
+  kansas: 'kan kanctapp kand',
+  missouri: 'mo moctapp moedctapp mowdctapp mosdctapp',
+  federal: 'scotus ca8 ca10',
+  multistate: 'kan kanctapp mo moctapp ca8 ca10',
+}
+
+// Deep-link generators for legal research providers
+function generateDeepLinks(citation: string, caseName?: string) {
+  const encoded = encodeURIComponent(citation)
+  const nameEncoded = caseName ? encodeURIComponent(caseName) : encoded
+  return {
+    westlaw: `https://1.next.westlaw.com/Search/Results.html?query=${encoded}&jurisdiction=ALLCASES`,
+    lexis: `https://plus.lexis.com/search/?pdstartin=hlct%3A1%3B1&pdtypeofsearch=searchboxclick&pdsearchterms=${encoded}`,
+    google_scholar: `https://scholar.google.com/scholar?q=${nameEncoded}&hl=en&as_sdt=4`,
+    courtlistener: `https://www.courtlistener.com/?q=${encoded}&type=o`,
+    ksrevisor: citation.match(/K\.?S\.?A\.?\s/i) ? `https://www.ksrevisor.org/statutes/chapters/ch${(citation.match(/(\d+)-/) || ['','60'])[1]}/` : null,
+    morevisor: citation.match(/RSMo|Mo\.Sup\.Ct\.R/i) ? `https://revisor.mo.gov/main/OneSection.aspx?section=${(citation.match(/§?\s*([\d.]+)/) || ['',''])[1]}` : null,
+  }
+}
+
+// CourtListener search
+ai.get('/research/search', async (c) => {
+  const q = c.req.query('q') || ''
+  const jurisdiction = c.req.query('jurisdiction') || 'multistate'
+  const pageSize = Math.min(Number(c.req.query('page_size') || 20), 50)
+  const page = Number(c.req.query('page') || 1)
+  const dateAfter = c.req.query('date_after') || ''
+  const dateBefore = c.req.query('date_before') || ''
+
+  if (!q) return c.json({ error: 'Query parameter q is required' }, 400)
+
+  const courts = COURT_CODES[jurisdiction.toLowerCase()] || COURT_CODES.multistate
+  let url = `https://www.courtlistener.com/api/rest/v4/search/?q=${encodeURIComponent(q)}&type=o&court=${encodeURIComponent(courts)}&format=json&page_size=${pageSize}&page=${page}`
+  if (dateAfter) url += `&filed_after=${dateAfter}`
+  if (dateBefore) url += `&filed_before=${dateBefore}`
+
+  try {
+    const resp = await fetch(url, { signal: AbortSignal.timeout(10000) })
+    if (!resp.ok) return c.json({ error: `CourtListener responded ${resp.status}` }, 502)
+    const data = await resp.json() as any
+
+    const results = (data.results || []).map((r: any) => ({
+      id: r.id,
+      case_name: r.caseName || r.case_name || 'Unknown',
+      date_filed: r.dateFiled || r.date_filed || null,
+      court: r.court || null,
+      court_full: r.court_id || null,
+      citations: r.citation || [],
+      docket_number: r.docketNumber || r.docket_number || null,
+      snippet: r.snippet || '',
+      absolute_url: r.absolute_url ? `https://www.courtlistener.com${r.absolute_url}` : null,
+      deep_links: generateDeepLinks(
+        (r.citation && r.citation[0]) || r.caseName || '',
+        r.caseName || r.case_name
+      ),
+    }))
+
+    return c.json({
+      source: 'courtlistener',
+      query: q,
+      jurisdiction,
+      total: data.count || 0,
+      page,
+      page_size: pageSize,
+      results,
+    })
+  } catch (e: any) {
+    return c.json({ error: 'CourtListener API error', detail: e.message }, 502)
+  }
+})
+
+// Citation deep-link generator (for any citation string)
+ai.get('/research/deeplinks', async (c) => {
+  const citation = c.req.query('citation') || ''
+  const caseName = c.req.query('case_name') || ''
+  if (!citation && !caseName) return c.json({ error: 'citation or case_name required' }, 400)
+  return c.json({
+    citation,
+    case_name: caseName,
+    links: generateDeepLinks(citation || caseName, caseName || undefined),
+  })
+})
+
+// Statute lookup with deep links
+ai.get('/research/statute', async (c) => {
+  const statute = c.req.query('q') || ''
+  if (!statute) return c.json({ error: 'q parameter required' }, 400)
+
+  const links = generateDeepLinks(statute)
+  // Also search CourtListener for cases citing this statute
+  const courts = COURT_CODES.multistate
+  const clUrl = `https://www.courtlistener.com/api/rest/v4/search/?q=%22${encodeURIComponent(statute)}%22&type=o&court=${encodeURIComponent(courts)}&format=json&page_size=10`
+
+  try {
+    const resp = await fetch(clUrl, { signal: AbortSignal.timeout(8000) })
+    const data = resp.ok ? (await resp.json() as any) : { count: 0, results: [] }
+    const citingCases = (data.results || []).slice(0, 10).map((r: any) => ({
+      case_name: r.caseName || r.case_name || 'Unknown',
+      date_filed: r.dateFiled || r.date_filed || null,
+      court: r.court || null,
+      citation: (r.citation || [])[0] || null,
+      url: r.absolute_url ? `https://www.courtlistener.com${r.absolute_url}` : null,
+    }))
+
+    return c.json({
+      statute,
+      deep_links: links,
+      citing_cases_count: data.count || 0,
+      citing_cases: citingCases,
+    })
+  } catch (e: any) {
+    return c.json({ statute, deep_links: links, citing_cases_count: 0, citing_cases: [], error: e.message })
+  }
+})
+
 export default ai
