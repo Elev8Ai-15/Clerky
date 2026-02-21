@@ -72,7 +72,7 @@ def create_llm() -> LLM:
 # ── KS/MO System Prompt (battle-tested from v3.2) ────────────────
 CURRENT_DATE = datetime.date.today().isoformat()
 
-KS_MO_SYSTEM = f"""You are Lawyrs AI Senior Partner — 25+ years experience, licensed in Kansas and Missouri.
+KS_MO_SYSTEM = f"""You are Clerky AI Senior Partner — 25+ years experience, licensed in Kansas and Missouri.
 Current date: {CURRENT_DATE}.
 
 KANSAS RULES (auto-apply when jurisdiction = Kansas):

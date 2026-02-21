@@ -1744,30 +1744,61 @@ async function checkCrewAIStatus() {
   }
 }
 
+const LLM_PRESETS = {
+  openai:    { name: 'OpenAI',           base_url: '',                                  model: 'gpt-5-mini',                     placeholder: 'sk-...',        help: 'Get key at platform.openai.com/api-keys' },
+  openrouter:{ name: 'OpenRouter',       base_url: 'https://openrouter.ai/api/v1',      model: 'anthropic/claude-sonnet-4',  placeholder: 'sk-or-...',     help: 'Supports Claude, GPT, Gemini & more — openrouter.ai/keys' },
+  novita:    { name: 'Novita AI',        base_url: 'https://api.novita.ai/v3/openai',   model: 'claude-3-5-sonnet-20241022',      placeholder: 'nvt-...',       help: 'novita.ai — Claude & open models' },
+  anthropic: { name: 'Anthropic (direct)', base_url: 'https://api.anthropic.com/v1',    model: 'claude-sonnet-4-20250514',   placeholder: 'sk-ant-...',    help: 'console.anthropic.com — requires OpenAI-compat proxy' },
+  custom:    { name: 'Custom Endpoint',  base_url: '',                                  model: '',                                placeholder: 'your-api-key', help: 'Any OpenAI-compatible API endpoint' },
+};
+
 function showCrewAISettings() {
   const modal = document.createElement('div');
   modal.id = 'crewaiModal';
-  modal.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7)';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);padding:1rem';
   modal.innerHTML = \`
-    <div class="rounded-xl border p-6 max-w-md w-full shadow-2xl" style="background:#1e3354; border-color:#2a4068">
+    <div class="rounded-xl border p-5 sm:p-6 w-full shadow-2xl" style="background:#1e3354; border-color:#2a4068; max-width:480px; max-height:90vh; overflow-y:auto">
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-robot" style="color:#cc2229"></i> CrewAI LLM Settings</h3>
         <button onclick="document.getElementById('crewaiModal').remove()" class="text-slate-400 hover:text-white"><i class="fas fa-times"></i></button>
       </div>
-      <p class="text-xs text-slate-400 mb-4">Configure an OpenAI-compatible API key to power CrewAI agents with real LLM reasoning. Without this, the system uses template-based agents.</p>
+
+      <!-- Current Status -->
+      <div id="crewaiCurrentCfg" class="rounded-lg p-3 mb-4 text-xs" style="background:#162a48; border:1px solid #2a4068">
+        <div class="flex items-center gap-2 mb-1"><i class="fas fa-info-circle text-slate-500"></i> <span class="text-slate-400 font-medium">Current Config</span></div>
+        <div id="crewaiCfgDetail" class="text-slate-500">Loading...</div>
+      </div>
+
+      <!-- Provider Presets -->
+      <label class="text-xs text-slate-400 block mb-2">Quick Setup — Choose Provider</label>
+      <div class="grid grid-cols-3 gap-2 mb-4" id="crewaiPresetBtns">
+        <button onclick="applyPreset('openai')" class="preset-btn text-[11px] py-2 px-2 rounded-lg border text-center transition-all hover:border-red-400" style="background:#2a4068; border-color:#3d5a80; color:#8899b3">
+          <i class="fas fa-bolt block text-base mb-1" style="color:#10a37f"></i>OpenAI
+        </button>
+        <button onclick="applyPreset('openrouter')" class="preset-btn text-[11px] py-2 px-2 rounded-lg border text-center transition-all hover:border-red-400" style="background:#2a4068; border-color:#3d5a80; color:#8899b3">
+          <i class="fas fa-route block text-base mb-1" style="color:#b48eff"></i>OpenRouter
+        </button>
+        <button onclick="applyPreset('novita')" class="preset-btn text-[11px] py-2 px-2 rounded-lg border text-center transition-all hover:border-red-400" style="background:#2a4068; border-color:#3d5a80; color:#8899b3">
+          <i class="fas fa-star block text-base mb-1" style="color:#f59e0b"></i>Novita AI
+        </button>
+      </div>
+
       <div class="space-y-3">
         <div>
           <label class="text-xs text-slate-400 block mb-1">API Key <span class="text-red-400">*</span></label>
-          <input id="crewaiApiKey" type="password" placeholder="sk-... or your API key" class="w-full text-sm py-2 px-3 rounded-lg text-white" style="background:#2a4068; border:1px solid #3d5a80">
+          <div class="relative">
+            <input id="crewaiApiKey" type="password" placeholder="sk-... or your API key" class="w-full text-sm py-2 px-3 pr-10 rounded-lg text-white" style="background:#2a4068; border:1px solid #3d5a80">
+            <button onclick="toggleKeyVis()" class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 text-xs"><i id="keyVisIcon" class="fas fa-eye"></i></button>
+          </div>
+          <p id="crewaiKeyHelp" class="text-[10px] text-slate-600 mt-1"></p>
         </div>
         <div>
-          <label class="text-xs text-slate-400 block mb-1">Base URL (optional)</label>
-          <input id="crewaiBaseUrl" type="text" placeholder="https://api.openai.com/v1 (default)" class="w-full text-sm py-2 px-3 rounded-lg text-white" style="background:#2a4068; border:1px solid #3d5a80">
-          <p class="text-[10px] text-slate-600 mt-1">For Novita AI: https://api.novita.ai/v3/openai</p>
+          <label class="text-xs text-slate-400 block mb-1">Base URL</label>
+          <input id="crewaiBaseUrl" type="text" placeholder="https://api.openai.com/v1 (leave blank for OpenAI)" class="w-full text-sm py-2 px-3 rounded-lg text-white" style="background:#2a4068; border:1px solid #3d5a80">
         </div>
         <div>
-          <label class="text-xs text-slate-400 block mb-1">Model (optional)</label>
-          <input id="crewaiModel" type="text" placeholder="gpt-5-mini (default)" class="w-full text-sm py-2 px-3 rounded-lg text-white" style="background:#2a4068; border:1px solid #3d5a80">
+          <label class="text-xs text-slate-400 block mb-1">Model</label>
+          <input id="crewaiModel" type="text" placeholder="gpt-5-mini" class="w-full text-sm py-2 px-3 rounded-lg text-white" style="background:#2a4068; border:1px solid #3d5a80">
         </div>
       </div>
       <div id="crewaiConfigResult" class="mt-3 text-xs hidden"></div>
@@ -1781,6 +1812,45 @@ function showCrewAISettings() {
   \`;
   document.body.appendChild(modal);
   modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+  // Load current config
+  axios.get(API + '/ai/crewai/status', { timeout: 5000 }).then(r => {
+    const d = r.data;
+    const det = document.getElementById('crewaiCfgDetail');
+    if (!det) return;
+    if (d.available && d.llm_reachable) {
+      det.innerHTML = '<span style="color:#22c55e"><i class="fas fa-circle text-[8px] mr-1"></i>Connected</span> — Model: <span class="text-white">' + (d.model||'unknown') + '</span>';
+    } else if (d.available && d.llm_configured) {
+      det.innerHTML = '<span class="text-amber-400"><i class="fas fa-circle text-[8px] mr-1"></i>Configured but not reachable</span> — Model: <span class="text-white">' + (d.model||'unknown') + '</span>';
+    } else if (d.available) {
+      det.innerHTML = '<span class="text-amber-400"><i class="fas fa-circle text-[8px] mr-1"></i>CrewAI online, LLM not configured</span>';
+    } else {
+      det.innerHTML = '<span class="text-slate-500"><i class="fas fa-circle text-[8px] mr-1"></i>CrewAI offline</span> — template agents active';
+    }
+  }).catch(() => {
+    const det = document.getElementById('crewaiCfgDetail');
+    if (det) det.innerHTML = '<span class="text-slate-500">Could not reach CrewAI backend</span>';
+  });
+}
+
+function applyPreset(provider) {
+  const p = LLM_PRESETS[provider];
+  if (!p) return;
+  document.getElementById('crewaiBaseUrl').value = p.base_url;
+  document.getElementById('crewaiModel').value = p.model;
+  document.getElementById('crewaiApiKey').placeholder = p.placeholder;
+  document.getElementById('crewaiKeyHelp').textContent = p.help;
+  // Highlight selected preset
+  document.querySelectorAll('#crewaiPresetBtns .preset-btn').forEach(b => { b.style.borderColor = '#3d5a80'; });
+  event.currentTarget.style.borderColor = '#cc2229';
+  document.getElementById('crewaiApiKey').focus();
+}
+
+function toggleKeyVis() {
+  const inp = document.getElementById('crewaiApiKey');
+  const ico = document.getElementById('keyVisIcon');
+  if (inp.type === 'password') { inp.type = 'text'; ico.className = 'fas fa-eye-slash'; }
+  else { inp.type = 'password'; ico.className = 'fas fa-eye'; }
 }
 
 async function configureCrewAI() {
@@ -1793,7 +1863,7 @@ async function configureCrewAI() {
   if (!key) { resultDiv.className = 'mt-3 text-xs text-red-400'; resultDiv.textContent = 'API key is required'; resultDiv.classList.remove('hidden'); return; }
   
   btn.disabled = true;
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Testing...';
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Testing connection...';
   resultDiv.className = 'mt-3 text-xs text-slate-400';
   resultDiv.textContent = 'Configuring and testing LLM connection...';
   resultDiv.classList.remove('hidden');
@@ -1806,13 +1876,13 @@ async function configureCrewAI() {
     }, { timeout: 30000 });
     
     if (res.data.llm_reachable) {
-      resultDiv.className = 'mt-3 text-xs'; resultDiv.style.color = '#cc2229';
-      resultDiv.innerHTML = '<i class="fas fa-check-circle mr-1"></i> LLM connected! Model: ' + res.data.model + '. CrewAI agents are now active.';
+      resultDiv.className = 'mt-3 text-xs'; resultDiv.style.color = '#22c55e';
+      resultDiv.innerHTML = '<i class="fas fa-check-circle mr-1"></i> Connected! Model: <strong>' + res.data.model + '</strong>. CrewAI agents are now fully active.';
       checkCrewAIStatus();
-      setTimeout(() => { const m = document.getElementById('crewaiModal'); if (m) m.remove(); }, 2000);
+      setTimeout(() => { const m = document.getElementById('crewaiModal'); if (m) m.remove(); }, 2500);
     } else {
       resultDiv.className = 'mt-3 text-xs text-amber-400';
-      resultDiv.innerHTML = '<i class="fas fa-exclamation-triangle mr-1"></i> ' + (res.data.message || 'LLM not reachable. Check your API key and base URL.');
+      resultDiv.innerHTML = '<i class="fas fa-exclamation-triangle mr-1"></i> ' + (res.data.message || 'LLM not reachable — double-check your API key and base URL.');
     }
   } catch(e) {
     resultDiv.className = 'mt-3 text-xs text-red-400';

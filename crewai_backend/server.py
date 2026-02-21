@@ -1,5 +1,5 @@
 """
-LAWYRS CrewAI FastAPI Bridge Server
+Clerky CrewAI FastAPI Bridge Server
 ====================================
 Exposes CrewAI agents as REST API endpoints on port 8100.
 The Hono frontend proxies to this server when CrewAI is available.
@@ -47,7 +47,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Lawyrs CrewAI Backend",
+    title="Clerky CrewAI Backend",
     description="Kansas-Missouri Legal Multi-Agent System powered by CrewAI",
     version="1.0.0",
     lifespan=lifespan,
