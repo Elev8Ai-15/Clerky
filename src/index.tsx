@@ -91,25 +91,34 @@ app.get('/api/init-db', async (c) => {
     await c.env.DB.prepare(sql).run()
   }
 
-  // Seed data
+  // Seed data — only the admin user
   const seedStatements = [
-    `INSERT OR IGNORE INTO users_attorneys (id, email, full_name, role, bar_number, phone, specialty) VALUES (1, 'brad@clerky.com', 'Brad', 'admin', 'CA-2019-45678', '(415) 555-0101', 'Corporate Law'), (2, 'james.wilson@clerky.com', 'James Wilson', 'attorney', 'CA-2015-23456', '(415) 555-0102', 'Personal Injury'), (3, 'maria.garcia@clerky.com', 'Maria Garcia', 'attorney', 'CA-2018-67890', '(415) 555-0103', 'Family Law'), (4, 'david.thompson@clerky.com', 'David Thompson', 'paralegal', NULL, '(415) 555-0104', 'Litigation Support'), (5, 'emily.patel@clerky.com', 'Emily Patel', 'attorney', 'CA-2020-89012', '(415) 555-0105', 'Immigration')`,
-    `INSERT OR IGNORE INTO clients (id, first_name, last_name, email, phone, address, city, state, zip_code, client_type, status, assigned_attorney_id) VALUES (1, 'Robert', 'Johnson', 'r.johnson@email.com', '(415) 555-1001', '123 Market St', 'San Francisco', 'CA', '94105', 'individual', 'active', 2), (2, 'TechStart', 'Inc', 'legal@techstart.io', '(415) 555-1002', '456 Mission St', 'San Francisco', 'CA', '94105', 'business', 'active', 1), (3, 'Angela', 'Martinez', 'angela.m@email.com', '(415) 555-1003', '789 Valencia St', 'San Francisco', 'CA', '94110', 'individual', 'active', 3), (4, 'Li', 'Wei', 'li.wei@email.com', '(415) 555-1004', '321 Geary St', 'San Francisco', 'CA', '94102', 'individual', 'active', 5), (5, 'Pacific', 'Ventures LLC', 'info@pacificventures.com', '(415) 555-1005', '555 California St', 'San Francisco', 'CA', '94104', 'business', 'active', 1)`,
-    `INSERT OR IGNORE INTO cases_matters (id, case_number, title, description, case_type, status, priority, client_id, lead_attorney_id, court_name, opposing_counsel, date_filed, estimated_value) VALUES (1, 'CM-2026-001', 'Johnson v. ABC Corp - Personal Injury', 'Workplace injury claim', 'personal_injury', 'in_progress', 'high', 1, 2, 'SF Superior Court', 'Smith & Associates', '2026-01-15', 250000), (2, 'CM-2026-002', 'TechStart Series A Funding', 'Corporate restructuring and Series A', 'corporate', 'open', 'high', 2, 1, NULL, NULL, '2026-02-01', 5000000), (3, 'CM-2026-003', 'Martinez Custody Agreement', 'Child custody modification', 'family', 'pending_review', 'urgent', 3, 3, 'SF Family Court', 'Rivera Law Group', '2026-01-20', NULL), (4, 'CM-2026-004', 'Wei Immigration - H1B to Green Card', 'EB-2 green card application', 'immigration', 'in_progress', 'medium', 4, 5, 'USCIS', NULL, '2026-02-10', NULL), (5, 'CM-2026-005', 'Pacific Ventures - IP Portfolio', 'Patent portfolio review', 'ip', 'open', 'medium', 5, 1, 'USPTO', NULL, '2026-02-15', 1500000), (6, 'CM-2026-006', 'Johnson Employment Dispute', 'Wrongful termination claim', 'employment', 'discovery', 'high', 1, 2, 'SF Superior Court', 'Corporate Defense LLP', '2025-11-01', 175000)`,
-    `INSERT OR IGNORE INTO documents (id, title, file_name, file_type, file_size, category, status, case_id, uploaded_by, ai_generated, ai_summary) VALUES (1, 'Initial Complaint - Johnson v ABC Corp', 'complaint_johnson_abc.pdf', 'application/pdf', 245000, 'pleading', 'filed', 1, 2, 0, 'Personal injury complaint'), (2, 'Medical Records Summary', 'medical_records_johnson.pdf', 'application/pdf', 1200000, 'evidence', 'final', 1, 4, 0, 'Complete medical records'), (3, 'Series A Term Sheet', 'techstart_termsheet_v3.pdf', 'application/pdf', 89000, 'contract', 'review', 2, 1, 0, '$5M investment term sheet'), (4, 'Custody Modification Motion', 'martinez_custody_motion.docx', 'application/vnd.openxmlformats', 156000, 'motion', 'draft', 3, 3, 1, 'AI-drafted custody modification'), (5, 'I-140 Petition', 'wei_i140_petition.pdf', 'application/pdf', 340000, 'pleading', 'review', 4, 5, 0, 'EB-2 petition'), (6, 'Patent Portfolio Analysis', 'pacific_patent_analysis.pdf', 'application/pdf', 567000, 'general', 'draft', 5, 1, 1, 'AI patent analysis'), (7, 'Engagement Letter Template', 'engagement_letter_template.docx', 'application/vnd.openxmlformats', 45000, 'template', 'final', NULL, 1, 0, NULL), (8, 'Discovery Responses', 'discovery_responses_johnson.pdf', 'application/pdf', 890000, 'discovery', 'review', 6, 2, 0, 'Discovery responses')`,
-    `INSERT OR IGNORE INTO tasks_deadlines (id, title, description, case_id, assigned_to, assigned_by, priority, status, task_type, due_date) VALUES (1, 'File Motion for Summary Judgment', 'Prepare MSJ for Johnson PI case', 1, 2, 1, 'high', 'in_progress', 'filing', '2026-03-01'), (2, 'Review Expert Witness Report', 'Review Dr. Smiths report', 1, 4, 2, 'high', 'pending', 'review', '2026-02-25'), (3, 'Draft Share Purchase Agreement', 'Complete SPA for Series A', 2, 1, 1, 'high', 'in_progress', 'task', '2026-03-10'), (4, 'Prepare Custody Hearing Binder', 'Compile exhibits', 3, 3, 3, 'urgent', 'pending', 'hearing', '2026-02-22'), (5, 'Submit I-140 Supporting Docs', 'Gather EB-2 docs', 4, 5, 5, 'medium', 'pending', 'filing', '2026-03-15'), (6, 'Trademark Search Report', 'Complete trademark search', 5, 4, 1, 'medium', 'pending', 'task', '2026-03-05'), (7, 'Respond to Discovery Requests', 'Draft interrogatory responses', 6, 2, 2, 'high', 'in_progress', 'deadline', '2026-02-28'), (8, 'Client Meeting - Case Strategy', 'Quarterly strategy review', 1, 2, 2, 'medium', 'pending', 'follow_up', '2026-03-01')`,
-    `INSERT OR IGNORE INTO calendar_events (id, title, description, event_type, case_id, organizer_id, location, start_datetime, end_datetime, color) VALUES (1, 'Johnson PI - Summary Judgment Hearing', 'MSJ hearing', 'hearing', 1, 2, 'SF Superior Court, Dept 302', '2026-03-15 09:00:00', '2026-03-15 11:00:00', '#EF4444'), (2, 'TechStart Board Meeting', 'Series A review', 'meeting', 2, 1, 'TechStart HQ', '2026-02-25 14:00:00', '2026-02-25 16:00:00', '#3B82F6'), (3, 'Martinez Custody Hearing', 'Custody modification', 'hearing', 3, 3, 'SF Family Court', '2026-03-01 10:00:00', '2026-03-01 12:00:00', '#EF4444'), (4, 'Wei - USCIS Interview', 'Green card interview', 'meeting', 4, 5, 'USCIS SF', '2026-04-10 13:00:00', '2026-04-10 14:00:00', '#F59E0B'), (5, 'Firm Strategy Meeting', 'Monthly all-hands', 'internal', NULL, 1, 'Main Conference Room', '2026-02-20 09:00:00', '2026-02-20 10:30:00', '#8B5CF6'), (6, 'Johnson Employment - Deposition', 'Former supervisor deposition', 'deposition', 6, 2, 'Office Conf Room A', '2026-03-08 09:00:00', '2026-03-08 17:00:00', '#F97316')`,
-    `INSERT OR IGNORE INTO time_entries (id, case_id, user_id, description, hours, rate, activity_type, is_billable, entry_date) VALUES (1, 1, 2, 'Drafted initial complaint', 3.5, 450, 'drafting', 1, '2026-01-15'), (2, 1, 2, 'Client meeting - case intake', 1.5, 450, 'client_communication', 1, '2026-01-10'), (3, 1, 4, 'Medical records review', 4.0, 200, 'review', 1, '2026-01-20'), (4, 2, 1, 'Term sheet negotiation', 2.5, 550, 'legal_work', 1, '2026-02-05'), (5, 2, 1, 'Due diligence review', 6.0, 550, 'review', 1, '2026-02-08'), (6, 3, 3, 'Custody motion drafting', 3.0, 400, 'drafting', 1, '2026-02-01'), (7, 4, 5, 'I-140 petition prep', 5.0, 400, 'legal_work', 1, '2026-02-12'), (8, 5, 1, 'Patent portfolio analysis', 4.5, 550, 'research', 1, '2026-02-15'), (9, 6, 2, 'Discovery responses', 3.0, 450, 'drafting', 1, '2026-02-10'), (10, 6, 4, 'Document production review', 6.0, 200, 'review', 1, '2026-02-11')`,
-    `INSERT OR IGNORE INTO billing_invoices (id, invoice_number, case_id, client_id, issued_by, status, subtotal, total_amount, amount_paid, due_date, sent_date) VALUES (1, 'INV-2026-001', 1, 1, 2, 'sent', 2975.00, 2975.00, 0, '2026-03-15', '2026-02-15'), (2, 'INV-2026-002', 2, 2, 1, 'paid', 4675.00, 4675.00, 4675.00, '2026-03-08', '2026-02-08'), (3, 'INV-2026-003', 3, 3, 3, 'draft', 1200.00, 1200.00, 0, '2026-03-01', NULL), (4, 'INV-2026-004', 6, 1, 2, 'overdue', 2550.00, 2550.00, 0, '2026-02-10', '2026-01-10')`,
-    `INSERT OR IGNORE INTO ai_logs (id, agent_type, action, tokens_used, cost, duration_ms, status, case_id, user_id) VALUES (1, 'intake', 'process_new_case', 2500, 0.05, 3200, 'success', 1, 2), (2, 'research', 'legal_research', 8500, 0.17, 12000, 'success', 1, 2), (3, 'drafting', 'generate_motion', 6000, 0.12, 8500, 'success', 3, 3), (4, 'compliance', 'check_filing', 1500, 0.03, 2100, 'success', 4, 5), (5, 'drafting', 'generate_analysis', 12000, 0.24, 15000, 'success', 5, 1)`,
-    `INSERT OR IGNORE INTO notifications (id, user_id, title, message, type, is_read, case_id) VALUES (1, 2, 'Deadline Approaching', 'MSJ due in 10 days - Johnson v ABC Corp', 'deadline', 0, 1), (2, 3, 'Urgent: Hearing Tomorrow', 'Custody hearing for Martinez case', 'warning', 0, 3), (3, 1, 'Invoice Paid', 'TechStart paid INV-2026-002 ($4,675.00)', 'billing', 1, 2), (4, 2, 'New Document Uploaded', 'Discovery responses uploaded', 'info', 0, 6), (5, 5, 'AI Research Complete', 'Immigration research for Wei case', 'success', 1, 4), (6, 1, 'Overdue Invoice', 'INV-2026-004 is overdue - Johnson Employment', 'warning', 0, 6)`
+    `INSERT OR IGNORE INTO users_attorneys (id, email, full_name, role, bar_number, phone, specialty) VALUES (1, 'brad@clerky.com', 'Brad', 'admin', 'KS-MO-2019-001', '(816) 555-0101', 'General Practice')`
   ]
 
   for (const sql of seedStatements) {
     try { await c.env.DB.prepare(sql).run() } catch (e) { /* ignore duplicates */ }
   }
 
-  return c.json({ success: true, message: 'Database initialized with 26 tables and seed data' })
+  return c.json({ success: true, message: 'Database initialized with 26 tables' })
+})
+
+// Reset DB: wipe all data and re-seed with only Brad
+app.get('/api/reset-db', async (c) => {
+  const tables = [
+    'notifications', 'ai_logs', 'payments', 'invoice_line_items', 'billing_invoices',
+    'time_entries', 'case_notes', 'calendar_events', 'tasks_deadlines', 'esignature_requests',
+    'trust_transactions', 'trust_accounts', 'case_expenses', 'conflict_checks',
+    'client_communications', 'intake_submissions', 'intake_forms', 'client_portal_access',
+    'document_sharing', 'document_versions', 'document_templates', 'documents',
+    'cases_matters', 'clients', 'ai_chat_messages', 'users_attorneys'
+  ]
+  for (const t of tables) {
+    try { await c.env.DB.prepare(`DELETE FROM ${t}`).run() } catch(e) { /* table may not exist */ }
+  }
+  // Re-seed admin user
+  await c.env.DB.prepare(`INSERT OR IGNORE INTO users_attorneys (id, email, full_name, role, bar_number, phone, specialty) VALUES (1, 'brad@clerky.com', 'Brad', 'admin', 'KS-MO-2019-001', '(816) 555-0101', 'General Practice')`).run()
+  return c.json({ success: true, message: 'All data cleared. Fresh start with admin user Brad.' })
 })
 
 // Serve the SPA for all non-API routes
@@ -858,6 +867,16 @@ async function loadCases() {
           <button onclick="filterCases('discovery')" class="btn btn-secondary text-xs">Discovery</button>
           <button onclick="filterCases('closed')" class="btn btn-secondary text-xs">Closed</button>
         </div>
+        \${data.cases.length === 0 ? \`
+          <div class="card p-12 text-center">
+            <div class="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <i class="fas fa-briefcase text-blue-400 text-2xl"></i>
+            </div>
+            <h3 class="text-lg font-semibold text-dark-800 mb-2">No cases yet</h3>
+            <p class="text-dark-400 text-sm mb-4">Create your first case to get started with case management.</p>
+            <button onclick="showNewCaseModal()" class="btn btn-primary"><i class="fas fa-plus mr-2"></i>Create First Case</button>
+          </div>
+        \` : \`
         <div class="card overflow-hidden table-scroll">
           <table class="w-full">
             <thead class="bg-dark-50 border-b border-dark-200">
@@ -891,6 +910,7 @@ async function loadCases() {
             </tbody>
           </table>
         </div>
+        \`}
       </div>
     \`;
   } catch(e) { showError('cases'); }
@@ -1013,6 +1033,19 @@ async function loadClients() {
           </div>
           <button onclick="showNewClientModal()" class="btn btn-primary"><i class="fas fa-plus mr-2"></i>New Client</button>
         </div>
+        \${data.clients.length === 0 ? \`
+          <div class="card p-12 text-center">
+            <div class="w-16 h-16 bg-green-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <i class="fas fa-users text-green-400 text-2xl"></i>
+            </div>
+            <h3 class="text-lg font-semibold text-dark-800 mb-2">No clients yet</h3>
+            <p class="text-dark-400 text-sm mb-4">Add your first client or use the AI Intake pipeline to onboard new clients.</p>
+            <div class="flex gap-2 justify-center">
+              <button onclick="showNewClientModal()" class="btn btn-primary"><i class="fas fa-plus mr-2"></i>Add Client</button>
+              <button onclick="navigate('intake')" class="btn btn-secondary"><i class="fas fa-clipboard-list mr-2"></i>AI Intake</button>
+            </div>
+          </div>
+        \` : \`
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           \${data.clients.map(cl => \`
             <div class="card p-5 cursor-pointer" onclick="viewClient(\${cl.id})">
@@ -1038,6 +1071,7 @@ async function loadClients() {
             </div>
           \`).join('')}
         </div>
+        \`}
       </div>
     \`;
   } catch(e) { showError('clients'); }
@@ -1098,6 +1132,16 @@ async function loadDocuments() {
           </div>
           <button onclick="showNewDocModal()" class="btn btn-primary"><i class="fas fa-plus mr-2"></i>Upload Document</button>
         </div>
+        \${data.documents.length === 0 ? \`
+          <div class="card p-12 text-center">
+            <div class="w-16 h-16 bg-purple-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <i class="fas fa-file-alt text-purple-400 text-2xl"></i>
+            </div>
+            <h3 class="text-lg font-semibold text-dark-800 mb-2">No documents yet</h3>
+            <p class="text-dark-400 text-sm mb-4">Upload documents or let AI generate them through the Co-Counsel chat.</p>
+            <button onclick="showNewDocModal()" class="btn btn-primary"><i class="fas fa-plus mr-2"></i>Upload Document</button>
+          </div>
+        \` : \`
         <div class="card overflow-hidden table-scroll">
           <table class="w-full">
             <thead class="bg-dark-50 border-b border-dark-200">
@@ -1137,6 +1181,7 @@ async function loadDocuments() {
             </tbody>
           </table>
         </div>
+        \`}
       </div>
     \`;
   } catch(e) { showError('documents'); }
@@ -1155,6 +1200,16 @@ async function loadCalendar() {
           </div>
           <button onclick="showNewEventModal()" class="btn btn-primary"><i class="fas fa-plus mr-2"></i>New Event</button>
         </div>
+        \${data.events.length === 0 ? \`
+          <div class="card p-12 text-center">
+            <div class="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <i class="fas fa-calendar-days text-indigo-400 text-2xl"></i>
+            </div>
+            <h3 class="text-lg font-semibold text-dark-800 mb-2">No events scheduled</h3>
+            <p class="text-dark-400 text-sm mb-4">Add hearings, meetings, depositions, and deadlines to your calendar.</p>
+            <button onclick="showNewEventModal()" class="btn btn-primary"><i class="fas fa-plus mr-2"></i>Schedule Event</button>
+          </div>
+        \` : \`
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
           \${data.events.map(e => \`
             <div class="card p-5">
@@ -1179,6 +1234,7 @@ async function loadCalendar() {
             </div>
           \`).join('')}
         </div>
+        \`}
       </div>
     \`;
   } catch(e) { showError('calendar'); }
@@ -1197,6 +1253,16 @@ async function loadTasks() {
           </div>
           <button onclick="showNewTaskModal()" class="btn btn-primary"><i class="fas fa-plus mr-2"></i>New Task</button>
         </div>
+        \${data.tasks.length === 0 ? \`
+          <div class="card p-12 text-center">
+            <div class="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <i class="fas fa-check-circle text-amber-400 text-2xl"></i>
+            </div>
+            <h3 class="text-lg font-semibold text-dark-800 mb-2">No tasks yet</h3>
+            <p class="text-dark-400 text-sm mb-4">Add tasks, deadlines, and follow-ups to stay on top of your practice.</p>
+            <button onclick="showNewTaskModal()" class="btn btn-primary"><i class="fas fa-plus mr-2"></i>Create Task</button>
+          </div>
+        \` : \`
         <div class="space-y-3">
           \${data.tasks.map(t => \`
             <div class="card p-4 flex items-center gap-4 task-card-mobile">
@@ -1222,6 +1288,7 @@ async function loadTasks() {
             </div>
           \`).join('')}
         </div>
+        \`}
       </div>
     \`;
   } catch(e) { showError('tasks'); }
@@ -1270,6 +1337,16 @@ async function loadBilling() {
             <p class="text-2xl font-bold text-purple-600 mt-1">$\${Number(s.monthly_billable).toLocaleString()}</p>
           </div>
         </div>
+        \${invs.length === 0 ? \`
+          <div class="card p-12 text-center">
+            <div class="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <i class="fas fa-receipt text-emerald-400 text-2xl"></i>
+            </div>
+            <h3 class="text-lg font-semibold text-dark-800 mb-2">No invoices yet</h3>
+            <p class="text-dark-400 text-sm mb-4">Create invoices from time entries and send them to clients.</p>
+            <button onclick="showNewInvoiceModal()" class="btn btn-primary"><i class="fas fa-plus mr-2"></i>Create Invoice</button>
+          </div>
+        \` : \`
         <div class="card overflow-hidden table-scroll">
           <table class="w-full">
             <thead class="bg-dark-50 border-b border-dark-200">
@@ -1298,6 +1375,7 @@ async function loadBilling() {
             </tbody>
           </table>
         </div>
+        \`}
       </div>
     \`;
   } catch(e) { showError('billing'); }
