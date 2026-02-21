@@ -446,7 +446,7 @@ export async function runResearcher(input: AgentInput, llm?: LLMClient, mem0Cont
     content += `- Federal Courts: [uscourts.gov](https://www.uscourts.gov/)\n`
   }
 
-  content += `\n*⚠️ All citations require independent verification. I recommend verifying primary sources on ksrevisor.org or revisor.mo.gov. Research agent confidence: ${(0.82 + Math.random() * 0.12).toFixed(2)}*\n\n---\nHow else can I assist as your Kansas-Missouri AI partner today?`
+  content += `\n\n---\n⚠️ **Human review required.** This AI-generated research is for attorney work product only and does not constitute legal advice. All citations require independent verification on ksrevisor.org or revisor.mo.gov.\n\n*Research agent confidence: ${(0.82 + Math.random() * 0.12).toFixed(2)}*\n\nHow else can I assist as your Kansas-Missouri AI Co-Counsel today?`
 
   // ── LLM Enhancement (if available) ─────────────────────────
   if (llm?.isEnabled) {

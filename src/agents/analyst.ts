@@ -289,7 +289,7 @@ export async function runAnalyst(input: AgentInput, llm?: LLMClient, mem0Context
   actions.push('Prepare client communication on case evaluation')
   for (const a of actions) content += `- [ ] ${a}\n`
 
-  content += `\n*Analysis confidence: ${(0.78 + Math.random() * 0.15).toFixed(2)} — refine with additional discovery and expert input.*\n\n---\nHow else can I assist as your Kansas-Missouri AI partner today?`
+  content += `\n\n---\n⚠️ **Human review required.** This AI-generated analysis is for attorney work product only and does not constitute legal advice. Refine with additional discovery and expert input.\n\n*Analysis confidence: ${(0.78 + Math.random() * 0.15).toFixed(2)}*\n\nHow else can I assist as your Kansas-Missouri AI Co-Counsel today?`
 
   // ── LLM Enhancement (if available) ─────────────────────────
   if (llm?.isEnabled) {

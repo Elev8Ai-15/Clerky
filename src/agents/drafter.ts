@@ -262,7 +262,7 @@ export async function runDrafter(input: AgentInput, llm?: LLMClient, mem0Context
   actions.push('Prepare certificate of service')
   for (const a of actions) content += `- [ ] ${a}\n`
 
-  content += `\n*Drafter agent ready to generate full document text once specific facts and legal theories are confirmed. Agent confidence: ${(0.85 + Math.random() * 0.10).toFixed(2)}*\n\n---\nHow else can I assist as your Kansas-Missouri AI partner today?`
+  content += `\n\n---\n⚠️ **Human review required.** This AI-generated draft is for attorney work product only and does not constitute legal advice. All facts and legal theories must be confirmed before filing.\n\n*Drafter agent confidence: ${(0.85 + Math.random() * 0.10).toFixed(2)}*\n\nHow else can I assist as your Kansas-Missouri AI Co-Counsel today?`
 
   // ── LLM Enhancement (if available) ─────────────────────────
   if (llm?.isEnabled) {
