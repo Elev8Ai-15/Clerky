@@ -306,10 +306,51 @@ function getAppHTML(): string {
     .scrollbar-thin::-webkit-scrollbar { width: 6px; }
     .scrollbar-thin::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 3px; }
     .ai-glow { box-shadow: 0 0 20px hsl(var(--primary) / 0.3); }
-    .chip { padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 500; cursor: pointer; transition: all 0.15s; border: 1px solid hsl(var(--border)); background: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); white-space: nowrap; }
+    .chip { padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 500; cursor: pointer; transition: all 0.15s; border: 1px solid hsl(var(--border)); background: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); white-space: nowrap; flex-shrink: 0; }
     .chip:hover { background: hsl(142.1 76.2% 36.3% / 0.1); border-color: hsl(142.1 76.2% 36.3% / 0.5); color: hsl(142.1 76.2% 36.3%); transform: translateY(-1px); }
     .chip-glow { background: hsl(142.1 76.2% 36.3% / 0.1); border-color: hsl(142.1 76.2% 36.3% / 0.5); color: hsl(142.1 76.2% 36.3%); font-weight: 600; }
     .chip-glow:hover { background: hsl(142.1 76.2% 36.3% / 0.15); box-shadow: 0 0 12px hsl(142.1 76.2% 36.3% / 0.3); }
+
+    /* ═══ Mobile Responsive ═══ */
+    /* Sidebar overlay on mobile */
+    #sidebarOverlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 40; backdrop-filter: blur(2px); }
+    #sidebarOverlay.active { display: block; }
+
+    @media (max-width: 1023px) {
+      #sidebar {
+        position: fixed;
+        top: 0; left: 0; bottom: 0;
+        z-index: 50;
+        transform: translateX(-100%);
+        width: 272px;
+      }
+      #sidebar.sidebar-open {
+        transform: translateX(0);
+      }
+      /* Mobile header adjustments */
+      .mobile-search { width: 100% !important; max-width: 180px; }
+      /* Chat header stacks vertically on small screens */
+      .chat-header-row { flex-wrap: wrap; gap: 0.5rem; }
+      .chat-controls { flex-wrap: wrap; gap: 0.375rem; }
+      .chat-controls select { max-width: 140px !important; font-size: 0.65rem; }
+      /* Prompt chips scroll horizontally */
+      .chips-row { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; padding-bottom: 0.25rem; }
+      .chips-row::-webkit-scrollbar { display: none; }
+      /* Stat cards single column on very small */
+      .stat-grid-mobile { grid-template-columns: repeat(2, 1fr) !important; }
+      /* Table horizontal scroll */
+      .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .table-scroll table { min-width: 640px; }
+      /* Chat messages full width */
+      .chat-msg-max { max-width: 95% !important; }
+    }
+
+    @media (max-width: 480px) {
+      .stat-grid-mobile { grid-template-columns: 1fr !important; }
+      .chat-controls select { max-width: 110px !important; }
+      .mobile-search { max-width: 120px; }
+    }
+
     .chat-content h3 { margin-top: 12px; }
     .chat-content h4 { margin-top: 8px; }
     .chat-content hr { margin: 12px 0; border-color: hsl(var(--border)); }
@@ -338,7 +379,7 @@ function getAppHTML(): string {
           <div class="w-3 h-3 bg-emerald-500 rounded-full splash-dot"></div>
           <span class="text-slate-400 font-medium">Loading secure AI platform...</span>
         </div>
-        <div class="grid grid-cols-3 gap-4 text-left text-sm text-white">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-left text-sm text-white">
           <div class="bg-slate-800/50 rounded-2xl p-4">
             <i class="fa-solid fa-magnifying-glass text-emerald-400 mb-2"></i>
             <div class="font-semibold">Instant Research</div>
@@ -363,9 +404,12 @@ function getAppHTML(): string {
     </div>
   </div>
 
+  <!-- Sidebar Overlay (mobile) -->
+  <div id="sidebarOverlay" onclick="closeSidebar()"></div>
+
   <div id="app" class="flex h-screen overflow-hidden">
     <!-- Sidebar -->
-    <aside id="sidebar" class="w-64 bg-dark-900 text-white flex flex-col flex-shrink-0 transition-all duration-300">
+    <aside id="sidebar" class="w-64 bg-dark-900 text-white flex flex-col flex-shrink-0 transition-transform duration-300 ease-in-out">
       <div class="p-6 border-b border-dark-700">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 bg-brand-500 rounded-xl flex items-center justify-center">
@@ -433,17 +477,17 @@ function getAppHTML(): string {
     <!-- Main Content -->
     <main class="flex-1 flex flex-col overflow-hidden">
       <!-- Top Bar -->
-      <header class="bg-white border-b border-dark-200 px-6 py-3 flex items-center justify-between flex-shrink-0">
-        <div class="flex items-center gap-4">
-          <button onclick="toggleSidebar()" class="text-dark-400 hover:text-dark-600 lg:hidden"><i class="fas fa-bars text-lg"></i></button>
-          <div class="relative">
+      <header class="bg-white border-b border-dark-200 px-3 sm:px-6 py-3 flex items-center justify-between flex-shrink-0 gap-2">
+        <div class="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
+          <button onclick="toggleSidebar()" class="text-dark-400 hover:text-dark-600 lg:hidden flex-shrink-0 p-1"><i class="fas fa-bars text-lg"></i></button>
+          <div class="relative flex-1 max-w-xs sm:max-w-sm lg:max-w-md">
             <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-dark-400 text-sm"></i>
-            <input type="text" placeholder="Search cases, clients, documents..." class="pl-9 pr-4 py-2 w-80 bg-dark-50 border-dark-200 rounded-lg text-sm" id="globalSearch" onkeyup="handleGlobalSearch(event)">
+            <input type="text" placeholder="Search..." class="pl-9 pr-4 py-2 w-full bg-dark-50 border-dark-200 rounded-lg text-sm mobile-search" id="globalSearch" onkeyup="handleGlobalSearch(event)">
           </div>
         </div>
-        <div class="flex items-center gap-4">
-          <button onclick="navigate('ai-chat')" class="btn bg-emerald-50 text-emerald-700 hover:bg-emerald-100 flex items-center gap-2">
-            <i class="fas fa-scale-balanced"></i> AI Co-Counsel
+        <div class="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+          <button onclick="navigate('ai-chat')" class="btn bg-emerald-50 text-emerald-700 hover:bg-emerald-100 flex items-center gap-2 text-xs sm:text-sm">
+            <i class="fas fa-scale-balanced"></i> <span class="hidden sm:inline">AI Co-Counsel</span>
           </button>
           <button onclick="loadNotifications()" class="relative text-dark-400 hover:text-dark-600 p-2">
             <i class="fas fa-bell text-lg"></i>
@@ -453,7 +497,7 @@ function getAppHTML(): string {
       </header>
 
       <!-- Page Content -->
-      <div id="pageContent" class="flex-1 overflow-y-auto p-6 fade-in">
+      <div id="pageContent" class="flex-1 overflow-y-auto p-3 sm:p-6 fade-in">
         <div class="flex items-center justify-center h-full">
           <div class="text-center">
             <div class="w-16 h-16 bg-brand-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -511,6 +555,8 @@ async function init() {
 
 function navigate(page) {
   currentPage = page;
+  // Close sidebar on mobile when navigating
+  closeSidebar();
   document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
   const link = document.querySelector('[data-page="'+page+'"]');
   if (link) link.classList.add('active');
@@ -521,7 +567,22 @@ function navigate(page) {
 }
 
 function toggleSidebar() {
-  document.getElementById('sidebar').classList.toggle('-translate-x-full');
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  const isOpen = sidebar.classList.contains('sidebar-open');
+  if (isOpen) {
+    closeSidebar();
+  } else {
+    sidebar.classList.add('sidebar-open');
+    overlay.classList.add('active');
+  }
+}
+
+function closeSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebarOverlay');
+  sidebar.classList.remove('sidebar-open');
+  overlay.classList.remove('active');
 }
 
 // === DASHBOARD ===
@@ -550,7 +611,7 @@ async function loadDashboard() {
           </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div class="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 stat-grid-mobile">
           <div class="stat-card" style="--from:#2563eb;--to:#3b82f6">
             <div class="flex items-center justify-between mb-3">
               <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center"><i class="fas fa-briefcase"></i></div>
@@ -585,8 +646,8 @@ async function loadDashboard() {
           </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div class="card p-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          <div class="card p-4 sm:p-6">
             <h3 class="font-semibold text-dark-800 mb-4 flex items-center gap-2"><i class="fas fa-calendar text-brand-500"></i> Upcoming Events</h3>
             <div class="space-y-3">
               \${d.upcoming_events.length ? d.upcoming_events.map(e => \`
@@ -602,7 +663,7 @@ async function loadDashboard() {
             </div>
           </div>
 
-          <div class="card p-6">
+          <div class="card p-4 sm:p-6">
             <h3 class="font-semibold text-dark-800 mb-4 flex items-center gap-2"><i class="fas fa-robot text-purple-500"></i> Recent AI Activity</h3>
             <div class="space-y-3">
               \${d.recent_ai_activity.length ? d.recent_ai_activity.map(a => \`
@@ -646,7 +707,7 @@ async function loadCases() {
           <button onclick="filterCases('discovery')" class="btn btn-secondary text-xs">Discovery</button>
           <button onclick="filterCases('closed')" class="btn btn-secondary text-xs">Closed</button>
         </div>
-        <div class="card overflow-hidden">
+        <div class="card overflow-hidden table-scroll">
           <table class="w-full">
             <thead class="bg-dark-50 border-b border-dark-200">
               <tr>
@@ -886,7 +947,7 @@ async function loadDocuments() {
           </div>
           <button onclick="showNewDocModal()" class="btn btn-primary"><i class="fas fa-plus mr-2"></i>Upload Document</button>
         </div>
-        <div class="card overflow-hidden">
+        <div class="card overflow-hidden table-scroll">
           <table class="w-full">
             <thead class="bg-dark-50 border-b border-dark-200">
               <tr>
@@ -1034,7 +1095,7 @@ async function loadBilling() {
           </div>
           <button onclick="showNewInvoiceModal()" class="btn btn-primary"><i class="fas fa-plus mr-2"></i>New Invoice</button>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-6">
           <div class="card p-5 text-center">
             <p class="text-xs text-dark-400 uppercase font-semibold">Revenue</p>
             <p class="text-2xl font-bold text-green-600 mt-1">$\${Number(s.total_revenue).toLocaleString()}</p>
@@ -1053,7 +1114,7 @@ async function loadBilling() {
             <p class="text-2xl font-bold text-purple-600 mt-1">$\${Number(s.monthly_billable).toLocaleString()}</p>
           </div>
         </div>
-        <div class="card overflow-hidden">
+        <div class="card overflow-hidden table-scroll">
           <table class="w-full">
             <thead class="bg-dark-50 border-b border-dark-200">
               <tr>
@@ -1165,14 +1226,14 @@ async function loadAIChat() {
         <div class="px-4 py-3 border-b border-slate-800" style="background:#0f172a">
           <div class="text-[10px] uppercase tracking-widest text-slate-600 mb-2 font-semibold">Quick legal actions</div>
           <div class="flex flex-wrap gap-1.5">
-            <button onclick="injectChip(chatJurisdiction==='missouri' ? 'Research Missouri case law on pure comparative fault under RSMo § 537.765 and joint & several liability under RSMo § 537.067 — cite 8th Circuit and MO Supreme Court holdings' : 'Research Kansas case law on comparative negligence under K.S.A. 60-258a — cite 10th Circuit and KS Supreme Court holdings')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all" style="background:#1e293b; border-color:#334155">\u2696\uFE0F Research case law</button>
-            <button onclick="injectChip(chatJurisdiction==='missouri' ? 'Draft a demand letter under Missouri law — include RSMo § 537.765 pure comparative fault and RSMo § 516.120 5-year SOL deadline' : 'Draft a demand letter under Kansas law — include K.S.A. 60-258a proportional fault analysis and K.S.A. 60-513 SOL deadline')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all" style="background:#1e293b; border-color:#334155">\uD83D\uDCDD Draft demand letter</button>
-            <button onclick="injectChip(chatJurisdiction==='missouri' ? 'Confirm the 5-year statute of limitations under RSMo § 516.120 for this claim — flag 2-year med-mal SOL and affidavit of merit requirements' : 'Confirm the 2-year statute of limitations under K.S.A. 60-513 for this claim — flag discovery rule exceptions and presuit requirements')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all" style="background:#1e293b; border-color:#334155">\u23F0 SOL check</button>
-            <button onclick="injectChip(chatJurisdiction==='missouri' ? 'Analyze RSMo § 537.765 pure comparative fault and RSMo § 537.067 joint & several liability threshold (≥51%) — assess multi-defendant strategy' : 'Analyze K.S.A. 60-258a: 50% comparative fault bar, proportional-only fault allocation (no joint and several), and empty-chair defense implications')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all" style="background:#1e293b; border-color:#334155">\u2696\uFE0F Fault & liability</button>
-            <button onclick="injectChip('Provide full risk assessment and 3 settlement strategy options with expected value calculations')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all" style="background:#1e293b; border-color:#334155">\uD83D\uDCCA Risk & settlement</button>
-            <button onclick="injectChip('Generate complete matter timeline with all Kansas or Missouri Rules of Civil Procedure deadlines')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all" style="background:#1e293b; border-color:#334155">\uD83D\uDCC5 Build timeline</button>
-            <button onclick="injectChip('Create motion to dismiss with supporting KS/MO authorities')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all" style="background:#1e293b; border-color:#334155">\uD83D\uDCDD Motion to Dismiss</button>
-            <button onclick="injectChip('What am I missing? Give proactive recommendations for this matter')" class="text-xs py-1 px-3 rounded-full border font-semibold text-emerald-400 hover:bg-emerald-950 transition-all" style="background:#1e293b; border-color:#065f46">\uD83C\uDFAF What am I missing?</button>
+            <button onclick="injectChip(chatJurisdiction==='missouri' ? 'Research Missouri case law on pure comparative fault under RSMo § 537.765 and joint & several liability under RSMo § 537.067 — cite 8th Circuit and MO Supreme Court holdings' : 'Research Kansas case law on comparative negligence under K.S.A. 60-258a — cite 10th Circuit and KS Supreme Court holdings')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all flex-shrink-0" style="background:#1e293b; border-color:#334155">\u2696\uFE0F Research case law</button>
+            <button onclick="injectChip(chatJurisdiction==='missouri' ? 'Draft a demand letter under Missouri law — include RSMo § 537.765 pure comparative fault and RSMo § 516.120 5-year SOL deadline' : 'Draft a demand letter under Kansas law — include K.S.A. 60-258a proportional fault analysis and K.S.A. 60-513 SOL deadline')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all flex-shrink-0" style="background:#1e293b; border-color:#334155">\uD83D\uDCDD Draft demand letter</button>
+            <button onclick="injectChip(chatJurisdiction==='missouri' ? 'Confirm the 5-year statute of limitations under RSMo § 516.120 for this claim — flag 2-year med-mal SOL and affidavit of merit requirements' : 'Confirm the 2-year statute of limitations under K.S.A. 60-513 for this claim — flag discovery rule exceptions and presuit requirements')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all flex-shrink-0" style="background:#1e293b; border-color:#334155">\u23F0 SOL check</button>
+            <button onclick="injectChip(chatJurisdiction==='missouri' ? 'Analyze RSMo § 537.765 pure comparative fault and RSMo § 537.067 joint & several liability threshold (≥51%) — assess multi-defendant strategy' : 'Analyze K.S.A. 60-258a: 50% comparative fault bar, proportional-only fault allocation (no joint and several), and empty-chair defense implications')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all flex-shrink-0" style="background:#1e293b; border-color:#334155">\u2696\uFE0F Fault & liability</button>
+            <button onclick="injectChip('Provide full risk assessment and 3 settlement strategy options with expected value calculations')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all flex-shrink-0" style="background:#1e293b; border-color:#334155">\uD83D\uDCCA Risk & settlement</button>
+            <button onclick="injectChip('Generate complete matter timeline with all Kansas or Missouri Rules of Civil Procedure deadlines')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all flex-shrink-0" style="background:#1e293b; border-color:#334155">\uD83D\uDCC5 Build timeline</button>
+            <button onclick="injectChip('Create motion to dismiss with supporting KS/MO authorities')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all flex-shrink-0" style="background:#1e293b; border-color:#334155">\uD83D\uDCDD Motion to Dismiss</button>
+            <button onclick="injectChip('What am I missing? Give proactive recommendations for this matter')" class="text-xs py-1 px-3 rounded-full border font-semibold text-emerald-400 hover:bg-emerald-950 transition-all flex-shrink-0" style="background:#1e293b; border-color:#065f46">\uD83C\uDFAF What am I missing?</button>
           </div>
         </div>
 
@@ -1195,15 +1256,16 @@ async function loadAIChat() {
         </div>
 
         <!-- Input Area -->
-        <div class="p-4 border-t border-slate-800" style="background:#0f172a">
+        <div class="p-3 sm:p-4 border-t border-slate-800" style="background:#0f172a">
           <div class="relative">
-            <textarea id="chatInput" rows="2" placeholder="Ask anything \u2014 draft motion, analyze risk, research precedent..." class="w-full pr-14 resize-none text-slate-200 placeholder-slate-500" style="background:#020617; border:1px solid #334155; min-height:52px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
+            <textarea id="chatInput" rows="2" placeholder="Ask anything..." class="w-full pr-14 resize-none text-slate-200 placeholder-slate-500 text-sm" style="background:#020617; border:1px solid #334155; min-height:48px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
             <button onclick="sendChat()" id="chatSendBtn" class="btn btn-sm absolute right-2 bottom-2 bg-emerald-600 hover:bg-emerald-500 text-white" style="width:36px;height:36px;padding:0">
               <i class="fas fa-paper-plane text-sm"></i>
             </button>
           </div>
-          <div class="flex items-center justify-between mt-2 text-[10px] text-slate-500">
-            <span>All responses are logged \u2022 Human review recommended \u2022 Not legal advice</span>
+          <div class="flex items-center justify-between mt-2 text-[10px] text-slate-500 gap-2">
+            <span class="hidden sm:inline">All responses are logged \u2022 Human review recommended \u2022 Not legal advice</span>
+            <span class="sm:hidden">Human review required</span>
             <span id="chatStatus"></span>
           </div>
         </div>
@@ -1245,7 +1307,7 @@ function updateMatterBar() {
 function renderChatMessage(m) {
   if (m.role === 'user') {
     return \`<div class="flex justify-end">
-      <div class="max-w-[80%] rounded-2xl rounded-br-sm px-5 py-3 shadow-md" style="background:#059669">
+      <div class="max-w-[80%] sm:max-w-[80%] chat-msg-max rounded-2xl rounded-br-sm px-4 sm:px-5 py-3 shadow-md" style="background:#059669">
         <div class="flex items-center gap-2 mb-1">
           <i class="fas fa-user text-xs text-emerald-200"></i>
           <span class="text-xs text-emerald-200">You</span>
@@ -1306,7 +1368,7 @@ function renderChatMessage(m) {
 
   return \`<div class="flex gap-3">
     <div class="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm flex-shrink-0 mt-1" style="background:\${as.hex}">\${as.emoji}</div>
-    <div class="max-w-[85%] rounded-2xl rounded-bl-sm px-5 py-4 shadow-md border border-slate-700" style="background:#0f172a">
+    <div class="max-w-[85%] chat-msg-max rounded-2xl rounded-bl-sm px-4 sm:px-5 py-3 sm:py-4 shadow-md border border-slate-700" style="background:#0f172a">
       <div class="flex items-center gap-2 mb-2">
         <i class="fas fa-robot text-xs text-emerald-400"></i>
         <span class="text-xs text-slate-400">Lawyrs AI \u2022 \${m.agent_type ? m.agent_type.charAt(0).toUpperCase() + m.agent_type.slice(1) + ' Agent' : 'Senior Partner'}</span>
@@ -1785,7 +1847,7 @@ async function loadMemory() {
           </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-6">
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
           <div class="card p-4 text-center border-pink-200 bg-pink-50">
             <p class="text-xs text-pink-600 font-semibold">Total Memories</p>
             <p class="text-2xl font-bold text-pink-700">\${totalMem}</p>
@@ -1926,7 +1988,7 @@ async function loadAIWorkflow() {
         </div>
 
         <!-- Stats -->
-        <div class="grid grid-cols-2 md:grid-cols-7 gap-3 mb-6">
+        <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3 mb-6">
           <div class="card p-4 text-center border-purple-200 bg-purple-50">
             <p class="text-xs text-purple-600 font-semibold">Operations</p>
             <p class="text-2xl font-bold text-purple-700">\${s.total_operations}</p>
@@ -1959,7 +2021,7 @@ async function loadAIWorkflow() {
 
         <!-- Agent Cards -->
         <h3 class="font-semibold text-dark-800 mb-4">Specialist Agents</h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
           \${agents.map(a => {
             const agentStats = (s.by_agent || []).find(b => b.agent_type === a.id);
             return \`
@@ -1984,7 +2046,7 @@ async function loadAIWorkflow() {
 
         <!-- Recent Activity -->
         <h3 class="font-semibold text-dark-800 mb-4">Recent Activity</h3>
-        <div class="card overflow-hidden">
+        <div class="card overflow-hidden table-scroll">
           <table class="w-full">
             <thead class="bg-dark-50 border-b border-dark-200">
               <tr>

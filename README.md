@@ -323,6 +323,19 @@ Section Order (all agents): Summary → Analysis → Recommendations → Agents 
 
 ## Bugs Fixed
 
+### Feb 21, 2026 — Mobile Responsive UI Overhaul (v3.3.2)
+- **Collapsible sidebar on mobile**: Sidebar becomes a slide-out overlay (position: fixed, z-index 50) on screens <1024px, with a backdrop overlay and close-on-navigate behavior
+- **Hamburger menu**: Always visible on mobile (`lg:hidden`), toggles sidebar open/close with smooth translateX animation
+- **Chat header responsive**: Stacks vertically on small screens with flex-wrap; case/jurisdiction selects shrink to fit; abbreviated labels ("Lawyrs AI" vs "Lawyrs AI Partner")
+- **Prompt chips horizontal scroll**: Chips row becomes a single-line horizontal scrollable strip on mobile (no wrapping), each chip set to flex-shrink-0
+- **Stat cards 2-column**: Dashboard stat grid uses `grid-cols-2` on mobile (was `grid-cols-1`), collapses to single column on ≤480px
+- **Tables scroll horizontally**: All data tables (cases, documents, billing, workflow) wrapped in `.table-scroll` container with `overflow-x: auto` and `min-width: 640px`
+- **Chat messages wider on mobile**: Message bubbles use `max-width: 95%` on mobile (was 80%/85%) via `.chat-msg-max` class
+- **Header compact**: Top bar padding reduced to `px-3 sm:px-6`; search input responsive width; "AI Co-Counsel" label hidden on small screens
+- **Splash screen responsive**: Feature cards grid becomes single column on mobile
+- **Matter context bar scrollable**: Horizontal scroll on overflow for long matter details
+- **Build**: 338.47 kB bundle, 974ms build time
+
 ### Feb 21, 2026 — Strict 6-Part Format + Enhanced Markdown Rendering (v3.3.1)
 - **Strict 6-part response format enforced on ALL agents**: Summary → Analysis → Recommendations & Next Actions → Full Output → Sources/Citations → Agents Used
 - **Orchestrator response assembly**: Strips agent-added disclaimers, rebuilds in canonical order: routing header → body → Agents Used → `dashboard_update` JSON → Human Review → Co-Counsel closing → metadata footer
