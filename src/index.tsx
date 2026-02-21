@@ -84,7 +84,9 @@ app.get('/api/init-db', async (c) => {
     `CREATE TABLE IF NOT EXISTS trust_accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER NOT NULL, case_id INTEGER, account_name TEXT NOT NULL, balance REAL DEFAULT 0, currency TEXT DEFAULT 'USD', status TEXT DEFAULT 'active', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
     `CREATE TABLE IF NOT EXISTS trust_transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, trust_account_id INTEGER NOT NULL, type TEXT NOT NULL, amount REAL NOT NULL, description TEXT NOT NULL, reference_number TEXT, balance_after REAL NOT NULL, authorized_by INTEGER NOT NULL, invoice_id INTEGER, transaction_date TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
     `CREATE TABLE IF NOT EXISTS case_expenses (id INTEGER PRIMARY KEY AUTOINCREMENT, case_id INTEGER NOT NULL, description TEXT NOT NULL, amount REAL NOT NULL, category TEXT NOT NULL, is_billable INTEGER DEFAULT 1, is_reimbursed INTEGER DEFAULT 0, receipt_url TEXT, vendor TEXT, expense_date TEXT NOT NULL, submitted_by INTEGER NOT NULL, approved_by INTEGER, invoice_id INTEGER, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS conflict_checks (id INTEGER PRIMARY KEY AUTOINCREMENT, checked_name TEXT NOT NULL, checked_entity TEXT, case_id INTEGER, checked_by INTEGER NOT NULL, result TEXT NOT NULL, details TEXT, related_case_ids TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`
+    `CREATE TABLE IF NOT EXISTS conflict_checks (id INTEGER PRIMARY KEY AUTOINCREMENT, checked_name TEXT NOT NULL, checked_entity TEXT, case_id INTEGER, checked_by INTEGER NOT NULL, result TEXT NOT NULL, details TEXT, related_case_ids TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+    // Document analysis table
+    `CREATE TABLE IF NOT EXISTS document_analysis (id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, analysis_type TEXT DEFAULT 'full', summary TEXT, doc_classification TEXT, entities_json TEXT, key_dates_json TEXT, monetary_values_json TEXT, parties_json TEXT, citations_json TEXT, clauses_json TEXT, risk_flags_json TEXT, obligations_json TEXT, deadlines_json TEXT, jurisdiction_detected TEXT, confidence REAL DEFAULT 0, tokens_used INTEGER DEFAULT 0, analyzed_by TEXT DEFAULT 'ai', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (document_id) REFERENCES documents(id))`
   ]
 
   for (const sql of migrations) {
@@ -110,7 +112,7 @@ app.get('/api/reset-db', async (c) => {
     'time_entries', 'case_notes', 'calendar_events', 'tasks_deadlines', 'esignature_requests',
     'trust_transactions', 'trust_accounts', 'case_expenses', 'conflict_checks',
     'client_communications', 'intake_submissions', 'intake_forms', 'client_portal_access',
-    'document_sharing', 'document_versions', 'document_templates', 'documents',
+    'document_analysis', 'document_sharing', 'document_versions', 'document_templates', 'documents',
     'cases_matters', 'clients', 'ai_chat_messages', 'users_attorneys'
   ]
   for (const t of tables) {
@@ -1157,7 +1159,7 @@ async function loadDocuments() {
             </thead>
             <tbody>
               \${data.documents.map(d => \`
-                <tr class="table-row border-b border-dark-100">
+                <tr class="table-row border-b border-dark-100 cursor-pointer" onclick="viewDocument(\${d.id})">
                   <td class="px-6 py-4">
                     <div class="flex items-center gap-3">
                       <div class="w-9 h-9 bg-\${d.file_type?.includes('pdf')?'red':'blue'}-50 rounded-lg flex items-center justify-center">
@@ -1168,6 +1170,7 @@ async function loadDocuments() {
                         <p class="text-xs text-dark-400">\${d.file_name}</p>
                       </div>
                       \${d.ai_generated ? '<span class="badge bg-purple-100 text-purple-700 text-xs ml-2"><i class="fas fa-robot mr-1"></i>AI</span>' : ''}
+                      \${d.ai_summary ? '<span class="badge bg-green-100 text-green-700 text-xs ml-1"><i class="fas fa-brain mr-1"></i>Analyzed</span>' : ''}
                     </div>
                   </td>
                   <td class="px-6 py-4 text-sm text-dark-600">\${d.case_number || '-'}</td>
@@ -2798,7 +2801,558 @@ async function createTask() {
   } catch(e) { alert('Error creating task'); }
 }
 
-function showNewDocModal() { alert('Document upload modal - Upload functionality coming soon!'); }
+// ═══════════════════════════════════════════════════════════════
+// DOCUMENT UPLOAD MODAL — Drag & Drop + File Picker + AI Analysis
+// ═══════════════════════════════════════════════════════════════
+var pendingUploadFile = null;
+var pendingUploadText = '';
+
+function showNewDocModal() {
+  pendingUploadFile = null;
+  pendingUploadText = '';
+  // Pre-fetch cases for association dropdown
+  axios.get(API + '/cases').then(({ data }) => {
+    const caseOpts = (data.cases || []).map(c => '<option value="'+c.id+'">'+c.case_number+' — '+c.title.substring(0,35)+'</option>').join('');
+    document.getElementById('uploadCaseSelect').innerHTML = '<option value="">No case</option>' + caseOpts;
+  }).catch(() => {});
+
+  document.getElementById('modalContainer').innerHTML = \`
+    <div class="modal-overlay" onclick="closeModal(event)" style="z-index:60">
+      <div class="modal p-0" onclick="event.stopPropagation()" style="max-width:680px; max-height:90vh; overflow-y:auto">
+        <!-- Header -->
+        <div class="px-6 py-4 border-b border-dark-200 flex items-center justify-between sticky top-0 bg-white z-10" style="border-radius:var(--radius) var(--radius) 0 0">
+          <div>
+            <h3 class="text-lg font-bold text-dark-900 flex items-center gap-2"><i class="fas fa-cloud-upload-alt text-brand-500"></i> Upload & Analyze Document</h3>
+            <p class="text-xs text-dark-400 mt-0.5">Upload a file for deep AI-powered analysis — entities, dates, citations, risks, obligations</p>
+          </div>
+          <button onclick="closeModal()" class="text-dark-400 hover:text-dark-600"><i class="fas fa-times text-lg"></i></button>
+        </div>
+
+        <div class="p-6 space-y-5">
+          <!-- Drop Zone -->
+          <div id="uploadDropZone"
+               ondragover="event.preventDefault();this.classList.add('border-brand-500','bg-brand-50')"
+               ondragleave="this.classList.remove('border-brand-500','bg-brand-50')"
+               ondrop="handleFileDrop(event)"
+               onclick="document.getElementById('uploadFileInput').click()"
+               class="border-2 border-dashed border-dark-200 rounded-xl p-8 text-center cursor-pointer hover:border-brand-400 hover:bg-brand-50/50 transition-all">
+            <input type="file" id="uploadFileInput" class="hidden"
+                   accept=".pdf,.doc,.docx,.txt,.rtf,.md,.csv,.json,.html,.xml,.xls,.xlsx"
+                   onchange="handleFileSelect(this)">
+            <div id="uploadDropContent">
+              <div class="w-14 h-14 bg-brand-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <i class="fas fa-file-arrow-up text-brand-500 text-2xl"></i>
+              </div>
+              <p class="text-dark-700 font-medium">Drag & drop files here or click to browse</p>
+              <p class="text-xs text-dark-400 mt-1">Supports PDF, DOC/DOCX, TXT, RTF, CSV, JSON, HTML, XML (max 10 MB)</p>
+            </div>
+            <div id="uploadFilePreview" class="hidden">
+              <div class="flex items-center justify-center gap-3">
+                <div class="w-12 h-12 rounded-xl flex items-center justify-center" id="uploadFileIconWrap">
+                  <i id="uploadFileIcon" class="fas fa-file text-2xl"></i>
+                </div>
+                <div class="text-left">
+                  <p class="font-semibold text-dark-800" id="uploadFileName">-</p>
+                  <p class="text-xs text-dark-400" id="uploadFileMeta">-</p>
+                </div>
+                <button onclick="event.stopPropagation();clearUploadFile()" class="ml-3 text-dark-400 hover:text-red-500"><i class="fas fa-times-circle text-lg"></i></button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Extraction progress -->
+          <div id="uploadExtractProgress" class="hidden">
+            <div class="flex items-center gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <i class="fas fa-spinner fa-spin text-blue-500"></i>
+              <span class="text-sm text-blue-700" id="uploadExtractText">Extracting text from file...</span>
+            </div>
+          </div>
+
+          <!-- Text preview -->
+          <div id="uploadTextPreviewWrap" class="hidden">
+            <label class="text-sm font-medium text-dark-700 block mb-1">Extracted Text <span class="text-dark-400 font-normal" id="uploadWordCount"></span></label>
+            <textarea id="uploadTextPreview" rows="5" readonly class="w-full text-xs font-mono bg-dark-50 text-dark-600" style="max-height:160px; overflow-y:auto"></textarea>
+          </div>
+
+          <!-- OR paste text directly -->
+          <details class="group">
+            <summary class="text-sm font-medium text-dark-500 cursor-pointer flex items-center gap-1 hover:text-dark-700">
+              <i class="fas fa-chevron-right text-xs transition-transform group-open:rotate-90"></i> Or paste document text directly
+            </summary>
+            <textarea id="uploadPasteText" rows="4" placeholder="Paste your document text here..." class="w-full mt-2 text-sm" oninput="handlePasteText(this)"></textarea>
+          </details>
+
+          <!-- Metadata Fields -->
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="text-sm font-medium text-dark-700 block mb-1">Document Title *</label>
+              <input id="uploadTitle" placeholder="e.g. Motion to Dismiss, Lease Agreement..." class="w-full">
+            </div>
+            <div>
+              <label class="text-sm font-medium text-dark-700 block mb-1">Category</label>
+              <select id="uploadCategory" class="w-full">
+                <option value="general">General</option>
+                <option value="pleading">Pleading / Motion</option>
+                <option value="contract">Contract / Agreement</option>
+                <option value="correspondence">Correspondence / Letter</option>
+                <option value="discovery">Discovery</option>
+                <option value="court_order">Court Order</option>
+                <option value="evidence">Evidence</option>
+                <option value="memo">Memorandum</option>
+                <option value="billing">Billing</option>
+                <option value="intake">Intake / Client Info</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label class="text-sm font-medium text-dark-700 block mb-1">Associate with Case</label>
+            <select id="uploadCaseSelect" class="w-full">
+              <option value="">No case (stand-alone document)</option>
+            </select>
+          </div>
+
+          <!-- Analysis preview badges -->
+          <div id="uploadAnalysisHint" class="hidden p-3 rounded-lg border" style="background:#fef2f2; border-color:#f8c4c4">
+            <div class="flex items-center gap-2 mb-1">
+              <i class="fas fa-brain" style="color:#cc2229"></i>
+              <span class="text-sm font-semibold" style="color:#9b1a20">AI Analysis will include:</span>
+            </div>
+            <div class="flex flex-wrap gap-1.5 mt-1.5">
+              <span class="badge bg-purple-100 text-purple-700"><i class="fas fa-users mr-1"></i>Parties & Entities</span>
+              <span class="badge bg-blue-100 text-blue-700"><i class="fas fa-calendar mr-1"></i>Key Dates & Deadlines</span>
+              <span class="badge bg-green-100 text-green-700"><i class="fas fa-dollar-sign mr-1"></i>Monetary Values</span>
+              <span class="badge bg-amber-100 text-amber-700"><i class="fas fa-book mr-1"></i>Legal Citations</span>
+              <span class="badge bg-red-100 text-red-700"><i class="fas fa-shield-alt mr-1"></i>Risk Flags</span>
+              <span class="badge bg-indigo-100 text-indigo-700"><i class="fas fa-file-contract mr-1"></i>Clauses & Obligations</span>
+              <span class="badge bg-dark-100 text-dark-600"><i class="fas fa-map-marker-alt mr-1"></i>Jurisdiction Detection</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="px-6 py-4 border-t border-dark-200 flex items-center justify-between sticky bottom-0 bg-white" style="border-radius:0 0 var(--radius) var(--radius)">
+          <div id="uploadStatus" class="text-xs text-dark-400"></div>
+          <div class="flex gap-2">
+            <button onclick="closeModal()" class="btn btn-secondary">Cancel</button>
+            <button onclick="submitDocUpload()" id="uploadSubmitBtn" class="btn btn-primary" disabled>
+              <i class="fas fa-cloud-upload-alt mr-2"></i>Upload & Analyze
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  \`;
+}
+
+function handleFileDrop(e) {
+  e.preventDefault();
+  const zone = document.getElementById('uploadDropZone');
+  zone.classList.remove('border-brand-500','bg-brand-50');
+  const file = e.dataTransfer?.files?.[0];
+  if (file) processUploadFile(file);
+}
+
+function handleFileSelect(input) {
+  const file = input.files?.[0];
+  if (file) processUploadFile(file);
+}
+
+function clearUploadFile() {
+  pendingUploadFile = null;
+  pendingUploadText = '';
+  document.getElementById('uploadDropContent').classList.remove('hidden');
+  document.getElementById('uploadFilePreview').classList.add('hidden');
+  document.getElementById('uploadTextPreviewWrap').classList.add('hidden');
+  document.getElementById('uploadAnalysisHint').classList.add('hidden');
+  document.getElementById('uploadSubmitBtn').disabled = true;
+  document.getElementById('uploadFileInput').value = '';
+}
+
+function processUploadFile(file) {
+  if (file.size > 10 * 1024 * 1024) { toast('File too large', 'Max file size is 10 MB', 'error'); return; }
+  pendingUploadFile = file;
+
+  // Update UI
+  const ext = file.name.split('.').pop()?.toLowerCase() || '';
+  const iconMap = { pdf:'fa-file-pdf text-red-500', doc:'fa-file-word text-blue-500', docx:'fa-file-word text-blue-500', txt:'fa-file-lines text-dark-500', csv:'fa-file-csv text-green-500', json:'fa-file-code text-amber-500', html:'fa-file-code text-orange-500', xml:'fa-file-code text-purple-500' };
+  const bgMap = { pdf:'bg-red-50', doc:'bg-blue-50', docx:'bg-blue-50', txt:'bg-dark-50', csv:'bg-green-50', json:'bg-amber-50', html:'bg-orange-50' };
+
+  document.getElementById('uploadFileIcon').className = 'fas ' + (iconMap[ext] || 'fa-file text-dark-400') + ' text-2xl';
+  document.getElementById('uploadFileIconWrap').className = 'w-12 h-12 rounded-xl flex items-center justify-center ' + (bgMap[ext] || 'bg-dark-50');
+  document.getElementById('uploadFileName').textContent = file.name;
+  document.getElementById('uploadFileMeta').textContent = formatFileSize(file.size) + ' • ' + file.type;
+  document.getElementById('uploadDropContent').classList.add('hidden');
+  document.getElementById('uploadFilePreview').classList.remove('hidden');
+
+  // Auto-fill title from filename
+  const titleInput = document.getElementById('uploadTitle');
+  if (!titleInput.value) {
+    titleInput.value = file.name.replace(/\\.[^.]+$/, '').replace(/[-_]/g, ' ').replace(/\\b\\w/g, l => l.toUpperCase());
+  }
+
+  // Extract text from file
+  extractTextFromFile(file);
+}
+
+async function extractTextFromFile(file) {
+  const prog = document.getElementById('uploadExtractProgress');
+  const progText = document.getElementById('uploadExtractText');
+  prog.classList.remove('hidden');
+  progText.textContent = 'Reading file...';
+
+  try {
+    let text = '';
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+
+    if (['txt','md','rtf','csv','html','xml','json'].includes(ext)) {
+      text = await file.text();
+      progText.textContent = 'Text extracted successfully';
+    } else if (ext === 'pdf') {
+      // For PDFs we read as text (basic extraction)
+      try {
+        text = await file.text();
+        // If it's binary PDF, we'll get garbled text — strip non-printable
+        text = text.replace(/[^\\x20-\\x7E\\n\\r\\t]/g, ' ').replace(/\\s{3,}/g, '\\n').trim();
+        if (text.length < 100) {
+          text = '[PDF content — text extraction limited in browser. For full analysis, paste the document text below or use a PDF-to-text tool.]';
+          progText.textContent = 'PDF detected — paste text for better results';
+        } else {
+          progText.textContent = 'PDF text extracted (basic extraction)';
+        }
+      } catch(e) {
+        text = '[PDF could not be read. Please paste the document text manually.]';
+        progText.textContent = 'Paste text manually for PDF files';
+      }
+    } else {
+      text = await file.text();
+      progText.textContent = 'File read as text';
+    }
+
+    pendingUploadText = text;
+    // Show preview
+    const previewWrap = document.getElementById('uploadTextPreviewWrap');
+    const preview = document.getElementById('uploadTextPreview');
+    const wordCount = document.getElementById('uploadWordCount');
+    previewWrap.classList.remove('hidden');
+    preview.value = text.substring(0, 5000) + (text.length > 5000 ? '\\n\\n... [truncated preview — full text will be analyzed]' : '');
+    const wc = text.split(/\\s+/).filter(Boolean).length;
+    wordCount.textContent = '(' + wc.toLocaleString() + ' words, ~' + Math.max(1, Math.ceil(wc / 300)) + ' pages)';
+
+    // Show analysis hint & enable submit
+    document.getElementById('uploadAnalysisHint').classList.remove('hidden');
+    document.getElementById('uploadSubmitBtn').disabled = false;
+
+    setTimeout(() => prog.classList.add('hidden'), 2000);
+  } catch(e) {
+    progText.textContent = 'Error reading file — try pasting text instead';
+    prog.querySelector('i').className = 'fas fa-exclamation-triangle text-amber-500';
+  }
+}
+
+function handlePasteText(textarea) {
+  const text = textarea.value.trim();
+  if (text.length > 10) {
+    pendingUploadText = text;
+    document.getElementById('uploadAnalysisHint').classList.remove('hidden');
+    document.getElementById('uploadSubmitBtn').disabled = false;
+    const wc = text.split(/\\s+/).filter(Boolean).length;
+    document.getElementById('uploadStatus').textContent = wc.toLocaleString() + ' words ready for analysis';
+  }
+}
+
+async function submitDocUpload() {
+  const title = document.getElementById('uploadTitle').value.trim();
+  if (!title) { toast('Title required', 'Please provide a document title', 'error'); return; }
+  if (!pendingUploadText || pendingUploadText.length < 10) { toast('No text content', 'Upload a file or paste document text', 'error'); return; }
+
+  const btn = document.getElementById('uploadSubmitBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Uploading & Analyzing...';
+  document.getElementById('uploadStatus').textContent = 'Uploading document...';
+
+  try {
+    const { data } = await axios.post(API + '/documents/upload', {
+      title,
+      file_name: pendingUploadFile?.name || (title.replace(/\\s+/g, '_') + '.txt'),
+      file_type: pendingUploadFile?.type || 'text/plain',
+      file_size: pendingUploadFile?.size || pendingUploadText.length,
+      category: document.getElementById('uploadCategory').value,
+      case_id: document.getElementById('uploadCaseSelect').value || null,
+      content_text: pendingUploadText
+    });
+
+    toast('Document Uploaded', title + ' — analysis complete with ' + (data.analysis?.riskFlags?.length || 0) + ' risk flags', 'success');
+    closeModal();
+    // Navigate to document detail view
+    viewDocument(data.id);
+  } catch(e) {
+    toast('Upload Failed', e.response?.data?.error || e.message, 'error');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-cloud-upload-alt mr-2"></i>Upload & Analyze';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DOCUMENT DETAIL VIEW — Full analysis visualization
+// ═══════════════════════════════════════════════════════════════
+async function viewDocument(id) {
+  try {
+    document.getElementById('pageContent').innerHTML = '<div class="flex items-center justify-center h-32"><i class="fas fa-spinner fa-spin text-brand-500 text-xl mr-3"></i> Loading document...</div>';
+    const { data } = await axios.get(API + '/documents/' + id);
+    const doc = data.document;
+    const analysis = data.analysis;
+
+    // Parse analysis JSON fields
+    let entities = [], keyDates = [], monetaryValues = [], parties = [], citations = [], clauses = [], riskFlags = [], obligations = [], deadlines = [];
+    if (analysis) {
+      try { entities = JSON.parse(analysis.entities_json || '[]'); } catch(e) {}
+      try { keyDates = JSON.parse(analysis.key_dates_json || '[]'); } catch(e) {}
+      try { monetaryValues = JSON.parse(analysis.monetary_values_json || '[]'); } catch(e) {}
+      try { parties = JSON.parse(analysis.parties_json || '[]'); } catch(e) {}
+      try { citations = JSON.parse(analysis.citations_json || '[]'); } catch(e) {}
+      try { clauses = JSON.parse(analysis.clauses_json || '[]'); } catch(e) {}
+      try { riskFlags = JSON.parse(analysis.risk_flags_json || '[]'); } catch(e) {}
+      try { obligations = JSON.parse(analysis.obligations_json || '[]'); } catch(e) {}
+      try { deadlines = JSON.parse(analysis.deadlines_json || '[]'); } catch(e) {}
+    }
+
+    const confPct = analysis ? Math.round((analysis.confidence || 0) * 100) : 0;
+    const confColor = confPct >= 80 ? 'green' : confPct >= 60 ? 'amber' : 'red';
+
+    document.getElementById('pageContent').innerHTML = \`
+      <div class="fade-in">
+        <!-- Back + Header -->
+        <div class="flex items-center gap-3 mb-6 mobile-header-stack">
+          <button onclick="loadDocuments()" class="btn btn-secondary flex-shrink-0"><i class="fas fa-arrow-left"></i></button>
+          <div class="flex-1 min-w-0">
+            <h2 class="text-xl font-bold text-dark-900 truncate">\${doc.title}</h2>
+            <div class="flex flex-wrap items-center gap-2 mt-1">
+              <span class="text-xs text-dark-400"><i class="fas fa-file mr-1"></i>\${doc.file_name}</span>
+              <span class="text-xs text-dark-400">\${formatFileSize(doc.file_size)}</span>
+              <span class="badge \${getStatusColor(doc.status)}">\${doc.status}</span>
+              \${doc.case_number ? '<span class="badge bg-blue-100 text-blue-700"><i class="fas fa-briefcase mr-1"></i>'+doc.case_number+'</span>' : ''}
+              <span class="text-xs text-dark-400">Uploaded \${formatDate(doc.created_at)} by \${doc.uploaded_by_name || 'Brad'}</span>
+            </div>
+          </div>
+          <div class="flex gap-2 flex-shrink-0">
+            <button onclick="reAnalyzeDoc(\${doc.id})" class="btn btn-secondary btn-sm"><i class="fas fa-sync-alt mr-1"></i>Re-analyze</button>
+            <button onclick="deleteDoc(\${doc.id})" class="btn btn-outline btn-sm text-red-500 border-red-200 hover:bg-red-50"><i class="fas fa-trash mr-1"></i>Archive</button>
+          </div>
+        </div>
+
+        \${analysis ? \`
+        <!-- Analysis Summary Banner -->
+        <div class="card p-5 mb-6 border-l-4" style="border-left-color:#cc2229">
+          <div class="flex items-start justify-between gap-3 mobile-header-stack">
+            <div class="flex-1">
+              <div class="flex items-center gap-2 mb-2">
+                <i class="fas fa-brain" style="color:#cc2229"></i>
+                <h3 class="font-semibold text-dark-800">AI Analysis Summary</h3>
+                <span class="badge bg-\${confColor}-100 text-\${confColor}-700">\${confPct}% confidence</span>
+                <span class="badge bg-dark-100 text-dark-500">\${analysis.doc_classification || 'general'}</span>
+                \${analysis.jurisdiction_detected && analysis.jurisdiction_detected !== 'unknown' ? '<span class="badge bg-indigo-100 text-indigo-700"><i class="fas fa-map-marker-alt mr-1"></i>'+analysis.jurisdiction_detected+'</span>' : ''}
+              </div>
+              <p class="text-sm text-dark-600">\${analysis.summary || 'No summary available'}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stats Row -->
+        <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2 sm:gap-3 mb-6">
+          <div class="card p-3 text-center"><p class="text-xs text-purple-600 font-semibold">Entities</p><p class="text-xl font-bold text-purple-700">\${entities.length}</p></div>
+          <div class="card p-3 text-center"><p class="text-xs text-blue-600 font-semibold">Dates</p><p class="text-xl font-bold text-blue-700">\${keyDates.length}</p></div>
+          <div class="card p-3 text-center"><p class="text-xs text-green-600 font-semibold">Money</p><p class="text-xl font-bold text-green-700">\${monetaryValues.length}</p></div>
+          <div class="card p-3 text-center"><p class="text-xs text-amber-600 font-semibold">Citations</p><p class="text-xl font-bold text-amber-700">\${citations.length}</p></div>
+          <div class="card p-3 text-center"><p class="text-xs text-red-600 font-semibold">Risks</p><p class="text-xl font-bold text-red-700">\${riskFlags.length}</p></div>
+          <div class="card p-3 text-center"><p class="text-xs text-indigo-600 font-semibold">Clauses</p><p class="text-xl font-bold text-indigo-700">\${clauses.length}</p></div>
+          <div class="card p-3 text-center"><p class="text-xs text-dark-500 font-semibold">Obligations</p><p class="text-xl font-bold text-dark-700">\${obligations.length}</p></div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          <!-- Risk Flags -->
+          \${riskFlags.length > 0 ? \`
+          <div class="card p-5 border-red-200">
+            <h4 class="font-semibold text-dark-800 mb-3 flex items-center gap-2"><i class="fas fa-shield-alt text-red-500"></i> Risk Flags (\${riskFlags.length})</h4>
+            <div class="space-y-2">
+              \${riskFlags.map(r => \`
+                <div class="p-3 rounded-lg flex items-start gap-3 \${r.severity === 'high' ? 'bg-red-50 border border-red-200' : r.severity === 'medium' ? 'bg-amber-50 border border-amber-200' : 'bg-blue-50 border border-blue-200'}">
+                  <i class="fas fa-\${r.severity === 'high' ? 'exclamation-triangle text-red-500' : r.severity === 'medium' ? 'exclamation-circle text-amber-500' : 'info-circle text-blue-500'} mt-0.5 flex-shrink-0"></i>
+                  <div>
+                    <div class="flex items-center gap-2">
+                      <span class="text-sm font-semibold \${r.severity === 'high' ? 'text-red-700' : r.severity === 'medium' ? 'text-amber-700' : 'text-blue-700'}">\${r.flag}</span>
+                      <span class="badge \${r.severity === 'high' ? 'bg-red-100 text-red-700' : r.severity === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'} text-xs">\${r.severity}</span>
+                    </div>
+                    <p class="text-xs text-dark-500 mt-1">\${escapeHtml(r.detail || '')}</p>
+                  </div>
+                </div>
+              \`).join('')}
+            </div>
+          </div>\` : ''}
+
+          <!-- Parties -->
+          \${parties.length > 0 ? \`
+          <div class="card p-5">
+            <h4 class="font-semibold text-dark-800 mb-3 flex items-center gap-2"><i class="fas fa-users text-purple-500"></i> Parties (\${parties.length})</h4>
+            <div class="space-y-2">
+              \${parties.map(p => \`
+                <div class="flex items-center justify-between p-2 bg-dark-50 rounded-lg">
+                  <span class="text-sm font-medium text-dark-700">\${escapeHtml(p.name)}</span>
+                  <span class="badge bg-purple-100 text-purple-700 text-xs">\${p.role}</span>
+                </div>
+              \`).join('')}
+            </div>
+          </div>\` : ''}
+
+          <!-- Key Dates -->
+          \${keyDates.length > 0 ? \`
+          <div class="card p-5">
+            <h4 class="font-semibold text-dark-800 mb-3 flex items-center gap-2"><i class="fas fa-calendar-alt text-blue-500"></i> Key Dates (\${keyDates.length})</h4>
+            <div class="space-y-2">
+              \${keyDates.map(d => \`
+                <div class="flex items-center gap-3 p-2 bg-dark-50 rounded-lg">
+                  <div class="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-calendar text-blue-600 text-sm"></i>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-dark-700">\${d.date}</p>
+                    <p class="text-xs text-dark-400 truncate">\${escapeHtml((d.context || '').substring(0, 80))}</p>
+                  </div>
+                  <span class="badge \${d.type === 'deadline' ? 'bg-red-100 text-red-700' : d.type === 'hearing_date' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'} text-xs flex-shrink-0">\${d.type.replace(/_/g, ' ')}</span>
+                </div>
+              \`).join('')}
+            </div>
+          </div>\` : ''}
+
+          <!-- Monetary Values -->
+          \${monetaryValues.length > 0 ? \`
+          <div class="card p-5">
+            <h4 class="font-semibold text-dark-800 mb-3 flex items-center gap-2"><i class="fas fa-dollar-sign text-green-500"></i> Monetary Values (\${monetaryValues.length})</h4>
+            <div class="space-y-2">
+              \${monetaryValues.map(m => \`
+                <div class="flex items-center gap-3 p-2 bg-green-50 rounded-lg">
+                  <span class="text-lg font-bold text-green-700">\${m.amount}</span>
+                  <span class="text-xs text-dark-400 flex-1 truncate">\${escapeHtml((m.context || '').substring(0, 80))}</span>
+                </div>
+              \`).join('')}
+            </div>
+          </div>\` : ''}
+
+          <!-- Legal Citations -->
+          \${citations.length > 0 ? \`
+          <div class="card p-5">
+            <h4 class="font-semibold text-dark-800 mb-3 flex items-center gap-2"><i class="fas fa-book text-amber-500"></i> Legal Citations (\${citations.length})</h4>
+            <div class="flex flex-wrap gap-2">
+              \${citations.map(c => {
+                const typeColor = c.type === 'kansas_statute' ? 'bg-blue-100 text-blue-700' : c.type === 'missouri_statute' ? 'bg-red-100 text-red-700' : c.type === 'federal_statute' ? 'bg-indigo-100 text-indigo-700' : c.type === 'case_law' ? 'bg-purple-100 text-purple-700' : 'bg-dark-100 text-dark-600';
+                return '<div class="badge '+typeColor+' text-xs py-1 px-2"><i class="fas fa-'+(c.type.includes('statute') ? 'gavel' : c.type === 'case_law' ? 'scale-balanced' : 'book')+' mr-1"></i>'+escapeHtml(c.citation)+'</div>';
+              }).join('')}
+            </div>
+          </div>\` : ''}
+
+          <!-- Entities -->
+          \${entities.length > 0 ? \`
+          <div class="card p-5">
+            <h4 class="font-semibold text-dark-800 mb-3 flex items-center gap-2"><i class="fas fa-tags text-indigo-500"></i> Entities (\${entities.length})</h4>
+            <div class="space-y-2">
+              \${entities.slice(0, 15).map(e => {
+                const typeIcon = { person:'fa-user text-purple-500', organization:'fa-building text-blue-500', address:'fa-map-marker-alt text-green-500', phone:'fa-phone text-amber-500', email:'fa-envelope text-red-500', case_number:'fa-hashtag text-indigo-500' };
+                return '<div class="flex items-center gap-2 p-2 bg-dark-50 rounded-lg"><i class="fas '+(typeIcon[e.type]||'fa-tag text-dark-400')+' text-sm w-5 text-center"></i><span class="text-sm text-dark-700 flex-1">'+escapeHtml(e.value)+'</span><span class="badge bg-dark-100 text-dark-500 text-xs">'+e.type+'</span></div>';
+              }).join('')}
+            </div>
+          </div>\` : ''}
+
+          <!-- Clauses -->
+          \${clauses.length > 0 ? \`
+          <div class="card p-5">
+            <h4 class="font-semibold text-dark-800 mb-3 flex items-center gap-2"><i class="fas fa-file-contract text-indigo-500"></i> Clauses & Sections (\${clauses.length})</h4>
+            <div class="space-y-2">
+              \${clauses.map(cl => \`
+                <div class="p-3 bg-dark-50 rounded-lg">
+                  <div class="flex items-center gap-2 mb-1">
+                    <span class="text-sm font-semibold text-dark-800">\${escapeHtml(cl.title)}</span>
+                    <span class="badge bg-indigo-100 text-indigo-700 text-xs">\${cl.type.replace(/_/g,' ')}</span>
+                  </div>
+                  <p class="text-xs text-dark-500">\${escapeHtml((cl.content || '').substring(0, 150))}...</p>
+                </div>
+              \`).join('')}
+            </div>
+          </div>\` : ''}
+
+          <!-- Obligations -->
+          \${obligations.length > 0 ? \`
+          <div class="card p-5">
+            <h4 class="font-semibold text-dark-800 mb-3 flex items-center gap-2"><i class="fas fa-tasks text-dark-500"></i> Obligations (\${obligations.length})</h4>
+            <div class="space-y-2">
+              \${obligations.map(o => \`
+                <div class="p-2 bg-dark-50 rounded-lg text-sm">
+                  <span class="text-dark-600">\${escapeHtml(o.obligation.substring(0, 150))}</span>
+                  \${o.deadline ? '<span class="badge bg-red-100 text-red-700 text-xs ml-2">Due: '+o.deadline+'</span>' : ''}
+                </div>
+              \`).join('')}
+            </div>
+          </div>\` : ''}
+
+          <!-- Deadlines -->
+          \${deadlines.length > 0 ? \`
+          <div class="card p-5">
+            <h4 class="font-semibold text-dark-800 mb-3 flex items-center gap-2"><i class="fas fa-clock text-red-500"></i> Deadlines (\${deadlines.length})</h4>
+            <div class="space-y-2">
+              \${deadlines.map(dl => \`
+                <div class="flex items-center gap-3 p-2 rounded-lg \${dl.urgency === 'overdue' ? 'bg-red-50' : dl.urgency === 'urgent' ? 'bg-amber-50' : 'bg-blue-50'}">
+                  <span class="font-medium text-sm">\${dl.date}</span>
+                  <span class="text-xs text-dark-500 flex-1">\${escapeHtml((dl.description || '').substring(0, 80))}</span>
+                  <span class="badge \${dl.urgency === 'overdue' ? 'bg-red-100 text-red-700' : dl.urgency === 'urgent' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'} text-xs">\${dl.urgency}</span>
+                </div>
+              \`).join('')}
+            </div>
+          </div>\` : ''}
+        </div>
+
+        <!-- Document Text Preview -->
+        \${doc.content_text ? \`
+        <div class="card p-5 mt-6">
+          <h4 class="font-semibold text-dark-800 mb-3 flex items-center gap-2"><i class="fas fa-file-lines text-dark-400"></i> Document Text</h4>
+          <div class="bg-dark-50 rounded-lg p-4 max-h-64 overflow-y-auto">
+            <pre class="text-xs text-dark-600 whitespace-pre-wrap font-mono">\${escapeHtml(doc.content_text.substring(0, 10000))}\${doc.content_text.length > 10000 ? '\\n\\n... [truncated]' : ''}</pre>
+          </div>
+        </div>\` : ''}
+
+        \` : \`
+        <!-- No Analysis Available -->
+        <div class="card p-12 text-center">
+          <div class="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <i class="fas fa-search text-amber-400 text-2xl"></i>
+          </div>
+          <h3 class="text-lg font-semibold text-dark-800 mb-2">No Analysis Available</h3>
+          <p class="text-dark-400 text-sm mb-4">This document hasn't been analyzed yet. Run analysis to extract entities, dates, citations, and risk flags.</p>
+          <button onclick="reAnalyzeDoc(\${doc.id})" class="btn btn-primary"><i class="fas fa-brain mr-2"></i>Analyze Document</button>
+        </div>
+        \`}
+      </div>
+    \`;
+  } catch(e) { showError('document details'); }
+}
+
+async function reAnalyzeDoc(id) {
+  toast('Re-analyzing...', 'Running deep analysis on document', 'default');
+  try {
+    await axios.post(API + '/documents/' + id + '/analyze');
+    toast('Analysis Complete', 'Document re-analyzed successfully', 'success');
+    viewDocument(id);
+  } catch(e) {
+    toast('Analysis Failed', e.response?.data?.error || e.message, 'error');
+  }
+}
+
+async function deleteDoc(id) {
+  if (!confirm('Archive this document?')) return;
+  try {
+    await axios.delete(API + '/documents/' + id);
+    toast('Document Archived', '', 'success');
+    loadDocuments();
+  } catch(e) { toast('Error', e.message, 'error'); }
+}
+
 function showNewInvoiceModal() { alert('Invoice creation modal - Coming soon!'); }
 
 function closeModal(e) {
