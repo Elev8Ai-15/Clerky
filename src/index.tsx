@@ -1218,11 +1218,11 @@ async function loadAIChat() {
         <div id="matterBar" class="px-4 py-2 border-b flex items-center gap-4 text-xs" style="background:#1e3354; border-color:#2a4068; color:#6b7ea0; \${ctx ? '' : 'display:none'}">
           \${ctx ? \`
             <div>Matter: <span class="text-white font-medium">\${ctx.case_number}</span></div>
-            <div class="separator-vertical" style="height:12px; width:1px; background:#334155"></div>
+            <div class="separator-vertical" style="height:12px; width:1px; background:#3d5a80"></div>
             <div>Client: <span class="text-white">\${ctx.client_name || ctx.title?.split(' v.')[0] || '-'}</span></div>
-            <div class="separator-vertical" style="height:12px; width:1px; background:#334155"></div>
+            <div class="separator-vertical" style="height:12px; width:1px; background:#3d5a80"></div>
             <div>Type: <span class="text-white">\${ctx.case_type || '-'}</span></div>
-            <div class="separator-vertical" style="height:12px; width:1px; background:#334155"></div>
+            <div class="separator-vertical" style="height:12px; width:1px; background:#3d5a80"></div>
             <div class="flex items-center gap-1"><i class="fas fa-clock text-[10px]"></i> Filed: \${ctx.date_filed || 'N/A'}</div>
             \${ctx.status ? '<span class="badge badge-outline text-[10px] border" style="color:#cc2229; border-color:#7f151a">'+ctx.status+'</span>' : ''}
           \` : ''}
@@ -1239,7 +1239,7 @@ async function loadAIChat() {
             <button onclick="injectChip('Provide full risk assessment and 3 settlement strategy options with expected value calculations')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-red-400 hover:border-red-700 transition-all flex-shrink-0" style="background:#2a4068; border-color:#3d5a80">\uD83D\uDCCA Risk & settlement</button>
             <button onclick="injectChip('Generate complete matter timeline with all Kansas or Missouri Rules of Civil Procedure deadlines')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-red-400 hover:border-red-700 transition-all flex-shrink-0" style="background:#2a4068; border-color:#3d5a80">\uD83D\uDCC5 Build timeline</button>
             <button onclick="injectChip('Create motion to dismiss with supporting KS/MO authorities')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-red-400 hover:border-red-700 transition-all flex-shrink-0" style="background:#2a4068; border-color:#3d5a80">\uD83D\uDCDD Motion to Dismiss</button>
-            <button onclick="injectChip('What am I missing? Give proactive recommendations for this matter')" class="text-xs py-1 px-3 rounded-full border font-semibold text-red-400 hover:bg-red-950 transition-all flex-shrink-0" style="background:#1e293b; border-color:#cc2229">\uD83C\uDFAF What am I missing?</button>
+            <button onclick="injectChip('What am I missing? Give proactive recommendations for this matter')" class="text-xs py-1 px-3 rounded-full border font-semibold text-red-400 hover:bg-red-950 transition-all flex-shrink-0" style="background:#2a4068; border-color:#cc2229">\uD83C\uDFAF What am I missing?</button>
           </div>
         </div>
 
@@ -1264,7 +1264,7 @@ async function loadAIChat() {
         <!-- Input Area -->
         <div class="p-3 sm:p-4 border-t" style="border-color:#2a4068; background:#1e3354">
           <div class="relative">
-            <textarea id="chatInput" rows="2" placeholder="Ask anything..." class="w-full pr-14 resize-none text-slate-200 placeholder-slate-500 text-sm" style="background:#0d1a2e; border:1px solid #334155; min-height:48px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
+            <textarea id="chatInput" rows="2" placeholder="Ask anything..." class="w-full pr-14 resize-none text-slate-200 placeholder-slate-500 text-sm" style="background:#0d1a2e; border:1px solid #3d5a80; min-height:48px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
             <button onclick="sendChat()" id="chatSendBtn" class="btn btn-sm absolute right-2 bottom-2 text-white" style="background:#cc2229; width:36px;height:36px;padding:0" onmouseover="this.style.background='#e02e35'" onmouseout="this.style.background='#cc2229'">
               <i class="fas fa-paper-plane text-sm"></i>
             </button>
@@ -1293,13 +1293,13 @@ function updateMatterBar() {
         const c = res.data;
         bar.innerHTML = \`
           <div>Matter: <span class="text-white font-medium">\${c.case_number || '-'}</span></div>
-          <div style="height:12px; width:1px; background:#334155"></div>
+          <div style="height:12px; width:1px; background:#3d5a80"></div>
           <div>Client: <span class="text-white">\${c.client_name || '-'}</span></div>
-          <div style="height:12px; width:1px; background:#334155"></div>
+          <div style="height:12px; width:1px; background:#3d5a80"></div>
           <div>Type: <span class="text-white">\${c.case_type || '-'}</span></div>
-          <div style="height:12px; width:1px; background:#334155"></div>
+          <div style="height:12px; width:1px; background:#3d5a80"></div>
           <div class="flex items-center gap-1"><i class="fas fa-clock text-[10px]"></i> Filed: \${c.date_filed || 'N/A'}</div>
-          \${c.status ? '<span class="badge badge-outline text-[10px] text-emerald-400 border-emerald-800">'+c.status+'</span>' : ''}
+          \${c.status ? '<span class="badge badge-outline text-[10px] border" style="color:#cc2229; border-color:#7f151a">'+c.status+'</span>' : ''}
         \`;
       }
     }).catch(() => {});
@@ -1519,7 +1519,7 @@ async function sendChat() {
   // Show thinking indicator (from patch — step-by-step)
   msgContainer.innerHTML += \`<div id="typingIndicator" class="flex items-center gap-3 text-slate-400">
     <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:#064e3b">
-      <i class="fas fa-robot text-emerald-400 text-sm"></i>
+      <i class="fas fa-robot text-sm" style="color:#cc2229"></i>
     </div>
     <div class="rounded-2xl px-4 py-3 border" style="border-color:#2a4068; background:#1e3354">
       <div class="flex items-center gap-2">

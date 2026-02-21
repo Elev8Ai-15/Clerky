@@ -9,7 +9,7 @@ billing.get('/stats', async (c) => {
     c.env.DB.prepare("SELECT COALESCE(SUM(amount_paid),0) as total FROM billing_invoices WHERE status = 'paid'").first(),
     c.env.DB.prepare("SELECT COALESCE(SUM(total_amount - amount_paid),0) as total FROM billing_invoices WHERE status IN ('sent','viewed','partial')").first(),
     c.env.DB.prepare("SELECT COALESCE(SUM(total_amount - amount_paid),0) as total, COUNT(*) as count FROM billing_invoices WHERE status = 'overdue'").first(),
-    c.env.DB.prepare("SELECT COALESCE(SUM(amount),0) as total FROM time_entries WHERE is_billable = 1 AND entry_date >= date('now','-30 days')").first()
+    c.env.DB.prepare("SELECT COALESCE(SUM(hours * rate),0) as total FROM time_entries WHERE is_billable = 1 AND entry_date >= date('now','-30 days')").first()
   ])
   return c.json({
     total_revenue: (totalRev as any)?.total || 0,
