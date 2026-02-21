@@ -375,7 +375,7 @@ function getAppHTML(): string {
       <p class="text-emerald-400 text-xl mb-2">AI-Powered Legal Practice Management</p>
       <p class="text-2xl text-slate-300 mb-12">Your always-on senior partner, researcher, analyst &amp; drafter.</p>
       <div class="bg-slate-900/70 backdrop-blur-xl rounded-3xl p-10 border border-slate-700">
-        <div class="flex items-center justify-center gap-3 mb-6">
+        <div id="splashStatus" class="flex items-center justify-center gap-3 mb-6">
           <div class="w-3 h-3 bg-emerald-500 rounded-full splash-dot"></div>
           <span class="text-slate-400 font-medium">Loading secure AI platform...</span>
         </div>
@@ -397,7 +397,10 @@ function getAppHTML(): string {
           </div>
         </div>
       </div>
-      <div class="mt-10 text-xs text-slate-500 flex items-center justify-center gap-6">
+      <button id="splashContinueBtn" onclick="dismissSplash()" class="mt-8 px-8 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl transition-all text-lg hidden" style="cursor:pointer; border:none">
+        Enter Platform <i class="fas fa-arrow-right ml-2"></i>
+      </button>
+      <div class="mt-6 text-xs text-slate-500 flex items-center justify-center gap-6 flex-wrap">
         <div>\uD83D\uDD12 SOC-2 Ready \u2022 End-to-End Encrypted</div>
         <div>\uD83C\uDDFA\uD83C\uDDF8 Kansas & Missouri \u2022 Dual-Jurisdiction</div>
       </div>
@@ -544,13 +547,19 @@ async function init() {
     dbInitialized = true;
   } catch(e) { console.error('DB init error:', e); }
   navigate('dashboard');
-  // Fade out splash screen
-  setTimeout(() => {
-    if (splash) {
-      splash.classList.add('hide');
-      setTimeout(() => splash.remove(), 800);
-    }
-  }, 400);
+  // Show "Enter Platform" button once loaded
+  const statusEl = document.getElementById('splashStatus');
+  const btnEl = document.getElementById('splashContinueBtn');
+  if (statusEl) statusEl.innerHTML = '<div class="w-3 h-3 bg-emerald-400 rounded-full"></div><span class="text-emerald-400 font-medium">Platform ready</span>';
+  if (btnEl) btnEl.classList.remove('hidden');
+}
+
+function dismissSplash() {
+  const splash = document.getElementById('splash');
+  if (splash) {
+    splash.classList.add('hide');
+    setTimeout(() => splash.remove(), 800);
+  }
 }
 
 function navigate(page) {
