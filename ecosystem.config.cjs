@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: 'lawyrs',
+      name: 'clerky',
       script: 'npx',
       args: 'wrangler pages dev dist --d1=lawyrs-production --local --ip 0.0.0.0 --port 3000',
       env: {

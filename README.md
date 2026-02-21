@@ -1,7 +1,7 @@
-# Lawyrs - Legal Practice Management Platform
+# Clerky - Legal Practice Management Platform
 
 ## Project Overview
-- **Name**: Lawyrs
+- **Name**: Clerky
 - **Goal**: Full-featured legal practice management platform with multi-agent AI co-counsel
 - **Stack**: Hono + Cloudflare D1 + TailwindCSS + Cloudflare Pages + **CrewAI** (Python)
 - **Architecture**: Multi-Agent Orchestrated Pipeline v3.3 — **MISSOURI MODE ACTIVE** + **CrewAI Backend** + **Runtime LLM Config**
@@ -39,7 +39,7 @@ User Query → Hono API (port 3000)
 5. Template agents provide comprehensive KS/MO legal analysis without needing an LLM
 
 ### System Identity
-> Lawyrs AI Co-Counsel — World's most advanced AI senior equity partner at a top Kansas City metro firm, 25+ years experience, licensed in Kansas & Missouri. User: Brad.
+> Clerky AI Co-Counsel — World's most advanced AI senior equity partner at a top Kansas City metro firm, 25+ years experience, licensed in Kansas & Missouri. User: Brad.
 > **MISSOURI MODE** — Primary jurisdiction active. Auto-flags on every MO response:
 > - 5-year PI SOL (RSMo § 516.120) — always stated; 2-year med-mal (RSMo § 516.105)
 > - PURE comparative fault (RSMo § 537.765) — plaintiff recovers even at 99% fault
@@ -326,7 +326,7 @@ Section Order (all agents): Summary → Analysis → Recommendations → Agents 
 ### Feb 21, 2026 — Mobile Responsive UI Overhaul (v3.3.2)
 - **Collapsible sidebar on mobile**: Sidebar becomes a slide-out overlay (position: fixed, z-index 50) on screens <1024px, with a backdrop overlay and close-on-navigate behavior
 - **Hamburger menu**: Always visible on mobile (`lg:hidden`), toggles sidebar open/close with smooth translateX animation
-- **Chat header responsive**: Stacks vertically on small screens with flex-wrap; case/jurisdiction selects shrink to fit; abbreviated labels ("Lawyrs AI" vs "Lawyrs AI Partner")
+- **Chat header responsive**: Stacks vertically on small screens with flex-wrap; case/jurisdiction selects shrink to fit; abbreviated labels ("Clerky AI" vs "Clerky AI Partner")
 - **Prompt chips horizontal scroll**: Chips row becomes a single-line horizontal scrollable strip on mobile (no wrapping), each chip set to flex-shrink-0
 - **Stat cards 2-column**: Dashboard stat grid uses `grid-cols-2` on mobile (was `grid-cols-1`), collapses to single column on ≤480px
 - **Tables scroll horizontally**: All data tables (cases, documents, billing, workflow) wrapped in `.table-scroll` container with `overflow-x: auto` and `min-width: 640px`

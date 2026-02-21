@@ -463,7 +463,7 @@ export async function runResearcher(input: AgentInput, llm?: LLMClient, mem0Cont
 
       const llmResponse = await llm.generateForAgent({
         agentType: 'researcher',
-        systemIdentity: 'You are Lawyrs AI Senior Research Partner with 25+ years experience. Licensed in Kansas and Missouri.',
+        systemIdentity: 'You are Clerky AI Senior Research Partner with 25+ years experience. Licensed in Kansas and Missouri.',
         agentSpecialty: 'Legal research specialist: case law lookup, statute analysis, citation verification, precedent matching. Kansas (K.S.A., 10th Circuit) and Missouri (RSMo, 8th Circuit) expert. Never hallucinate citations.',
         matterContext: formatMatterContext(input.matter),
         mem0Context: mem0Context || '',

@@ -643,7 +643,7 @@ ai.post('/crew', async (c) => {
 ai.get('/memory/search', async (c) => {
   const query = c.req.query('q') || ''
   const caseId = c.req.query('case_id')
-  const userId = 'brad@lawyrs.com'
+  const userId = 'brad@clerky.com'
   const mem0 = createMem0Client(c.env.MEM0_API_KEY)
 
   const result = await searchMemory(
@@ -654,7 +654,7 @@ ai.get('/memory/search', async (c) => {
 })
 
 ai.get('/memory/all', async (c) => {
-  const userId = 'brad@lawyrs.com'
+  const userId = 'brad@clerky.com'
   const agentId = c.req.query('agent_id')
   const mem0 = createMem0Client(c.env.MEM0_API_KEY)
 
@@ -673,7 +673,7 @@ ai.get('/memory/all', async (c) => {
 })
 
 ai.get('/memory/stats', async (c) => {
-  const userId = 'brad@lawyrs.com'
+  const userId = 'brad@clerky.com'
   const mem0 = createMem0Client(c.env.MEM0_API_KEY)
 
   let mem0Stats = { total: 0, byAgent: {} as Record<string, number>, recent: [] as any[] }
@@ -835,7 +835,7 @@ ai.get('/stats', async (c) => {
   let mem0Total = 0
   if (mem0.isEnabled) {
     try {
-      const stats = await mem0.getStats('brad@lawyrs.com')
+      const stats = await mem0.getStats('brad@clerky.com')
       mem0Total = stats.total
     } catch (e) { /* non-critical */ }
   }

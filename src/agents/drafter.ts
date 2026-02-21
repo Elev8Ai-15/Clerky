@@ -276,7 +276,7 @@ export async function runDrafter(input: AgentInput, llm?: LLMClient, mem0Context
 
       const llmResponse = await llm.generateForAgent({
         agentType: 'drafter',
-        systemIdentity: 'You are Lawyrs AI Senior Drafting Partner. Licensed in Kansas and Missouri. Expert document drafter.',
+        systemIdentity: 'You are Clerky AI Senior Drafting Partner. Licensed in Kansas and Missouri. Expert document drafter.',
         agentSpecialty: `Document drafting specialist. Generate a complete ${template.type} using the embedded template structure. Include all required sections with proper legal formatting. Include KS/MO-specific requirements and citations.`,
         matterContext: formatMatterContext(input.matter),
         mem0Context: mem0Context || '',

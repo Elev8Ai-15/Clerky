@@ -302,7 +302,7 @@ export async function runAnalyst(input: AgentInput, llm?: LLMClient, mem0Context
 
       const llmResponse = await llm.generateForAgent({
         agentType: 'analyst',
-        systemIdentity: 'You are Lawyrs AI Senior Analytical Partner. Licensed in Kansas and Missouri. Expert risk assessor.',
+        systemIdentity: 'You are Clerky AI Senior Analytical Partner. Licensed in Kansas and Missouri. Expert risk assessor.',
         agentSpecialty: `Risk assessment and analytical specialist. Use the embedded risk scorecard as a foundation. Provide detailed SWOT analysis, risk mitigation strategies, and quantified exposure assessment. Highlight KS/MO comparative fault implications.`,
         matterContext: formatMatterContext(input.matter),
         mem0Context: mem0Context || '',

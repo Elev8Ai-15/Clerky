@@ -93,7 +93,7 @@ app.get('/api/init-db', async (c) => {
 
   // Seed data
   const seedStatements = [
-    `INSERT OR IGNORE INTO users_attorneys (id, email, full_name, role, bar_number, phone, specialty) VALUES (1, 'brad@lawyrs.com', 'Brad', 'admin', 'CA-2019-45678', '(415) 555-0101', 'Corporate Law'), (2, 'james.wilson@lawyrs.com', 'James Wilson', 'attorney', 'CA-2015-23456', '(415) 555-0102', 'Personal Injury'), (3, 'maria.garcia@lawyrs.com', 'Maria Garcia', 'attorney', 'CA-2018-67890', '(415) 555-0103', 'Family Law'), (4, 'david.thompson@lawyrs.com', 'David Thompson', 'paralegal', NULL, '(415) 555-0104', 'Litigation Support'), (5, 'emily.patel@lawyrs.com', 'Emily Patel', 'attorney', 'CA-2020-89012', '(415) 555-0105', 'Immigration')`,
+    `INSERT OR IGNORE INTO users_attorneys (id, email, full_name, role, bar_number, phone, specialty) VALUES (1, 'brad@clerky.com', 'Brad', 'admin', 'CA-2019-45678', '(415) 555-0101', 'Corporate Law'), (2, 'james.wilson@clerky.com', 'James Wilson', 'attorney', 'CA-2015-23456', '(415) 555-0102', 'Personal Injury'), (3, 'maria.garcia@clerky.com', 'Maria Garcia', 'attorney', 'CA-2018-67890', '(415) 555-0103', 'Family Law'), (4, 'david.thompson@clerky.com', 'David Thompson', 'paralegal', NULL, '(415) 555-0104', 'Litigation Support'), (5, 'emily.patel@clerky.com', 'Emily Patel', 'attorney', 'CA-2020-89012', '(415) 555-0105', 'Immigration')`,
     `INSERT OR IGNORE INTO clients (id, first_name, last_name, email, phone, address, city, state, zip_code, client_type, status, assigned_attorney_id) VALUES (1, 'Robert', 'Johnson', 'r.johnson@email.com', '(415) 555-1001', '123 Market St', 'San Francisco', 'CA', '94105', 'individual', 'active', 2), (2, 'TechStart', 'Inc', 'legal@techstart.io', '(415) 555-1002', '456 Mission St', 'San Francisco', 'CA', '94105', 'business', 'active', 1), (3, 'Angela', 'Martinez', 'angela.m@email.com', '(415) 555-1003', '789 Valencia St', 'San Francisco', 'CA', '94110', 'individual', 'active', 3), (4, 'Li', 'Wei', 'li.wei@email.com', '(415) 555-1004', '321 Geary St', 'San Francisco', 'CA', '94102', 'individual', 'active', 5), (5, 'Pacific', 'Ventures LLC', 'info@pacificventures.com', '(415) 555-1005', '555 California St', 'San Francisco', 'CA', '94104', 'business', 'active', 1)`,
     `INSERT OR IGNORE INTO cases_matters (id, case_number, title, description, case_type, status, priority, client_id, lead_attorney_id, court_name, opposing_counsel, date_filed, estimated_value) VALUES (1, 'CM-2026-001', 'Johnson v. ABC Corp - Personal Injury', 'Workplace injury claim', 'personal_injury', 'in_progress', 'high', 1, 2, 'SF Superior Court', 'Smith & Associates', '2026-01-15', 250000), (2, 'CM-2026-002', 'TechStart Series A Funding', 'Corporate restructuring and Series A', 'corporate', 'open', 'high', 2, 1, NULL, NULL, '2026-02-01', 5000000), (3, 'CM-2026-003', 'Martinez Custody Agreement', 'Child custody modification', 'family', 'pending_review', 'urgent', 3, 3, 'SF Family Court', 'Rivera Law Group', '2026-01-20', NULL), (4, 'CM-2026-004', 'Wei Immigration - H1B to Green Card', 'EB-2 green card application', 'immigration', 'in_progress', 'medium', 4, 5, 'USCIS', NULL, '2026-02-10', NULL), (5, 'CM-2026-005', 'Pacific Ventures - IP Portfolio', 'Patent portfolio review', 'ip', 'open', 'medium', 5, 1, 'USPTO', NULL, '2026-02-15', 1500000), (6, 'CM-2026-006', 'Johnson Employment Dispute', 'Wrongful termination claim', 'employment', 'discovery', 'high', 1, 2, 'SF Superior Court', 'Corporate Defense LLP', '2025-11-01', 175000)`,
     `INSERT OR IGNORE INTO documents (id, title, file_name, file_type, file_size, category, status, case_id, uploaded_by, ai_generated, ai_summary) VALUES (1, 'Initial Complaint - Johnson v ABC Corp', 'complaint_johnson_abc.pdf', 'application/pdf', 245000, 'pleading', 'filed', 1, 2, 0, 'Personal injury complaint'), (2, 'Medical Records Summary', 'medical_records_johnson.pdf', 'application/pdf', 1200000, 'evidence', 'final', 1, 4, 0, 'Complete medical records'), (3, 'Series A Term Sheet', 'techstart_termsheet_v3.pdf', 'application/pdf', 89000, 'contract', 'review', 2, 1, 0, '$5M investment term sheet'), (4, 'Custody Modification Motion', 'martinez_custody_motion.docx', 'application/vnd.openxmlformats', 156000, 'motion', 'draft', 3, 3, 1, 'AI-drafted custody modification'), (5, 'I-140 Petition', 'wei_i140_petition.pdf', 'application/pdf', 340000, 'pleading', 'review', 4, 5, 0, 'EB-2 petition'), (6, 'Patent Portfolio Analysis', 'pacific_patent_analysis.pdf', 'application/pdf', 567000, 'general', 'draft', 5, 1, 1, 'AI patent analysis'), (7, 'Engagement Letter Template', 'engagement_letter_template.docx', 'application/vnd.openxmlformats', 45000, 'template', 'final', NULL, 1, 0, NULL), (8, 'Discovery Responses', 'discovery_responses_johnson.pdf', 'application/pdf', 890000, 'discovery', 'review', 6, 2, 0, 'Discovery responses')`,
@@ -123,7 +123,7 @@ function getAppHTML(): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lawyrs - Legal Practice Management</title>
+  <title>Clerky - Legal Practice Management</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.0/css/all.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -138,8 +138,8 @@ function getAppHTML(): string {
             ring: 'hsl(var(--ring))',
             background: 'hsl(var(--background))',
             foreground: 'hsl(var(--foreground))',
-            brand: { 50:'#eff6ff', 100:'#dbeafe', 200:'#bfdbfe', 300:'#93c5fd', 400:'#60a5fa', 500:'#3b82f6', 600:'#2563eb', 700:'#1d4ed8', 800:'#1e40af', 900:'#1e3a5f' },
-            dark: { 50:'#f8fafc', 100:'#f1f5f9', 200:'#e2e8f0', 300:'#cbd5e1', 400:'#94a3b8', 500:'#64748b', 600:'#475569', 700:'#334155', 800:'#1e293b', 900:'#0f172a', 950:'#020617' },
+            brand: { 50:'#fef2f2', 100:'#fde8e8', 200:'#f8c4c4', 300:'#f09898', 400:'#e65c5c', 500:'#cc2229', 600:'#b81e24', 700:'#9b1a20', 800:'#7f151a', 900:'#5c1015' },
+            dark: { 50:'#edf1f7', 100:'#dde4ee', 200:'#c5d0e0', 300:'#8899b3', 400:'#6b7ea0', 500:'#4e6180', 600:'#3d5a80', 700:'#2a4068', 800:'#1e3354', 900:'#142440', 950:'#0d1a2e' },
             primary: { DEFAULT: 'hsl(var(--primary))', foreground: 'hsl(var(--primary-foreground))' },
             secondary: { DEFAULT: 'hsl(var(--secondary))', foreground: 'hsl(var(--secondary-foreground))' },
             destructive: { DEFAULT: 'hsl(var(--destructive))', foreground: 'hsl(var(--destructive-foreground))' },
@@ -167,8 +167,8 @@ function getAppHTML(): string {
       --card-foreground: 222.2 84% 4.9%;
       --popover: 0 0% 100%;
       --popover-foreground: 222.2 84% 4.9%;
-      --primary: 221.2 83.2% 53.3%;
-      --primary-foreground: 210 40% 98%;
+      --primary: 353 73% 47%;
+      --primary-foreground: 0 0% 100%;
       --secondary: 210 40% 96.1%;
       --secondary-foreground: 222.2 47.4% 11.2%;
       --muted: 210 40% 96.1%;
@@ -179,7 +179,7 @@ function getAppHTML(): string {
       --destructive-foreground: 210 40% 98%;
       --border: 214.3 31.8% 91.4%;
       --input: 214.3 31.8% 91.4%;
-      --ring: 221.2 83.2% 53.3%;
+      --ring: 353 73% 47%;
       --radius: 0.625rem;
       --chart-1: 12 76% 61%;
       --chart-2: 173 58% 39%;
@@ -293,7 +293,7 @@ function getAppHTML(): string {
     /* ═══ Existing Custom Styles (preserved) ═══ */
     .sidebar-link { transition: all 0.15s ease; }
     .sidebar-link:hover, .sidebar-link.active { background: rgba(255,255,255,0.1); }
-    .sidebar-link.active { border-right: 3px solid hsl(var(--primary)); background: hsl(var(--primary) / 0.15); }
+    .sidebar-link.active { border-right: 3px solid #cc2229; background: rgba(204,34,41,0.15); }
     .table-row { transition: background 0.1s; }
     .table-row:hover { background: hsl(var(--muted) / 0.5); }
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 50; backdrop-filter: blur(4px); }
@@ -357,7 +357,7 @@ function getAppHTML(): string {
     .prose-sm { line-height: 1.65; }
     #splash { position: fixed; inset: 0; z-index: 9999; transition: opacity 0.8s ease, visibility 0.8s ease; }
     #splash.hide { opacity: 0; visibility: hidden; pointer-events: none; }
-    .hero-bg { background: linear-gradient(135deg, #0a2540 0%, #1e3a8a 100%); }
+    .hero-bg { background: linear-gradient(135deg, #0d1a2e 0%, #1e3354 50%, #2a4068 100%); }
     #splash .splash-dot { animation: splashDot 1.4s ease-in-out infinite; }
     @keyframes splashDot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.8); } }
 
@@ -368,39 +368,38 @@ function getAppHTML(): string {
   <!-- Splash Screen -->
   <div id="splash" class="hero-bg min-h-screen flex items-center justify-center">
     <div class="max-w-2xl mx-auto text-center px-6">
-      <div class="flex items-center justify-center gap-3 mb-8">
-        <div class="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center text-2xl font-bold text-white">\u2696\uFE0F</div>
-        <h1 class="text-5xl font-bold tracking-tight text-white">Lawyrs</h1>
+      <div class="flex items-center justify-center gap-4 mb-8">
+        <img src="/static/clerky-logo.png" alt="Clerky" class="h-20 w-auto drop-shadow-lg">
       </div>
-      <p class="text-emerald-400 text-xl mb-2">AI-Powered Legal Practice Management</p>
+      <p class="text-xl mb-2" style="color:#cc2229; font-weight:600">AI-Powered Legal Practice Management</p>
       <p class="text-2xl text-slate-300 mb-12">Your always-on senior partner, researcher, analyst &amp; drafter.</p>
-      <div class="bg-slate-900/70 backdrop-blur-xl rounded-3xl p-10 border border-slate-700">
+      <div class="backdrop-blur-xl rounded-3xl p-10 border" style="background:rgba(13,26,46,0.8); border-color:#2a4068">
         <div id="splashStatus" class="flex items-center justify-center gap-3 mb-6">
-          <div class="w-3 h-3 bg-emerald-500 rounded-full splash-dot"></div>
-          <span class="text-slate-400 font-medium">Loading secure AI platform...</span>
+          <div class="w-3 h-3 rounded-full splash-dot" style="background:#cc2229"></div>
+          <span class="font-medium" style="color:#8899b3">Loading secure AI platform...</span>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-left text-sm text-white">
-          <div class="bg-slate-800/50 rounded-2xl p-4">
-            <i class="fa-solid fa-magnifying-glass text-emerald-400 mb-2"></i>
+          <div class="rounded-2xl p-4" style="background:rgba(42,64,104,0.5)">
+            <i class="fa-solid fa-magnifying-glass mb-2" style="color:#cc2229"></i>
             <div class="font-semibold">Instant Research</div>
-            <div class="text-slate-500">Case law \u2022 Statutes \u2022 Precedents</div>
+            <div style="color:#6b7ea0">Case law \u2022 Statutes \u2022 Precedents</div>
           </div>
-          <div class="bg-slate-800/50 rounded-2xl p-4">
-            <i class="fa-solid fa-file-lines text-emerald-400 mb-2"></i>
+          <div class="rounded-2xl p-4" style="background:rgba(42,64,104,0.5)">
+            <i class="fa-solid fa-file-lines mb-2" style="color:#cc2229"></i>
             <div class="font-semibold">Smart Drafting</div>
-            <div class="text-slate-500">Motions \u2022 Contracts \u2022 Demands</div>
+            <div style="color:#6b7ea0">Motions \u2022 Contracts \u2022 Demands</div>
           </div>
-          <div class="bg-slate-800/50 rounded-2xl p-4">
-            <i class="fa-solid fa-brain text-emerald-400 mb-2"></i>
+          <div class="rounded-2xl p-4" style="background:rgba(42,64,104,0.5)">
+            <i class="fa-solid fa-brain mb-2" style="color:#cc2229"></i>
             <div class="font-semibold">Deep Analysis</div>
-            <div class="text-slate-500">Risk \u2022 Strategy \u2022 Outcomes</div>
+            <div style="color:#6b7ea0">Risk \u2022 Strategy \u2022 Outcomes</div>
           </div>
         </div>
       </div>
-      <button id="splashContinueBtn" onclick="dismissSplash()" class="mt-8 px-8 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl transition-all text-lg hidden" style="cursor:pointer; border:none">
+      <button id="splashContinueBtn" onclick="dismissSplash()" class="mt-8 px-8 py-3 text-white font-semibold rounded-xl transition-all text-lg hidden" style="cursor:pointer; border:none; background:#cc2229" onmouseover="this.style.background='#e02e35'" onmouseout="this.style.background='#cc2229'">
         Enter Platform <i class="fas fa-arrow-right ml-2"></i>
       </button>
-      <div class="mt-6 text-xs text-slate-500 flex items-center justify-center gap-6 flex-wrap">
+      <div class="mt-6 text-xs flex items-center justify-center gap-6 flex-wrap" style="color:#6b7ea0">
         <div>\uD83D\uDD12 SOC-2 Ready \u2022 End-to-End Encrypted</div>
         <div>\uD83C\uDDFA\uD83C\uDDF8 Kansas & Missouri \u2022 Dual-Jurisdiction</div>
       </div>
@@ -412,20 +411,18 @@ function getAppHTML(): string {
 
   <div id="app" class="flex h-screen overflow-hidden">
     <!-- Sidebar -->
-    <aside id="sidebar" class="w-64 bg-dark-900 text-white flex flex-col flex-shrink-0 transition-transform duration-300 ease-in-out">
-      <div class="p-6 border-b border-dark-700">
+    <aside id="sidebar" class="w-64 text-white flex flex-col flex-shrink-0 transition-transform duration-300 ease-in-out" style="background:#1e3354">
+      <div class="p-6 border-b" style="border-color:#2a4068">
         <div class="flex items-center gap-3">
-          <div class="w-10 h-10 bg-brand-500 rounded-xl flex items-center justify-center">
-            <i class="fas fa-scale-balanced text-lg"></i>
-          </div>
+          <img src="/static/clerky-logo.png" alt="Clerky" class="h-9 w-auto">
           <div>
-            <h1 class="text-xl font-bold tracking-tight">Lawyrs</h1>
-            <p class="text-xs text-dark-400">Legal Practice Platform</p>
+            <h1 class="text-xl font-bold tracking-tight">Clerky</h1>
+            <p class="text-xs" style="color:#6b7ea0">Legal Practice Platform</p>
           </div>
         </div>
       </div>
       <nav class="flex-1 py-4 overflow-y-auto scrollbar-thin">
-        <div class="px-4 mb-2 text-xs font-semibold text-dark-500 uppercase tracking-wider">Main</div>
+        <div class="px-4 mb-2 text-xs font-semibold uppercase tracking-wider" style="color:#6b7ea0">Main</div>
         <a onclick="navigate('dashboard')" class="sidebar-link active flex items-center gap-3 px-6 py-3 cursor-pointer text-sm" data-page="dashboard">
           <i class="fas fa-chart-line w-5 text-center"></i> Dashboard
         </a>
@@ -438,7 +435,7 @@ function getAppHTML(): string {
         <a onclick="navigate('documents')" class="sidebar-link flex items-center gap-3 px-6 py-3 cursor-pointer text-sm" data-page="documents">
           <i class="fas fa-file-alt w-5 text-center"></i> Documents
         </a>
-        <div class="px-4 mt-6 mb-2 text-xs font-semibold text-dark-500 uppercase tracking-wider">Management</div>
+        <div class="px-4 mt-6 mb-2 text-xs font-semibold uppercase tracking-wider" style="color:#6b7ea0">Management</div>
         <a onclick="navigate('calendar')" class="sidebar-link flex items-center gap-3 px-6 py-3 cursor-pointer text-sm" data-page="calendar">
           <i class="fas fa-calendar-days w-5 text-center"></i> Calendar
         </a>
@@ -448,31 +445,31 @@ function getAppHTML(): string {
         <a onclick="navigate('billing')" class="sidebar-link flex items-center gap-3 px-6 py-3 cursor-pointer text-sm" data-page="billing">
           <i class="fas fa-receipt w-5 text-center"></i> Billing
         </a>
-        <div class="px-4 mt-6 mb-2 text-xs font-semibold text-dark-500 uppercase tracking-wider">AI Tools</div>
+        <div class="px-4 mt-6 mb-2 text-xs font-semibold uppercase tracking-wider" style="color:#6b7ea0">AI Tools</div>
         <a onclick="navigate('ai-chat')" class="sidebar-link flex items-center gap-3 px-6 py-3 cursor-pointer text-sm" data-page="ai-chat">
-          <i class="fas fa-scale-balanced w-5 text-center text-emerald-400"></i> <span class="text-emerald-300">AI Co-Counsel</span>
-          <span class="ml-auto bg-emerald-600 text-white text-xs px-2 py-0.5 rounded-full">Live</span>
+          <i class="fas fa-scale-balanced w-5 text-center" style="color:#cc2229"></i> <span style="color:#f09898">AI Co-Counsel</span>
+          <span class="ml-auto text-white text-xs px-2 py-0.5 rounded-full" style="background:#cc2229">Live</span>
         </a>
         <a onclick="navigate('ai-workflow')" class="sidebar-link flex items-center gap-3 px-6 py-3 cursor-pointer text-sm" data-page="ai-workflow">
-          <i class="fas fa-robot w-5 text-center text-purple-400"></i> <span class="text-purple-300">AI Workflow</span>
-          <span class="ml-auto bg-purple-600 text-white text-xs px-2 py-0.5 rounded-full">5 Agents</span>
+          <i class="fas fa-robot w-5 text-center" style="color:#8899b3"></i> <span style="color:#c5d0e0">AI Workflow</span>
+          <span class="ml-auto text-white text-xs px-2 py-0.5 rounded-full" style="background:#3d5a80">5 Agents</span>
         </a>
         <a onclick="navigate('memory')" class="sidebar-link flex items-center gap-3 px-6 py-3 cursor-pointer text-sm" data-page="memory">
-          <i class="fas fa-brain w-5 text-center text-pink-400"></i> <span class="text-pink-300">Agent Memory</span>
-          <span class="ml-auto bg-pink-600 text-white text-xs px-2 py-0.5 rounded-full">Mem0</span>
+          <i class="fas fa-brain w-5 text-center" style="color:#8899b3"></i> <span style="color:#c5d0e0">Agent Memory</span>
+          <span class="ml-auto text-white text-xs px-2 py-0.5 rounded-full" style="background:#3d5a80">Mem0</span>
         </a>
         <a onclick="navigate('intake')" class="sidebar-link flex items-center gap-3 px-6 py-3 cursor-pointer text-sm" data-page="intake">
           <i class="fas fa-clipboard-list w-5 text-center"></i> Client Intake
         </a>
       </nav>
-      <div class="p-4 border-t border-dark-700">
+      <div class="p-4 border-t" style="border-color:#2a4068">
         <div class="flex items-center gap-3">
-          <div class="w-9 h-9 bg-brand-600 rounded-full flex items-center justify-center text-sm font-bold">SC</div>
+          <div class="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold" style="background:#cc2229">BP</div>
           <div class="flex-1 min-w-0">
             <p class="text-sm font-medium truncate">Brad</p>
-            <p class="text-xs text-dark-400">Admin</p>
+            <p class="text-xs" style="color:#6b7ea0">Admin</p>
           </div>
-          <button class="text-dark-400 hover:text-white"><i class="fas fa-cog"></i></button>
+          <button style="color:#6b7ea0" class="hover:text-white"><i class="fas fa-cog"></i></button>
         </div>
       </div>
     </aside>
@@ -489,7 +486,7 @@ function getAppHTML(): string {
           </div>
         </div>
         <div class="flex items-center gap-2 sm:gap-4 flex-shrink-0">
-          <button onclick="navigate('ai-chat')" class="btn bg-emerald-50 text-emerald-700 hover:bg-emerald-100 flex items-center gap-2 text-xs sm:text-sm">
+          <button onclick="navigate('ai-chat')" class="btn flex items-center gap-2 text-xs sm:text-sm" style="background:#fef2f2; color:#cc2229" onmouseover="this.style.background='#fde8e8'" onmouseout="this.style.background='#fef2f2'">
             <i class="fas fa-scale-balanced"></i> <span class="hidden sm:inline">AI Co-Counsel</span>
           </button>
           <button onclick="loadNotifications()" class="relative text-dark-400 hover:text-dark-600 p-2">
@@ -506,7 +503,7 @@ function getAppHTML(): string {
             <div class="w-16 h-16 bg-brand-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <i class="fas fa-spinner fa-spin text-brand-600 text-2xl"></i>
             </div>
-            <p class="text-dark-500">Loading Lawyrs Platform...</p>
+            <p class="text-dark-500">Loading Clerky Platform...</p>
           </div>
         </div>
       </div>
@@ -550,7 +547,7 @@ async function init() {
   // Show "Enter Platform" button once loaded
   const statusEl = document.getElementById('splashStatus');
   const btnEl = document.getElementById('splashContinueBtn');
-  if (statusEl) statusEl.innerHTML = '<div class="w-3 h-3 bg-emerald-400 rounded-full"></div><span class="text-emerald-400 font-medium">Platform ready</span>';
+  if (statusEl) statusEl.innerHTML = '<div class="w-3 h-3 rounded-full" style="background:#cc2229"></div><span class="font-medium" style="color:#cc2229">Platform ready</span>';
   if (btnEl) btnEl.classList.remove('hidden');
 }
 
@@ -621,7 +618,7 @@ async function loadDashboard() {
         </div>
 
         <div class="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 stat-grid-mobile">
-          <div class="stat-card" style="--from:#2563eb;--to:#3b82f6">
+          <div class="stat-card" style="--from:#1e3354;--to:#2a4068">
             <div class="flex items-center justify-between mb-3">
               <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center"><i class="fas fa-briefcase"></i></div>
               <span class="text-sm opacity-80">Active</span>
@@ -629,7 +626,7 @@ async function loadDashboard() {
             <div class="text-3xl font-bold">\${d.cases.active}</div>
             <div class="text-sm opacity-80 mt-1">\${d.cases.total} total cases</div>
           </div>
-          <div class="stat-card" style="--from:#059669;--to:#10b981">
+          <div class="stat-card" style="--from:#9b1a20;--to:#cc2229">
             <div class="flex items-center justify-between mb-3">
               <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center"><i class="fas fa-users"></i></div>
               <span class="text-sm opacity-80">Active</span>
@@ -637,7 +634,7 @@ async function loadDashboard() {
             <div class="text-3xl font-bold">\${d.clients.total}</div>
             <div class="text-sm opacity-80 mt-1">Active clients</div>
           </div>
-          <div class="stat-card" style="--from:#d97706;--to:#f59e0b">
+          <div class="stat-card" style="--from:#3d5a80;--to:#6b7ea0">
             <div class="flex items-center justify-between mb-3">
               <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center"><i class="fas fa-tasks"></i></div>
               <span class="text-sm opacity-80">\${d.tasks.overdue} overdue</span>
@@ -645,7 +642,7 @@ async function loadDashboard() {
             <div class="text-3xl font-bold">\${d.tasks.pending}</div>
             <div class="text-sm opacity-80 mt-1">Pending tasks</div>
           </div>
-          <div class="stat-card" style="--from:#7c3aed;--to:#8b5cf6">
+          <div class="stat-card" style="--from:#142440;--to:#1e3354">
             <div class="flex items-center justify-between mb-3">
               <div class="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center"><i class="fas fa-file-alt"></i></div>
               <span class="text-sm opacity-80">Total</span>
@@ -1180,26 +1177,26 @@ async function loadAIChat() {
     const ctx = currentMatterContext;
 
     document.getElementById('pageContent').innerHTML = \`
-      <div class="fade-in flex flex-col h-full rounded-xl overflow-hidden border border-slate-700" style="max-height:calc(100vh - 73px); background: #020617;">
+      <div class="fade-in flex flex-col h-full rounded-xl overflow-hidden border" style="max-height:calc(100vh - 73px); background: #0d1a2e; border-color:#2a4068">
         <!-- Header -->
-        <div class="p-4 border-b border-slate-800 flex items-center justify-between" style="background:#0f172a">
+        <div class="p-4 border-b flex items-center justify-between" style="background:#1e3354; border-color:#2a4068">
           <div class="flex items-center gap-3">
-            <div class="w-9 h-9 bg-emerald-500 rounded-2xl flex items-center justify-center text-white">
+            <div class="w-9 h-9 rounded-2xl flex items-center justify-center text-white" style="background:#cc2229">
               <i class="fas fa-robot text-sm"></i>
             </div>
             <div>
-              <div class="font-semibold text-white flex items-center gap-2">Lawyrs AI Partner <span class="w-2 h-2 bg-emerald-400 rounded-full inline-block"></span></div>
-              <div class="text-xs text-emerald-400 flex items-center gap-1">
+              <div class="font-semibold text-white flex items-center gap-2">Clerky AI Partner <span class="w-2 h-2 rounded-full inline-block" style="background:#cc2229"></span></div>
+              <div class="text-xs flex items-center gap-1" style="color:#cc2229">
                 <i class="fas fa-diagram-project text-[10px]"></i> 4 specialist agents \u2022 \${chatJurisdiction === 'kansas' ? 'Kansas' : chatJurisdiction === 'missouri' ? 'Missouri' : chatJurisdiction === 'federal' ? 'Federal' : 'Multi-state'} jurisdiction
               </div>
             </div>
           </div>
           <div class="flex items-center gap-2">
-            <select id="chatCaseSelect" onchange="chatCaseId=this.value||null;updateMatterBar()" class="text-xs py-1.5 px-3 w-auto rounded-lg border-slate-700 text-slate-300" style="background:#1e293b; max-width:260px; border:1px solid #334155">
+            <select id="chatCaseSelect" onchange="chatCaseId=this.value||null;updateMatterBar()" class="text-xs py-1.5 px-3 w-auto rounded-lg text-slate-300" style="background:#2a4068; max-width:260px; border:1px solid #3d5a80">
               <option value="">No matter selected</option>
               \${cases.map(c => '<option value="'+c.id+'" '+(chatCaseId==c.id?'selected':'')+'>'+c.case_number+' \u2014 '+c.title.substring(0,35)+'</option>').join('')}
             </select>
-            <select id="chatJurisdiction" onchange="chatJurisdiction=this.value" class="text-xs py-1.5 px-3 w-auto rounded-lg border-slate-700 text-slate-300" style="background:#1e293b; border:1px solid #334155">
+            <select id="chatJurisdiction" onchange="chatJurisdiction=this.value" class="text-xs py-1.5 px-3 w-auto rounded-lg text-slate-300" style="background:#2a4068; border:1px solid #3d5a80">
               <option value="kansas" \${chatJurisdiction==='kansas'?'selected':''}>Kansas</option>
               <option value="missouri" \${chatJurisdiction==='missouri'?'selected':''}>Missouri</option>
               <option value="federal" \${chatJurisdiction==='federal'?'selected':''}>Federal</option>
@@ -1211,14 +1208,14 @@ async function loadAIChat() {
         </div>
 
         <!-- CrewAI Status Bar -->
-        <div id="crewaiStatusBar" class="px-4 py-1.5 border-b border-slate-800 flex items-center gap-3 text-[10px]" style="background:#0f172a; display:none">
+        <div id="crewaiStatusBar" class="px-4 py-1.5 border-b flex items-center gap-3 text-[10px]" style="background:#1e3354; border-color:#2a4068; display:none">
           <span id="crewaiIndicator" class="flex items-center gap-1.5 text-slate-500">
             <span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span> CrewAI: checking...
           </span>
         </div>
 
         <!-- Matter Context Bar -->
-        <div id="matterBar" class="px-4 py-2 border-b border-slate-800 flex items-center gap-4 text-xs text-slate-500" style="background:#0f172a; \${ctx ? '' : 'display:none'}">
+        <div id="matterBar" class="px-4 py-2 border-b flex items-center gap-4 text-xs" style="background:#1e3354; border-color:#2a4068; color:#6b7ea0; \${ctx ? '' : 'display:none'}">
           \${ctx ? \`
             <div>Matter: <span class="text-white font-medium">\${ctx.case_number}</span></div>
             <div class="separator-vertical" style="height:12px; width:1px; background:#334155"></div>
@@ -1227,33 +1224,33 @@ async function loadAIChat() {
             <div>Type: <span class="text-white">\${ctx.case_type || '-'}</span></div>
             <div class="separator-vertical" style="height:12px; width:1px; background:#334155"></div>
             <div class="flex items-center gap-1"><i class="fas fa-clock text-[10px]"></i> Filed: \${ctx.date_filed || 'N/A'}</div>
-            \${ctx.status ? '<span class="badge badge-outline text-[10px] text-emerald-400 border-emerald-800">'+ctx.status+'</span>' : ''}
+            \${ctx.status ? '<span class="badge badge-outline text-[10px] border" style="color:#cc2229; border-color:#7f151a">'+ctx.status+'</span>' : ''}
           \` : ''}
         </div>
 
         <!-- Prompt Chips -->
-        <div class="px-4 py-3 border-b border-slate-800" style="background:#0f172a">
+        <div class="px-4 py-3 border-b" style="background:#1e3354; border-color:#2a4068">
           <div class="text-[10px] uppercase tracking-widest text-slate-600 mb-2 font-semibold">Quick legal actions</div>
           <div class="flex flex-wrap gap-1.5">
-            <button onclick="injectChip(chatJurisdiction==='missouri' ? 'Research Missouri case law on pure comparative fault under RSMo § 537.765 and joint & several liability under RSMo § 537.067 — cite 8th Circuit and MO Supreme Court holdings' : 'Research Kansas case law on comparative negligence under K.S.A. 60-258a — cite 10th Circuit and KS Supreme Court holdings')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all flex-shrink-0" style="background:#1e293b; border-color:#334155">\u2696\uFE0F Research case law</button>
-            <button onclick="injectChip(chatJurisdiction==='missouri' ? 'Draft a demand letter under Missouri law — include RSMo § 537.765 pure comparative fault and RSMo § 516.120 5-year SOL deadline' : 'Draft a demand letter under Kansas law — include K.S.A. 60-258a proportional fault analysis and K.S.A. 60-513 SOL deadline')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all flex-shrink-0" style="background:#1e293b; border-color:#334155">\uD83D\uDCDD Draft demand letter</button>
-            <button onclick="injectChip(chatJurisdiction==='missouri' ? 'Confirm the 5-year statute of limitations under RSMo § 516.120 for this claim — flag 2-year med-mal SOL and affidavit of merit requirements' : 'Confirm the 2-year statute of limitations under K.S.A. 60-513 for this claim — flag discovery rule exceptions and presuit requirements')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all flex-shrink-0" style="background:#1e293b; border-color:#334155">\u23F0 SOL check</button>
-            <button onclick="injectChip(chatJurisdiction==='missouri' ? 'Analyze RSMo § 537.765 pure comparative fault and RSMo § 537.067 joint & several liability threshold (≥51%) — assess multi-defendant strategy' : 'Analyze K.S.A. 60-258a: 50% comparative fault bar, proportional-only fault allocation (no joint and several), and empty-chair defense implications')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all flex-shrink-0" style="background:#1e293b; border-color:#334155">\u2696\uFE0F Fault & liability</button>
-            <button onclick="injectChip('Provide full risk assessment and 3 settlement strategy options with expected value calculations')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all flex-shrink-0" style="background:#1e293b; border-color:#334155">\uD83D\uDCCA Risk & settlement</button>
-            <button onclick="injectChip('Generate complete matter timeline with all Kansas or Missouri Rules of Civil Procedure deadlines')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all flex-shrink-0" style="background:#1e293b; border-color:#334155">\uD83D\uDCC5 Build timeline</button>
-            <button onclick="injectChip('Create motion to dismiss with supporting KS/MO authorities')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-emerald-400 hover:border-emerald-700 transition-all flex-shrink-0" style="background:#1e293b; border-color:#334155">\uD83D\uDCDD Motion to Dismiss</button>
-            <button onclick="injectChip('What am I missing? Give proactive recommendations for this matter')" class="text-xs py-1 px-3 rounded-full border font-semibold text-emerald-400 hover:bg-emerald-950 transition-all flex-shrink-0" style="background:#1e293b; border-color:#065f46">\uD83C\uDFAF What am I missing?</button>
+            <button onclick="injectChip(chatJurisdiction==='missouri' ? 'Research Missouri case law on pure comparative fault under RSMo § 537.765 and joint & several liability under RSMo § 537.067 — cite 8th Circuit and MO Supreme Court holdings' : 'Research Kansas case law on comparative negligence under K.S.A. 60-258a — cite 10th Circuit and KS Supreme Court holdings')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-red-400 hover:border-red-700 transition-all flex-shrink-0" style="background:#2a4068; border-color:#3d5a80">\u2696\uFE0F Research case law</button>
+            <button onclick="injectChip(chatJurisdiction==='missouri' ? 'Draft a demand letter under Missouri law — include RSMo § 537.765 pure comparative fault and RSMo § 516.120 5-year SOL deadline' : 'Draft a demand letter under Kansas law — include K.S.A. 60-258a proportional fault analysis and K.S.A. 60-513 SOL deadline')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-red-400 hover:border-red-700 transition-all flex-shrink-0" style="background:#2a4068; border-color:#3d5a80">\uD83D\uDCDD Draft demand letter</button>
+            <button onclick="injectChip(chatJurisdiction==='missouri' ? 'Confirm the 5-year statute of limitations under RSMo § 516.120 for this claim — flag 2-year med-mal SOL and affidavit of merit requirements' : 'Confirm the 2-year statute of limitations under K.S.A. 60-513 for this claim — flag discovery rule exceptions and presuit requirements')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-red-400 hover:border-red-700 transition-all flex-shrink-0" style="background:#2a4068; border-color:#3d5a80">\u23F0 SOL check</button>
+            <button onclick="injectChip(chatJurisdiction==='missouri' ? 'Analyze RSMo § 537.765 pure comparative fault and RSMo § 537.067 joint & several liability threshold (≥51%) — assess multi-defendant strategy' : 'Analyze K.S.A. 60-258a: 50% comparative fault bar, proportional-only fault allocation (no joint and several), and empty-chair defense implications')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-red-400 hover:border-red-700 transition-all flex-shrink-0" style="background:#2a4068; border-color:#3d5a80">\u2696\uFE0F Fault & liability</button>
+            <button onclick="injectChip('Provide full risk assessment and 3 settlement strategy options with expected value calculations')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-red-400 hover:border-red-700 transition-all flex-shrink-0" style="background:#2a4068; border-color:#3d5a80">\uD83D\uDCCA Risk & settlement</button>
+            <button onclick="injectChip('Generate complete matter timeline with all Kansas or Missouri Rules of Civil Procedure deadlines')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-red-400 hover:border-red-700 transition-all flex-shrink-0" style="background:#2a4068; border-color:#3d5a80">\uD83D\uDCC5 Build timeline</button>
+            <button onclick="injectChip('Create motion to dismiss with supporting KS/MO authorities')" class="text-xs py-1 px-3 rounded-full border text-slate-300 hover:text-red-400 hover:border-red-700 transition-all flex-shrink-0" style="background:#2a4068; border-color:#3d5a80">\uD83D\uDCDD Motion to Dismiss</button>
+            <button onclick="injectChip('What am I missing? Give proactive recommendations for this matter')" class="text-xs py-1 px-3 rounded-full border font-semibold text-red-400 hover:bg-red-950 transition-all flex-shrink-0" style="background:#1e293b; border-color:#cc2229">\uD83C\uDFAF What am I missing?</button>
           </div>
         </div>
 
         <!-- Chat Messages (scroll area) -->
-        <div id="chatMessages" class="flex-1 overflow-y-auto p-4 space-y-5" style="scrollbar-width:thin; scrollbar-color:#334155 transparent">
+        <div id="chatMessages" class="flex-1 overflow-y-auto p-4 space-y-5" style="scrollbar-width:thin; scrollbar-color:#2a4068 transparent">
           \${chatMessages.length === 0 ? \`
             <div class="flex flex-col items-center justify-center h-full text-center">
-              <div class="w-14 h-14 bg-emerald-950 rounded-2xl flex items-center justify-center mb-4 border border-emerald-800">
-                <i class="fas fa-scale-balanced text-emerald-400 text-xl"></i>
+              <div class="w-14 h-14 rounded-2xl flex items-center justify-center mb-4 border" style="background:#3d1015; border-color:#7f151a">
+                <i class="fas fa-scale-balanced text-xl" style="color:#cc2229"></i>
               </div>
-              <h3 class="text-lg font-bold text-white mb-1">Lawyrs AI Co-Counsel</h3>
+              <h3 class="text-lg font-bold text-white mb-1">Clerky AI Co-Counsel</h3>
               <p class="text-slate-400 text-sm max-w-md mb-3">Your always-on senior partner. I have full context on your matters \u2014 research, draft, analyze, or strategize.</p>
               <div class="flex items-center gap-4 text-xs text-slate-500">
                 <span>\uD83D\uDD12 Privileged & Confidential</span>
@@ -1265,10 +1262,10 @@ async function loadAIChat() {
         </div>
 
         <!-- Input Area -->
-        <div class="p-3 sm:p-4 border-t border-slate-800" style="background:#0f172a">
+        <div class="p-3 sm:p-4 border-t" style="border-color:#2a4068; background:#1e3354">
           <div class="relative">
-            <textarea id="chatInput" rows="2" placeholder="Ask anything..." class="w-full pr-14 resize-none text-slate-200 placeholder-slate-500 text-sm" style="background:#020617; border:1px solid #334155; min-height:48px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
-            <button onclick="sendChat()" id="chatSendBtn" class="btn btn-sm absolute right-2 bottom-2 bg-emerald-600 hover:bg-emerald-500 text-white" style="width:36px;height:36px;padding:0">
+            <textarea id="chatInput" rows="2" placeholder="Ask anything..." class="w-full pr-14 resize-none text-slate-200 placeholder-slate-500 text-sm" style="background:#0d1a2e; border:1px solid #334155; min-height:48px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"></textarea>
+            <button onclick="sendChat()" id="chatSendBtn" class="btn btn-sm absolute right-2 bottom-2 text-white" style="background:#cc2229" onmouseover="this.style.background='#e02e35'" onmouseout="this.style.background='#cc2229'" style="width:36px;height:36px;padding:0">
               <i class="fas fa-paper-plane text-sm"></i>
             </button>
           </div>
@@ -1316,13 +1313,13 @@ function updateMatterBar() {
 function renderChatMessage(m) {
   if (m.role === 'user') {
     return \`<div class="flex justify-end">
-      <div class="max-w-[80%] sm:max-w-[80%] chat-msg-max rounded-2xl rounded-br-sm px-4 sm:px-5 py-3 shadow-md" style="background:#059669">
+      <div class="max-w-[80%] sm:max-w-[80%] chat-msg-max rounded-2xl rounded-br-sm px-4 sm:px-5 py-3 shadow-md" style="background:#cc2229">
         <div class="flex items-center gap-2 mb-1">
-          <i class="fas fa-user text-xs text-emerald-200"></i>
-          <span class="text-xs text-emerald-200">You</span>
+          <i class="fas fa-user text-xs" style="color:#f8c4c4"></i>
+          <span class="text-xs " style="color:#f8c4c4">You</span>
         </div>
         <p class="text-sm text-white leading-relaxed whitespace-pre-wrap">\${escapeHtml(m.content)}</p>
-        <p class="text-[10px] text-emerald-200 mt-1.5 text-right opacity-70">\${formatTime(m.created_at)}</p>
+        <p class="text-[10px] mt-1.5 text-right opacity-70" style="color:#f8c4c4">\${formatTime(m.created_at)}</p>
       </div>
     </div>\`;
   }
@@ -1372,15 +1369,15 @@ function renderChatMessage(m) {
   // Citation section (from patch)
   let citationSection = '';
   if (m.citations_count && m.citations_count > 0) {
-    citationSection = '<div class="mt-2 pt-2 border-t border-slate-700 text-[10px] text-emerald-400"><i class="fas fa-book mr-1"></i>'+m.citations_count+' citation(s) included in response</div>';
+    citationSection = '<div class="mt-2 pt-2 border-t text-[10px]" style="border-color:#2a4068; color:#cc2229"><i class="fas fa-book mr-1"></i>'+m.citations_count+' citation(s) included in response</div>';
   }
 
   return \`<div class="flex gap-3">
     <div class="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm flex-shrink-0 mt-1" style="background:\${as.hex}">\${as.emoji}</div>
-    <div class="max-w-[85%] chat-msg-max rounded-2xl rounded-bl-sm px-4 sm:px-5 py-3 sm:py-4 shadow-md border border-slate-700" style="background:#0f172a">
+    <div class="max-w-[85%] chat-msg-max rounded-2xl rounded-bl-sm px-4 sm:px-5 py-3 sm:py-4 shadow-md border" style="border-color:#2a4068; background:#1e3354">
       <div class="flex items-center gap-2 mb-2">
-        <i class="fas fa-robot text-xs text-emerald-400"></i>
-        <span class="text-xs text-slate-400">Lawyrs AI \u2022 \${m.agent_type ? m.agent_type.charAt(0).toUpperCase() + m.agent_type.slice(1) + ' Agent' : 'Senior Partner'}</span>
+        <i class="fas fa-robot text-xs" style="color:#cc2229"></i>
+        <span class="text-xs text-slate-400">Clerky AI \u2022 \${m.agent_type ? m.agent_type.charAt(0).toUpperCase() + m.agent_type.slice(1) + ' Agent' : 'Senior Partner'}</span>
       </div>
       \${badges ? '<div class="flex items-center gap-1.5 mb-3 flex-wrap">'+badges+'</div>' : ''}
       <div class="text-sm text-slate-200 leading-relaxed prose-sm chat-content">\${renderMarkdown(m.content)}</div>
@@ -1445,10 +1442,10 @@ function renderMarkdown(text) {
   });
 
   // ── 3. Render blockquotes (> lines — routing header, mem0 note) ──
-  processed = processed.replace(/^> (.+)$/gm, '<div class="border-l-3 border-emerald-500 pl-3 py-1 my-2 text-sm text-slate-300 bg-slate-800/30 rounded-r-lg">$1</div>');
+  processed = processed.replace(/^> (.+)$/gm, '<div class="border-l-3 border-red-700 pl-3 py-1 my-2 text-sm text-slate-300 bg-slate-800/30 rounded-r-lg">$1</div>');
 
   // ── 4. Render links [text](url) ───────────────────────────
-  processed = processed.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href="$2" target="_blank" rel="noopener" class="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">$1</a>');
+  processed = processed.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href="$2" target="_blank" rel="noopener" class="underline" style="color:#cc2229" onmouseover="this.style.color='#e02e35'" onmouseout="this.style.color='#cc2229' underline-offset-2">$1</a>');
 
   // ── 5. Render <small> metadata tags ───────────────────────
   processed = processed.replace(/&lt;small&gt;(.+?)&lt;\\/small&gt;/g, '<div class="text-[10px] text-slate-500 mt-2">$1</div>');
@@ -1478,7 +1475,7 @@ function renderMarkdown(text) {
     processed = processed.replace('%%CODEBLOCK_' + i + '%%', '<pre class="' + cls + '">' + code + '</pre>');
   });
   inlineCodes.forEach(function(code, i) {
-    processed = processed.replace('%%INLINE_' + i + '%%', '<code class="bg-slate-800 px-1.5 py-0.5 rounded text-xs font-mono text-emerald-400 border border-slate-700">' + code + '</code>');
+    processed = processed.replace('%%INLINE_' + i + '%%', '<code class="bg-slate-800 px-1.5 py-0.5 rounded text-xs font-mono border" style="color:#cc2229; border-color:#2a4068">' + code + '</code>');
   });
   return processed;
 }
@@ -1524,9 +1521,9 @@ async function sendChat() {
     <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:#064e3b">
       <i class="fas fa-robot text-emerald-400 text-sm"></i>
     </div>
-    <div class="rounded-2xl px-4 py-3 border border-slate-700" style="background:#0f172a">
+    <div class="rounded-2xl px-4 py-3 border" style="border-color:#2a4068; background:#1e3354">
       <div class="flex items-center gap-2">
-        <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+        <span class="w-2 h-2 rounded-full animate-pulse" style="background:#cc2229"></span>
         <span class="text-xs text-slate-400" id="typingText">Thinking step-by-step with full case context...</span>
       </div>
     </div>
@@ -1611,7 +1608,7 @@ async function sendChat() {
         const stepsHtml = du.pipeline_steps.map(function(step, i) {
           const isLast = i === du.pipeline_steps.length - 1;
           const icon = step.includes('Error') ? 'fa-times-circle text-red-400' :
-                       step.includes('complete') || step.includes('Complete') ? 'fa-check-circle text-emerald-400' :
+                       step.includes('complete') || step.includes('Complete') ? 'fa-check-circle' + ' style="color:#cc2229"' :
                        step.includes('Document') || step.includes('doc') ? 'fa-file-alt text-blue-400' :
                        step.includes('task') || step.includes('Task') ? 'fa-tasks text-amber-400' :
                        step.includes('event') || step.includes('Event') || step.includes('Calendar') ? 'fa-calendar text-purple-400' :
@@ -1626,8 +1623,8 @@ async function sendChat() {
             '<span class="text-[11px] text-slate-400">' + step + '</span></div>';
         }).join('');
 
-        msgContainer.innerHTML += '<div class="flex justify-center my-2"><div class="rounded-xl px-4 py-3 border max-w-md w-full" style="background:#0c1222; border-color:#1e293b">' +
-          '<div class="flex items-center gap-2 mb-2"><i class="fas fa-stream text-emerald-400 text-xs"></i><span class="text-xs font-semibold text-emerald-400">Pipeline Trace</span>' +
+        msgContainer.innerHTML += '<div class="flex justify-center my-2"><div class="rounded-xl px-4 py-3 border max-w-md w-full" style="background:#142440; border-color:#2a4068">' +
+          '<div class="flex items-center gap-2 mb-2"><i class="fas fa-stream text-xs" style="color:#cc2229"></i><span class="text-xs font-semibold" style="color:#cc2229">Pipeline Trace</span>' +
           '<span class="text-[10px] text-slate-500 ml-auto">' + du.pipeline_steps.length + ' steps</span></div>' +
           stepsHtml + '</div></div>';
       }
@@ -1667,9 +1664,9 @@ async function sendChat() {
         toast('Dashboard Synced', updates.join(' \\u2022 ').replace(/<[^>]*>/g, '') + ' \\u2014 Click to view', 'success');
 
         // In-chat sync banner with action buttons
-        msgContainer.innerHTML += '<div class="flex justify-center my-2"><div class="inline-flex flex-col items-center gap-1.5 rounded-xl px-5 py-2.5 border" style="background:#064e3b; border-color:#065f46">' +
-          '<div class="flex items-center gap-2"><i class="fas fa-bolt text-emerald-400 text-xs"></i><span class="text-xs font-semibold text-emerald-300">Dashboard Synced</span></div>' +
-          '<div class="flex items-center gap-3 text-xs text-emerald-200">' + updates.join(' <span class="text-emerald-700">|</span> ') + '</div>' +
+        msgContainer.innerHTML += '<div class="flex justify-center my-2"><div class="inline-flex flex-col items-center gap-1.5 rounded-xl px-5 py-2.5 border" style="background:#064e3b; border-color:#cc2229">' +
+          '<div class="flex items-center gap-2"><i class="fas fa-bolt text-xs" style="color:#cc2229"></i><span class="text-xs font-semibold" style="color:#f09898">Dashboard Synced</span></div>' +
+          '<div class="flex items-center gap-3 text-xs" style="color:#f8c4c4">' + updates.join(' <span style="color:#7f151a">|</span> ') + '</div>' +
           (actions.length > 0 ? '<div class="flex items-center gap-3 mt-0.5">' + actions.join('') + '</div>' : '') +
           '</div></div>';
 
@@ -1736,7 +1733,7 @@ async function checkCrewAIStatus() {
     const res = await axios.get(API + '/ai/crewai/status', { timeout: 5000 });
     const d = res.data;
     if (d.available && d.llm_reachable) {
-      indicator.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> <span class="text-emerald-400">CrewAI: ' + d.model + ' ✓ LLM active</span>';
+      indicator.innerHTML = '<span class="w-1.5 h-1.5 rounded-full animate-pulse" style="background:#cc2229"></span> <span style="color:#cc2229">CrewAI: ' + d.model + ' ✓ LLM active</span>';
     } else if (d.available) {
       indicator.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> <span class="text-amber-400">CrewAI: online, LLM not reachable — using template agents</span> <button onclick="showCrewAISettings()" class="text-amber-300 underline ml-1">Configure</button>';
     } else {
@@ -1752,30 +1749,30 @@ function showCrewAISettings() {
   modal.id = 'crewaiModal';
   modal.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7)';
   modal.innerHTML = \`
-    <div class="rounded-xl border border-slate-700 p-6 max-w-md w-full shadow-2xl" style="background:#0f172a">
+    <div class="rounded-xl border p-6 max-w-md w-full shadow-2xl" style="background:#1e3354; border-color:#2a4068">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-robot text-emerald-400"></i> CrewAI LLM Settings</h3>
+        <h3 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-robot" style="color:#cc2229"></i> CrewAI LLM Settings</h3>
         <button onclick="document.getElementById('crewaiModal').remove()" class="text-slate-400 hover:text-white"><i class="fas fa-times"></i></button>
       </div>
       <p class="text-xs text-slate-400 mb-4">Configure an OpenAI-compatible API key to power CrewAI agents with real LLM reasoning. Without this, the system uses template-based agents.</p>
       <div class="space-y-3">
         <div>
           <label class="text-xs text-slate-400 block mb-1">API Key <span class="text-red-400">*</span></label>
-          <input id="crewaiApiKey" type="password" placeholder="sk-... or your API key" class="w-full text-sm py-2 px-3 rounded-lg text-white" style="background:#1e293b; border:1px solid #334155">
+          <input id="crewaiApiKey" type="password" placeholder="sk-... or your API key" class="w-full text-sm py-2 px-3 rounded-lg text-white" style="background:#2a4068; border:1px solid #3d5a80">
         </div>
         <div>
           <label class="text-xs text-slate-400 block mb-1">Base URL (optional)</label>
-          <input id="crewaiBaseUrl" type="text" placeholder="https://api.openai.com/v1 (default)" class="w-full text-sm py-2 px-3 rounded-lg text-white" style="background:#1e293b; border:1px solid #334155">
+          <input id="crewaiBaseUrl" type="text" placeholder="https://api.openai.com/v1 (default)" class="w-full text-sm py-2 px-3 rounded-lg text-white" style="background:#2a4068; border:1px solid #3d5a80">
           <p class="text-[10px] text-slate-600 mt-1">For Novita AI: https://api.novita.ai/v3/openai</p>
         </div>
         <div>
           <label class="text-xs text-slate-400 block mb-1">Model (optional)</label>
-          <input id="crewaiModel" type="text" placeholder="gpt-5-mini (default)" class="w-full text-sm py-2 px-3 rounded-lg text-white" style="background:#1e293b; border:1px solid #334155">
+          <input id="crewaiModel" type="text" placeholder="gpt-5-mini (default)" class="w-full text-sm py-2 px-3 rounded-lg text-white" style="background:#2a4068; border:1px solid #3d5a80">
         </div>
       </div>
       <div id="crewaiConfigResult" class="mt-3 text-xs hidden"></div>
       <div class="flex gap-2 mt-4">
-        <button onclick="configureCrewAI()" id="crewaiSaveBtn" class="btn bg-emerald-600 hover:bg-emerald-500 text-white text-sm flex-1">
+        <button onclick="configureCrewAI()" id="crewaiSaveBtn" class="btn text-white text-sm flex-1" style="background:#cc2229">
           <i class="fas fa-check mr-1"></i> Save & Test
         </button>
         <button onclick="document.getElementById('crewaiModal').remove()" class="btn btn-ghost text-slate-400 text-sm">Cancel</button>
@@ -1809,7 +1806,7 @@ async function configureCrewAI() {
     }, { timeout: 30000 });
     
     if (res.data.llm_reachable) {
-      resultDiv.className = 'mt-3 text-xs text-emerald-400';
+      resultDiv.className = 'mt-3 text-xs'; resultDiv.style.color = '#cc2229';
       resultDiv.innerHTML = '<i class="fas fa-check-circle mr-1"></i> LLM connected! Model: ' + res.data.model + '. CrewAI agents are now active.';
       checkCrewAIStatus();
       setTimeout(() => { const m = document.getElementById('crewaiModal'); if (m) m.remove(); }, 2000);
@@ -1852,7 +1849,7 @@ async function loadMemory() {
           </div>
           <div class="flex items-center gap-2">
             <span class="badge \${mem0On ? 'bg-pink-100 text-pink-700' : 'bg-dark-100 text-dark-500'}">\${mem0On ? '\u2601\uFE0F Mem0 Cloud' : '\uD83D\uDCBE D1 Local'}</span>
-            <span class="badge bg-emerald-100 text-emerald-700">\${totalMem} memories</span>
+            <span class="badge" style="background:#fef2f2; color:#cc2229">\${totalMem} memories</span>
           </div>
         </div>
 
@@ -1954,7 +1951,7 @@ async function loadAIWorkflow() {
           <div class="flex items-center gap-2">
             <span class="badge bg-purple-100 text-purple-700">\${agentInfo.version || 'v3.0'}</span>
             \${agentInfo.mem0_enabled ? '<span class="badge bg-pink-100 text-pink-700">\u2601\uFE0F Mem0</span>' : '<span class="badge bg-dark-100 text-dark-500">\uD83D\uDCBE D1 Local</span>'}
-            \${agentInfo.llm_enabled ? '<span class="badge bg-emerald-100 text-emerald-700">\uD83E\uDDE0 LLM Active</span>' : '<span class="badge bg-amber-100 text-amber-700">\uD83D\uDCE6 Templates</span>'}
+            \${agentInfo.llm_enabled ? '<span class="badge" style="background:#fef2f2; color:#cc2229">\uD83E\uDDE0 LLM Active</span>' : '<span class="badge bg-amber-100 text-amber-700">\uD83D\uDCE6 Templates</span>'}
           </div>
         </div>
 
@@ -1981,7 +1978,7 @@ async function loadAIWorkflow() {
               <div class="bg-white rounded-lg px-3 py-1.5 border border-pink-200 text-center">
                 <div class="text-xs font-semibold" style="color:#ec4899">\uD83D\uDCDD Drafter</div>
               </div>
-              <div class="bg-white rounded-lg px-3 py-1.5 border border-emerald-200 text-center">
+              <div class="bg-white rounded-lg px-3 py-1.5 border text-center" style="border-color:#cc2229; background:#fef2f2">
                 <div class="text-xs font-semibold" style="color:#10b981">\uD83E\uDDE0 Analyst</div>
               </div>
               <div class="bg-white rounded-lg px-3 py-1.5 border border-amber-200 text-center">
@@ -2018,9 +2015,9 @@ async function loadAIWorkflow() {
             <p class="text-xs text-pink-600 font-semibold">Mem0 Memories</p>
             <p class="text-2xl font-bold text-pink-700">\${s.mem0?.total || 0}</p>
           </div>
-          <div class="card p-4 text-center border-emerald-200 bg-emerald-50">
-            <p class="text-xs text-emerald-600 font-semibold">D1 Memories</p>
-            <p class="text-2xl font-bold text-emerald-700">\${s.memory_entries || 0}</p>
+          <div class="card p-4 text-center" style="border-color:#cc2229; background:#fef2f2">
+            <p class="text-xs font-semibold" style="color:#cc2229">D1 Memories</p>
+            <p class="text-2xl font-bold" style="color:#9b1a20">\${s.memory_entries || 0}</p>
           </div>
           <div class="card p-4 text-center">
             <p class="text-xs text-dark-400 font-semibold">Sessions</p>
@@ -2149,7 +2146,7 @@ async function loadIntake() {
         </div>
         <div class="flex items-center gap-2">
           <span class="badge bg-purple-100 text-purple-700"><i class="fas fa-robot mr-1"></i>AI Intake Pipeline</span>
-          <span class="badge bg-emerald-100 text-emerald-700">\${clients.length} clients</span>
+          <span class="badge" style="background:#fef2f2; color:#cc2229">\${clients.length} clients</span>
         </div>
       </div>
 
@@ -2160,11 +2157,11 @@ async function loadIntake() {
           <i class="fas fa-arrow-right text-purple-400"></i>
           <span class="bg-white rounded-lg px-3 py-1.5 border border-purple-200 font-semibold text-purple-700"><i class="fas fa-search mr-1"></i>Conflict Check</span>
           <i class="fas fa-arrow-right text-purple-400"></i>
-          <span class="bg-white rounded-lg px-3 py-1.5 border border-emerald-200 font-semibold text-emerald-700"><i class="fas fa-robot mr-1"></i>AI Assessment</span>
+          <span class="bg-white rounded-lg px-3 py-1.5 border font-semibold" style="background:#fef2f2; border-color:#cc2229; color:#cc2229"><i class="fas fa-robot mr-1"></i>AI Assessment</span>
           <i class="fas fa-arrow-right text-purple-400"></i>
           <span class="bg-white rounded-lg px-3 py-1.5 border border-amber-200 font-semibold text-amber-700"><i class="fas fa-route mr-1"></i>Auto-Route</span>
           <i class="fas fa-arrow-right text-purple-400"></i>
-          <span class="bg-white rounded-lg px-3 py-1.5 border border-emerald-200 font-semibold text-emerald-700"><i class="fas fa-check-circle mr-1"></i>Case Created</span>
+          <span class="bg-white rounded-lg px-3 py-1.5 border font-semibold" style="background:#fef2f2; border-color:#cc2229; color:#cc2229"><i class="fas fa-check-circle mr-1"></i>Case Created</span>
         </div>
       </div>
 
@@ -2298,9 +2295,9 @@ async function submitIntake() {
     });
 
     // Step 4: Run AI Intake Agent
-    resultsEl.innerHTML += \`<div class="flex items-center gap-3 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
-      <i class="fas fa-spinner fa-spin text-emerald-500"></i>
-      <div><p class="text-sm font-medium text-emerald-700">Step 4/4: AI agent analyzing case...</p></div>
+    resultsEl.innerHTML += \`<div class="flex items-center gap-3 p-3 rounded-lg border" style="background:#fef2f2; border-color:#f8c4c4">
+      <i class="fas fa-spinner fa-spin" style="color:#cc2229"></i>
+      <div><p class="text-sm font-medium" style="color:#9b1a20">Step 4/4: AI agent analyzing case...</p></div>
     </div>\`;
 
     const aiRes = await axios.post(API + '/ai/run', {

@@ -77,7 +77,7 @@ export function createMem0Client(apiKey?: string): Mem0Client {
               jurisdiction: jurisdiction || 'kansas',
               confidence: confidence || 0.8,
               tags: tags || [],
-              source: 'lawyrs-agent'
+              source: 'clerky-agent'
             }
           })
         })

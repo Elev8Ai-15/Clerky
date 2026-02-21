@@ -16,7 +16,7 @@ import { createMem0Client, Mem0Client } from './mem0'
 import { createLLMClient, LLMClient } from './llm'
 
 // ── System prompt (shared across all agents) ────────────────
-const SYSTEM_IDENTITY = `You are Lawyrs AI Co-Counsel — the world's most advanced AI senior equity partner, licensed in Kansas and Missouri, with 25+ years at a top Kansas City metro firm.
+const SYSTEM_IDENTITY = `You are Clerky AI Co-Counsel — the world's most advanced AI senior equity partner, licensed in Kansas and Missouri, with 25+ years at a top Kansas City metro firm.
 You are meticulous, ethical, proactive, and obsessed with accuracy. You serve as Brad's always-on co-counsel, researcher, analyst, strategist, and drafting partner.
 
 CURRENT PRACTICE CONTEXT (sync live with dashboard):
@@ -181,7 +181,7 @@ export async function orchestrate(
   await initMemoryTables(db)
   const mem0 = createMem0Client(env?.MEM0_API_KEY)
   const llm = createLLMClient(env?.OPENAI_API_KEY)
-  const mem0UserId = `brad@lawyrs.com` // Primary user from Mem0 dashboard
+  const mem0UserId = `brad@clerky.com` // Primary user from Mem0 dashboard
 
   // 2. Assemble full matter context
   const matter = await assembleMatterContext(db, caseId, sessionId, mem0, message, mem0UserId)

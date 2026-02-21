@@ -1,5 +1,5 @@
 {
-  "name": "lawyrs",
+  "name": "clerky",
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -303,7 +303,7 @@ export async function runStrategist(input: AgentInput, llm?: LLMClient, mem0Cont
     try {
       const llmResponse = await llm.generateForAgent({
         agentType: 'strategist',
-        systemIdentity: 'You are Lawyrs AI Senior Strategy Partner. Licensed in Kansas and Missouri. Expert litigation strategist.',
+        systemIdentity: 'You are Clerky AI Senior Strategy Partner. Licensed in Kansas and Missouri. Expert litigation strategist.',
         agentSpecialty: `Strategic planning specialist: settlement modeling, scenario planning, timeline generation, budget projection, ADR strategy, proactive recommendations. Kansas (10th Circuit) and Missouri (8th Circuit) expertise. Include comparative fault implications for both jurisdictions.`,
         matterContext: formatMatterContext(input.matter),
         mem0Context: mem0Context || '',
