@@ -272,9 +272,8 @@ export async function orchestrate(
 
   // 9. Prepend routing header
   const routingHeader = buildRoutingHeader(route, mem0Loaded)
-  result.content = routingHeader + '\n\n' + result.content
 
-  // 9b. Inject context placeholders and append strict format elements
+  // 9b. Inject context placeholders and build strict response format
   const currentDate = new Date().toISOString().split('T')[0]
   const jxLabel = jurisdiction.toLowerCase() === 'kansas' ? 'Kansas' :
     jurisdiction.toLowerCase() === 'missouri' ? 'Missouri' :
@@ -295,29 +294,54 @@ export async function orchestrate(
     .replace(/\{\{matter_jurisdiction\}\}/g, jxLabel)
     .replace(/\{\{full_matter_json\}\}/g, matterJson)
 
-  // Append "Agents Used" section if not already present
-  if (!result.content.includes('Agents Used')) {
-    const allAgents = [result.agent_type, ...result.sub_agents_called]
-    const agentEmojis: Record<string, string> = { researcher: '🔍', drafter: '📝', analyst: '🧠', strategist: '🎯' }
-    const agentList = allAgents.map(a => `${agentEmojis[a] || '📎'} ${a.charAt(0).toUpperCase() + a.slice(1)} Agent`).join(', ')
-    result.content += `\n\n### 6. Agents Used\n${agentList}`
-  }
-
-  // Ensure ethics disclaimer is present
-  if (!result.content.includes('Human review required')) {
-    result.content += `\n\n---\n⚠️ **Human review required.** This AI-generated analysis is for attorney work product only and does not constitute legal advice.`
-  }
-
-  // Ensure consistent closing
+  // ── Strip any existing closing/disclaimer from agent output ──
+  // (agents add their own — we rebuild in canonical order below)
   const closingLine = `How else can I assist as your Kansas-Missouri AI Co-Counsel today?`
-  // Remove any old-style closings and replace with the canonical one
-  result.content = result.content.replace(/How else can I assist as your Kansas-Missouri AI partner today\?/g, closingLine)
-  if (!result.content.includes(closingLine)) {
-    result.content += `\n\n${closingLine}`
-  }
+  let body = result.content
+    .replace(/\n---\n⚠️ \*\*Human review required\.\*\*[^\n]*\n?/g, '')
+    .replace(/⚠️ \*\*Human review required\.\*\*[^\n]*\n?/g, '')
+    .replace(/How else can I assist as your Kansas-Missouri AI Co-Counsel today\?/g, '')
+    .replace(/How else can I assist as your Kansas-Missouri AI partner today\?/g, '')
+    .replace(/\n### 6\. Agents Used\n[^\n]*\n?/g, '')
+    .replace(/\n<small>Date:[^<]*<\/small>\s*$/g, '')
+    .replace(/\n\*[^*]*agent confidence[^*]*\*\s*$/gi, '')
+    .trimEnd()
 
-  // Append context metadata footer
-  result.content += `\n\n<small>Date: ${currentDate} | Jurisdiction: ${jxLabel} | Matter: ${matter?.case?.case_number || 'General'}</small>`
+  // ── Build Agents Used section ──────────────────────────────
+  const allAgents = [result.agent_type, ...result.sub_agents_called]
+  const agentEmojis: Record<string, string> = { researcher: '🔍', drafter: '📝', analyst: '🧠', strategist: '🎯' }
+  const agentList = allAgents.map(a => `${agentEmojis[a] || '📎'} ${a.charAt(0).toUpperCase() + a.slice(1)} Agent`).join(', ')
+
+  // ── Build dashboard_update JSON block ──────────────────────
+  const dashboardJson = JSON.stringify({
+    dashboard_update: {
+      new_documents: 0,  // placeholder — actual values come from /api/crew HTTP response
+      new_tasks: 0,
+      matter_id: matter?.case?.case_number || null,
+      event_added: null
+    }
+  }, null, 2)
+
+  // ── Assemble final content in strict format ────────────────
+  result.content = [
+    routingHeader,
+    '',
+    body,
+    '',
+    `### 6. Agents Used`,
+    agentList,
+    '',
+    '```json',
+    dashboardJson,
+    '```',
+    '',
+    '---',
+    `⚠️ **Human review required.** This AI-generated analysis is for attorney work product only and does not constitute legal advice.`,
+    '',
+    closingLine,
+    '',
+    `<small>Date: ${currentDate} | Jurisdiction: ${jxLabel} | Matter: ${matter?.case?.case_number || 'General'}</small>`
+  ].join('\n')
 
   // 10. Write memory updates (Mem0 + D1)
   if (result.memory_updates.length > 0) {

@@ -573,6 +573,23 @@ ai.post('/crew', async (c) => {
     pipelineSteps.push('9. Pipeline complete — AI log recorded')
 
     // ══════════════════════════════════════════════════════
+    // STEP 6: Patch dashboard_update JSON in content with actual values
+    // ══════════════════════════════════════════════════════
+    const actualDashboardJson = JSON.stringify({
+      dashboard_update: {
+        new_documents: dashboardUpdate.new_documents,
+        new_tasks: dashboardUpdate.new_tasks,
+        matter_id: dashboardUpdate.matter_id,
+        event_added: dashboardUpdate.event_added
+      }
+    }, null, 2)
+    // Replace placeholder JSON block in content
+    const placeholderPattern = /```json\n\{[\s\S]*?"dashboard_update"[\s\S]*?\}\n```/
+    if (placeholderPattern.test(result.content)) {
+      result.content = result.content.replace(placeholderPattern, '```json\n' + actualDashboardJson + '\n```')
+    }
+
+    // ══════════════════════════════════════════════════════
     // RESPONSE — Full crew output with dashboard wiring
     // ══════════════════════════════════════════════════════
     const jxLabel = jurisdiction.toLowerCase() === 'kansas' ? 'Kansas' :

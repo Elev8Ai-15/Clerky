@@ -5,12 +5,13 @@
 - **Goal**: Full-featured legal practice management platform with multi-agent AI co-counsel
 - **Stack**: Hono + Cloudflare D1 + TailwindCSS + Cloudflare Pages + **CrewAI** (Python)
 - **Architecture**: Multi-Agent Orchestrated Pipeline v3.3 — **MISSOURI MODE ACTIVE** + **CrewAI Backend** + **Runtime LLM Config**
+- **User**: Brad (KC metro partner, 25+ years, KS/MO dual-licensed)
 - **Jurisdictions**: Missouri (PRIMARY) & Kansas (dual-licensed KS/MO)
 
 ## Live URL
 - **Sandbox**: Port 3000
 
-## Multi-Agent AI System (v3.0)
+## Multi-Agent AI System (v3.3)
 
 ### Architecture
 ```
@@ -38,7 +39,7 @@ User Query → Hono API (port 3000)
 5. Template agents provide comprehensive KS/MO legal analysis without needing an LLM
 
 ### System Identity
-> Lawyrs AI — Senior equity partner, 25+ years experience, licensed in Kansas & Missouri.
+> Lawyrs AI Co-Counsel — World's most advanced AI senior equity partner at a top Kansas City metro firm, 25+ years experience, licensed in Kansas & Missouri. User: Brad.
 > **MISSOURI MODE** — Primary jurisdiction active. Auto-flags on every MO response:
 > - 5-year PI SOL (RSMo § 516.120) — always stated; 2-year med-mal (RSMo § 516.105)
 > - PURE comparative fault (RSMo § 537.765) — plaintiff recovers even at 99% fault
@@ -51,7 +52,14 @@ User Query → Hono API (port 3000)
 > **KANSAS MODE** — Active when jurisdiction = Kansas. Auto-flags:
 > - 2-year SOL (K.S.A. 60-513), 50% bar (K.S.A. 60-258a), proportional fault ONLY, no J&S
 > Core rules: step-by-step reasoning, no hallucinations, cite sources, flag risks, confidentiality.
-> Response structure: Summary → Analysis → Recommendations → Next Actions → Sources.
+> **Strict Response Format** (every response):
+> 1. Summary (1 sentence)
+> 2. Analysis (step-by-step reasoning)
+> 3. Recommendations & Next Actions (bulleted, with deadlines)
+> 4. Full Output (document, timeline, etc.)
+> 5. Sources/Citations (pinpoint)
+> 6. Agents Used: [list]
+> Then: `dashboard_update` JSON block, "Human review required" disclaimer, "How else can I assist as your Kansas-Missouri AI Co-Counsel today?"
 
 ### Jurisdiction Priorities
 | Jurisdiction | Statutes | Courts | Key Rules |
