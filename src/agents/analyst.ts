@@ -122,9 +122,12 @@ export async function runAnalyst(input: AgentInput, llm?: LLMClient, mem0Context
     content += `This is a general analytical framework. Select a specific matter for a targeted risk assessment with quantified scoring.\n\n`
   }
 
+  // Analysis section
+  content += `### Analysis\n\n`
+
   // Risk scorecard
   if (input.matter.case_id) {
-    content += `### Risk Scorecard\n\n`
+    content += `#### Risk Scorecard\n\n`
     content += `| Factor | Score | Risk | Notes |\n`
     content += `|--------|-------|------|-------|\n`
     for (const f of risk.factors) {
@@ -136,7 +139,7 @@ export async function runAnalyst(input: AgentInput, llm?: LLMClient, mem0Context
 
   // Comparative Fault Analysis (jurisdiction-specific)
   if (subtypes.includes('comparative_fault') || subtypes.includes('risk_assessment')) {
-    content += `### ⚖️ Comparative Fault Analysis\n\n`
+    content += `#### ⚖️ Comparative Fault Analysis\n\n`
     if (isKS) {
       content += `**Kansas — Modified Comparative Fault (K.S.A. 60-258a):**\n`
       content += `- **50% Bar Rule:** Plaintiff is BARRED from recovery if found 50% or more at fault\n`
@@ -170,7 +173,7 @@ export async function runAnalyst(input: AgentInput, llm?: LLMClient, mem0Context
 
   // SWOT Analysis
   if (subtypes.includes('swot') || subtypes.includes('risk_assessment')) {
-    content += `### Strengths & Weaknesses Analysis\n\n`
+    content += `#### Strengths & Weaknesses Analysis\n\n`
     content += `**STRENGTHS:**\n`
     if (input.matter.case_id) {
       if (input.matter.documents.length > 0) content += `- ${input.matter.documents.length} documents assembled and indexed\n`
@@ -228,7 +231,7 @@ export async function runAnalyst(input: AgentInput, llm?: LLMClient, mem0Context
 
   // Damages calculation
   if (subtypes.includes('damages_calc') && input.matter.case_id) {
-    content += `### Damages Exposure Analysis\n\n`
+    content += `#### Damages Exposure Analysis\n\n`
     const est = input.matter.estimated_value || 0
     content += `**Estimated Case Value:** $${est > 0 ? Number(est).toLocaleString() : 'Not yet determined'}\n\n`
     content += `| Scenario | Probability | Settlement Range | Trial Verdict Range |\n`
@@ -247,7 +250,7 @@ export async function runAnalyst(input: AgentInput, llm?: LLMClient, mem0Context
 
   // Proactive review
   if (subtypes.includes('proactive_review')) {
-    content += `### 🎯 Proactive Recommendations — What You May Be Missing\n\n`
+    content += `#### 🎯 Proactive Recommendations — What You May Be Missing\n\n`
     const recs: string[] = []
     if (input.matter.case_id) {
       if (!input.matter.statute_of_limitations) recs.push('**URGENT:** Calculate and calendar the statute of limitations')
@@ -270,7 +273,8 @@ export async function runAnalyst(input: AgentInput, llm?: LLMClient, mem0Context
   }
 
   // Risks summary
-  content += `### ⚠️ Key Risks Flagged\n`
+  content += `### Recommendations & Next Actions\n`
+  content += `#### ⚠️ Key Risks Flagged\n`
   if (input.matter.case_id) {
     for (const f of risk.factors.filter(f => f.score >= 6)) {
       content += `- **${f.factor}** (${f.score}/10) — ${f.notes}\n`
@@ -281,7 +285,7 @@ export async function runAnalyst(input: AgentInput, llm?: LLMClient, mem0Context
   content += `- Risk scores are preliminary — refine as discovery progresses\n`
 
   // Next actions
-  content += `\n### Next Actions\n`
+  content += `\n#### Next Actions\n`
   actions.push('Review and validate risk scores with supervising attorney')
   if (input.matter.case_id && !input.matter.statute_of_limitations) actions.push('URGENT: Calculate and calendar SOL')
   actions.push('Update risk assessment as new information becomes available')

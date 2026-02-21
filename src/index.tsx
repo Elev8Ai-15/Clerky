@@ -1322,7 +1322,8 @@ function renderChatMessage(m) {
 
 function renderMarkdown(text) {
   if (!text) return '';
-  // Extract code blocks first to protect them from other replacements
+
+  // ── 1. Extract code blocks to protect from replacements ──
   const codeBlocks = [];
   let processed = text.replace(/\`\`\`([\\s\\S]*?)\`\`\`/g, function(_, code) {
     codeBlocks.push(code);
@@ -1334,7 +1335,56 @@ function renderMarkdown(text) {
     inlineCodes.push(code);
     return '%%INLINE_' + (inlineCodes.length - 1) + '%%';
   });
-  // Process markdown
+
+  // ── 2. Render markdown tables ───────────────────────────
+  // Detect table blocks: header row | separator row | data rows
+  processed = processed.replace(/(^\\|.+\\|\\n)(\\|[-:|\\s]+\\|\\n)((?:\\|.+\\|\\n?)+)/gm, function(match, headerRow, sepRow, bodyRows) {
+    // Parse header
+    var headers = headerRow.trim().split('|').filter(function(c) { return c.trim() !== ''; });
+    // Parse alignment from separator
+    var aligns = sepRow.trim().split('|').filter(function(c) { return c.trim() !== ''; }).map(function(c) {
+      c = c.trim();
+      if (c.startsWith(':') && c.endsWith(':')) return 'center';
+      if (c.endsWith(':')) return 'right';
+      return 'left';
+    });
+    // Parse body
+    var rows = bodyRows.trim().split('\\n').filter(function(r) { return r.trim().startsWith('|'); });
+
+    var table = '<div class="overflow-x-auto my-3"><table class="w-full text-xs border-collapse">';
+    // Header
+    table += '<thead><tr>';
+    headers.forEach(function(h, i) {
+      table += '<th class="px-3 py-2 text-left font-semibold text-slate-200 border-b border-slate-600 bg-slate-800/50" style="text-align:' + (aligns[i]||'left') + '">' + h.trim() + '</th>';
+    });
+    table += '</tr></thead>';
+    // Body
+    table += '<tbody>';
+    rows.forEach(function(row, ri) {
+      var cells = row.trim().split('|').filter(function(c) { return c.trim() !== ''; });
+      var rowBg = ri % 2 === 0 ? '' : ' bg-slate-800/20';
+      table += '<tr class="border-b border-slate-700/50' + rowBg + '">';
+      cells.forEach(function(cell, ci) {
+        table += '<td class="px-3 py-1.5 text-slate-300" style="text-align:' + (aligns[ci]||'left') + '">' + cell.trim() + '</td>';
+      });
+      table += '</tr>';
+    });
+    table += '</tbody></table></div>';
+    return table;
+  });
+
+  // ── 3. Render blockquotes (> lines — routing header, mem0 note) ──
+  processed = processed.replace(/^> (.+)$/gm, '<div class="border-l-3 border-emerald-500 pl-3 py-1 my-2 text-sm text-slate-300 bg-slate-800/30 rounded-r-lg">$1</div>');
+
+  // ── 4. Render links [text](url) ───────────────────────────
+  processed = processed.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href="$2" target="_blank" rel="noopener" class="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">$1</a>');
+
+  // ── 5. Render <small> metadata tags ───────────────────────
+  processed = processed.replace(/&lt;small&gt;(.+?)&lt;\\/small&gt;/g, '<div class="text-[10px] text-slate-500 mt-2">$1</div>');
+  // Also handle raw <small> (not escaped)
+  processed = processed.replace(/<small>(.+?)<\\/small>/g, '<div class="text-[10px] text-slate-500 mt-2">$1</div>');
+
+  // ── 6. Standard markdown processing ───────────────────────
   processed = processed
     .replace(/^## (.+)$/gm, '<h3 class="text-base font-bold text-white mt-3 mb-2">$1</h3>')
     .replace(/^### (.+)$/gm, '<h4 class="text-sm font-bold text-slate-200 mt-2 mb-1">$1</h4>')
@@ -1342,14 +1392,19 @@ function renderMarkdown(text) {
     .replace(/^- \\[ \\] (.+)$/gm, '<div class="flex items-center gap-2 text-slate-300 ml-2"><i class="far fa-square text-slate-500 text-xs"></i> $1</div>')
     .replace(/^- (.+)$/gm, '<div class="flex items-start gap-2 ml-2"><span class="text-slate-500 mt-0.5">\u2022</span> $1</div>')
     .replace(/^\\d+\\. (.+)$/gm, '<div class="ml-2 text-slate-300">$1</div>')
-    .replace(/\\| (.+?) \\|/g, function(match) { return '<span class="font-mono text-xs bg-slate-800 px-1 rounded text-slate-300">' + match + '</span>'; })
     .replace(/\\n---\\n/g, '<hr class="my-3 border-slate-700">')
     .replace(/\\n\\n/g, '<div class="mb-2"></div>')
     .replace(/\\n/g, '<br>')
     .replace(/\\*(.+?)\\*/g, '<em class="text-slate-300">$1</em>');
-  // Restore code blocks and inline code
+
+  // ── 7. Restore code blocks and inline code ────────────────
   codeBlocks.forEach(function(code, i) {
-    processed = processed.replace('%%CODEBLOCK_' + i + '%%', '<pre class="bg-slate-800 p-3 rounded-lg text-xs text-slate-300 overflow-x-auto my-2 font-mono border border-slate-700">' + code + '</pre>');
+    // JSON code blocks get special syntax highlighting
+    var isJson = code.trim().startsWith('{') || code.trim().startsWith('[');
+    var cls = isJson
+      ? 'bg-slate-800 p-3 rounded-lg text-xs overflow-x-auto my-2 font-mono border border-slate-700 text-amber-300'
+      : 'bg-slate-800 p-3 rounded-lg text-xs text-slate-300 overflow-x-auto my-2 font-mono border border-slate-700';
+    processed = processed.replace('%%CODEBLOCK_' + i + '%%', '<pre class="' + cls + '">' + code + '</pre>');
   });
   inlineCodes.forEach(function(code, i) {
     processed = processed.replace('%%INLINE_' + i + '%%', '<code class="bg-slate-800 px-1.5 py-0.5 rounded text-xs font-mono text-emerald-400 border border-slate-700">' + code + '</code>');

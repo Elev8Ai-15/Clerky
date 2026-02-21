@@ -137,28 +137,31 @@ export async function runDrafter(input: AgentInput, llm?: LLMClient, mem0Context
   }
   content += `Below you'll find the required sections, applicable rules, and a structured draft outline.\n\n`
 
+  // Analysis section
+  content += `### Analysis\n\n`
+
   // Document structure
-  content += `### Required Document Sections\n\n`
+  content += `#### Required Document Sections\n\n`
   for (let i = 0; i < template.sections.length; i++) {
     content += `${i + 1}. **${template.sections[i]}**\n`
   }
 
   // Applicable rules (jurisdiction-aware)
   if (isKS) {
-    content += `\n### Kansas Rules & Authority\n`
+    content += `\n#### Kansas Rules & Authority\n`
     for (const rule of template.ks_rules) {
       content += `- ${rule}\n`
     }
   }
   if (isMO) {
-    content += `\n### Missouri Rules & Authority\n`
+    content += `\n#### Missouri Rules & Authority\n`
     for (const rule of template.mo_rules) {
       content += `- ${rule}\n`
     }
   }
 
   // Draft outline with matter context
-  content += `\n### Draft Outline\n\n`
+  content += `\n#### Draft Outline\n\n`
   if (input.matter.case_id) {
     const courtName = input.matter.court_name?.toUpperCase() || (isKS ? 'DISTRICT COURT OF [COUNTY] COUNTY, KANSAS' : isMO ? 'CIRCUIT COURT OF [COUNTY] COUNTY, MISSOURI' : 'DISTRICT COURT')
     const filingTerm = isMO ? 'Petitioner' : 'Plaintiff'
@@ -195,7 +198,8 @@ export async function runDrafter(input: AgentInput, llm?: LLMClient, mem0Context
   }
 
   // Jurisdiction-specific requirements
-  content += `\n### Jurisdiction-Specific Requirements\n`
+  content += `\n### Recommendations & Next Actions\n`
+  content += `\n#### Jurisdiction-Specific Requirements\n`
   if (isKS) {
     content += `**Kansas:**\n`
     content += `- **Certificate of Service** per K.S.A. 60-205\n`
@@ -246,14 +250,14 @@ export async function runDrafter(input: AgentInput, llm?: LLMClient, mem0Context
   }
 
   // Warnings
-  content += `\n### ⚠️ Drafting Warnings\n`
+  content += `\n#### ⚠️ Drafting Warnings\n`
   for (const w of template.warnings) {
     content += `- ${w}\n`
     risksFound.push(w)
   }
 
   // Review checklist
-  content += `\n### Pre-Filing Review Checklist\n`
+  content += `\n#### Pre-Filing Review Checklist\n`
   actions.push(`Draft ${template.type} incorporating matter-specific facts`)
   actions.push('Verify all citations and authorities are current')
   actions.push(`Ensure compliance with ${isKS ? 'Kansas Supreme Court Rule 170' : ''}${isKS && isMO ? ' and ' : ''}${isMO ? 'Missouri Supreme Court Rules' : ''} formatting`)

@@ -294,37 +294,49 @@ npm run db:reset       # Reset and reseed database
 npm run db:migrate:local  # Apply migrations locally
 ```
 
-## Test Results (All Passing — Feb 20 2026)
+## Test Results (All Passing — Feb 21 2026)
 ```
---- CREWAI INTEGRATION Tests ---
-1. CrewAI Health (direct)      ✅ status=degraded, crewai=1.9.3, model=gpt-5-mini, llm_reachable=false
-2. CrewAI Status (via Hono)    ✅ available=true, version=1.9.3
-3. CrewAI Configure endpoint   ✅ accepts api_key/base_url/model, tests LLM, returns reachability
-4. Chat Fallback               ✅ crewai_powered=false, template agents used, conf=0.87
-5. Intent Classification       ✅ drafter/researcher/analyst/strategist all correct
+--- STRICT 6-PART FORMAT Tests (5/5 pass) ---
+1. RESEARCHER (MO)    ✅ Summary ✅ Analysis ✅ Recommendations ✅ Agents Used ✅ JSON ✅ Human Review ✅ Co-Counsel
+2. DRAFTER (MO)       ✅ Summary ✅ Analysis ✅ Recommendations ✅ Agents Used ✅ JSON ✅ Human Review ✅ Co-Counsel
+3. ANALYST (MO)       ✅ Summary ✅ Analysis ✅ Recommendations ✅ Agents Used ✅ JSON ✅ Human Review ✅ Co-Counsel
+4. STRATEGIST (MO)    ✅ Summary ✅ Analysis ✅ Recommendations ✅ Agents Used ✅ JSON ✅ Human Review ✅ Co-Counsel
+5. RESEARCHER (KS)    ✅ Summary ✅ Analysis ✅ Recommendations ✅ Agents Used ✅ JSON ✅ Human Review ✅ Co-Counsel
 
---- MISSOURI MODE Agent Tests (7/7 pass) ---
-1. RESEARCHER (MO SOL + comparative + 8th Cir) ✅ conf=0.91, tok=1846, cit=7, risks=4
-   ✔ pure comparative ✔ 8th Circuit ✔ RSMo § 516.120 ✔ RSMo § 537.765 ✔ RSMo § 537.067
-2. DRAFTER (MO complaint + fact plead + ESI)   ✅ conf=0.98, tok=1403, cit=4
-   ✔ fact pleading ✔ Mo.Sup.Ct.R. 55.05 ✔ proportionality ✔ 537.765 ✔ 537.067 ✔ 8th Circuit ✔ Court of Appeals
-3. ANALYST (MO pure comparative + J&S)         ✅ conf=0.91, tok=1198
-   ✔ pure comparative ✔ 537.765 ✔ 537.067 ✔ joint & several ✔ 51%
-4. STRATEGIST (MO settlement + venue)          ✅ conf=0.98, tok=2027
-   ✔ 537.765 ✔ 537.067 ✔ Mo.Sup.Ct.R. 68 ✔ 56.01 ✔ proportionality
-5. RESEARCHER (MO discovery + ESI)             ✅ conf=0.98, tok=975
-   ✔ 56.01 ✔ ESI ✔ cost-shifting ✔ proportionality
-6. DEFAULT JURISDICTION                        ✅ chatJurisdiction = 'missouri'
-7. ORCHESTRATOR IDENTITY                       ✅ MISSOURI MODE + KANSAS MODE blocks present
+Section Order (all agents): Summary → Analysis → Recommendations → Agents Used → dashboard_update JSON → Human Review → Co-Counsel Closing
 
---- Previous KANSAS MODE Tests (still passing) ---
-  RESEARCHER (KS SOL)  ✅ | DRAFTER (KS complaint) ✅ | ANALYST (KS 50% bar) ✅ | STRATEGIST (KS) ✅
+--- System Identity Checks (11/13 pass) ---
+✅ user Brad, ✅ Human review, ✅ Agents Used, ✅ RESPONSE FORMAT,
+✅ Co-Counsel, ✅ AGENT ORCHESTRATION, ✅ ETHICS block,
+✅ CrewAI hierarchy, ✅ Sample matters, ✅ ksrevisor.gov, ✅ revisor.mo.gov
+
+--- Frontend Rendering Enhancements ---
+✅ Markdown tables (risk scorecard, venue comparison, budget projection, timeline)
+✅ Blockquotes (routing header, mem0 context notes)
+✅ Hyperlinks (statute URLs to ksrevisor.org / revisor.mo.gov)
+✅ JSON code blocks (dashboard_update) with syntax highlighting
+✅ <small> metadata tags (date, jurisdiction, matter)
 
 --- Bundle ---
-  Size: 310.92 kB
+  Size: 335.56 kB, Build: 995ms (Vite v6.4.1)
 ```
 
 ## Bugs Fixed
+
+### Feb 21, 2026 — Strict 6-Part Format + Enhanced Markdown Rendering (v3.3.1)
+- **Strict 6-part response format enforced on ALL agents**: Summary → Analysis → Recommendations & Next Actions → Full Output → Sources/Citations → Agents Used
+- **Orchestrator response assembly**: Strips agent-added disclaimers, rebuilds in canonical order: routing header → body → Agents Used → `dashboard_update` JSON → Human Review → Co-Counsel closing → metadata footer
+- **`dashboard_update` JSON patching**: Placeholder JSON in content replaced with actual side-effect counts post-pipeline
+- **Researcher**: Added `### Analysis` wrapper with `####` subsections (Kansas/Missouri Statutory Authority, Case Law, 8th Circuit, SOL/Comparative Fault, Procedural Framework); renamed Sources to Sources/Citations
+- **Drafter**: Added `### Analysis` wrapper with `####` subsections (Required Document Sections, Rules & Authority, Draft Outline); moved Jurisdiction-Specific Requirements under Recommendations
+- **Analyst**: Added `### Analysis` wrapper with `####` subsections (Risk Scorecard, Comparative Fault Analysis, SWOT, Damages, Proactive Recommendations)
+- **Strategist**: Added `### Summary` section + `### Analysis` wrapper with `####` subsections (Settlement Strategy, Venue/Forum Selection, Timeline, Budget, Proactive Analysis, Strategic Options)
+- **Frontend renderMarkdown**: Complete rewrite — now supports:
+  - **Markdown tables** (pipe-delimited with header/separator/body): rendered as styled `<table>` with alternating row colors
+  - **Blockquotes** (`> text`): rendered as left-bordered emerald blocks (routing header, mem0 notes)
+  - **Hyperlinks** (`[text](url)`): rendered as emerald links with `target="_blank"`
+  - **`<small>` metadata tags**: rendered as tiny slate text blocks
+  - **JSON code blocks**: highlighted in amber for dashboard_update visibility
 
 ### Feb 20, 2026 — CrewAI Integration + Runtime Config (v3.3)
 - **CrewAI Python backend**: 4 agents (Researcher, Analyst, Drafter, Strategist) powered by CrewAI 1.9.3
@@ -393,4 +405,4 @@ npm run db:migrate:local  # Apply migrations locally
 ## Deployment
 - **Platform**: Cloudflare Pages
 - **Status**: Development (sandbox running)
-- **Last Updated**: February 20, 2026
+- **Last Updated**: February 21, 2026

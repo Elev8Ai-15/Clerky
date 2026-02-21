@@ -55,10 +55,21 @@ export async function runStrategist(input: AgentInput, llm?: LLMClient, mem0Cont
   if (input.matter.case_id) content += `**Matter:** ${input.matter.case_number} — ${input.matter.title}\n`
   content += `\n---\n\n`
 
+  // Summary
+  content += `### Summary\n`
+  if (input.matter.case_id) {
+    content += `Strategic planning analysis for **${input.matter.case_number}** covering ${subtypes.join(', ')} in ${jxDisplay} jurisdiction.\n\n`
+  } else {
+    content += `General strategic analysis covering ${subtypes.join(', ')}. Select a specific matter for a targeted strategy assessment.\n\n`
+  }
+
   // ── Settlement Strategy ───────────────────────────────────
+  // Always add Analysis section
+  content += `### Analysis\n\n`
+
   if (subtypes.includes('settlement') || subtypes.includes('scenario_planning')) {
     const est = input.matter.estimated_value || 250000
-    content += `### Settlement Strategy Analysis\n\n`
+    content += `#### Settlement Strategy Analysis\n\n`
     content += `**Estimated Case Value:** $${Number(est).toLocaleString()}\n\n`
 
     content += `#### Option 1: Early Settlement (Pre-Discovery)\n`
@@ -107,7 +118,7 @@ export async function runStrategist(input: AgentInput, llm?: LLMClient, mem0Cont
 
   // ── Venue/Forum Selection Analysis ─────────────────────────
   if (subtypes.includes('venue_analysis') || (isKS && isMO && subtypes.includes('scenario_planning'))) {
-    content += `### 🏛️ Venue / Forum Selection Analysis\n\n`
+    content += `#### 🏛️ Venue / Forum Selection Analysis\n\n`
     content += `For matters with connections to both Kansas and Missouri, forum selection is a critical strategic decision:\n\n`
     content += `| Factor | Kansas | Missouri |\n`
     content += `|--------|--------|----------|\n`
@@ -129,7 +140,7 @@ export async function runStrategist(input: AgentInput, llm?: LLMClient, mem0Cont
 
   // ── Timeline Generation ───────────────────────────────────
   if (subtypes.includes('timeline')) {
-    content += `### Litigation Timeline & Critical Dates\n\n`
+    content += `#### Litigation Timeline & Critical Dates\n\n`
     const filed = input.matter.date_filed || input.date
     content += `| Phase | Estimated Dates | Key Deadlines | Status |\n`
     content += `|-------|----------------|---------------|--------|\n`
@@ -165,7 +176,7 @@ export async function runStrategist(input: AgentInput, llm?: LLMClient, mem0Cont
 
   // ── Litigation Budget ─────────────────────────────────────
   if (subtypes.includes('budget')) {
-    content += `### Litigation Budget Projection\n\n`
+    content += `#### Litigation Budget Projection\n\n`
     const isHighValue = (input.matter.estimated_value || 0) > 500000
     content += `| Phase | Hours Est. | Rate | Cost Est. | Cumulative |\n`
     content += `|-------|-----------|------|-----------|------------|\n`
@@ -198,7 +209,7 @@ export async function runStrategist(input: AgentInput, llm?: LLMClient, mem0Cont
 
   // ── Proactive "What Am I Missing?" ────────────────────────
   if (subtypes.includes('proactive')) {
-    content += `### 🎯 Proactive Analysis — What You May Be Missing\n\n`
+    content += `#### 🎯 Proactive Analysis — What You May Be Missing\n\n`
     content += `Based on my review of the matter file, here are items that warrant immediate attention:\n\n`
 
     let recNum = 1
@@ -257,7 +268,7 @@ export async function runStrategist(input: AgentInput, llm?: LLMClient, mem0Cont
 
   // General strategy section
   if (subtypes.includes('scenario_planning') && !subtypes.includes('settlement')) {
-    content += `### Strategic Options\n\n`
+    content += `#### Strategic Options\n\n`
     content += `**Option A: Aggressive Litigation**\n`
     content += `- Full discovery, expert witnesses, trial-ready preparation\n`
     content += `- Pros: Maximum leverage, demonstrates resolve\n`
@@ -275,7 +286,7 @@ export async function runStrategist(input: AgentInput, llm?: LLMClient, mem0Cont
   }
 
   // Next actions
-  content += `### Next Actions\n`
+  content += `### Recommendations & Next Actions\n`
   actions.push('Review strategic options with client and obtain direction')
   actions.push('Calendar all critical deadlines with advance reminders')
   if (subtypes.includes('settlement')) actions.push('Prepare settlement demand/proposal package')

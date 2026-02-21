@@ -258,9 +258,12 @@ export async function runResearcher(input: AgentInput, llm?: LLMClient, mem0Cont
     content += `Based on your query, I've conducted research across ${jxDisplay} statutory and case law databases. Below are my findings with specific authorities.\n\n`
   }
 
+  // ── Analysis section ──────────────────────────────────────
+  content += `### Analysis\n\n`
+
   // ── Kansas Statutory Analysis ─────────────────────────────
   if (ksStatutes.length > 0) {
-    content += `### Kansas Statutory Authority\n\n`
+    content += `#### Kansas Statutory Authority\n\n`
     for (const s of ksStatutes) {
       content += `**${s.title}**\n${s.text}\n- Source: [${s.title}](${s.url})\n\n`
     }
@@ -268,7 +271,7 @@ export async function runResearcher(input: AgentInput, llm?: LLMClient, mem0Cont
 
   // ── Missouri Statutory Analysis ───────────────────────────
   if (moStatutes.length > 0) {
-    content += `### Missouri Statutory Authority\n\n`
+    content += `#### Missouri Statutory Authority\n\n`
     for (const s of moStatutes) {
       content += `**${s.title}**\n${s.text}\n- Source: [${s.title}](${s.url})\n\n`
     }
@@ -276,7 +279,7 @@ export async function runResearcher(input: AgentInput, llm?: LLMClient, mem0Cont
 
   // ── Kansas Case Law ───────────────────────────────────────
   if (ksCases.length > 0) {
-    content += `### Kansas Key Case Law\n\n`
+    content += `#### Kansas Key Case Law\n\n`
     for (const c of ksCases) {
       content += `**${c.name}** — *${c.cite}* (${c.year})\n`
       content += `- **Holding:** ${c.holding}\n`
@@ -286,7 +289,7 @@ export async function runResearcher(input: AgentInput, llm?: LLMClient, mem0Cont
 
   // ── Missouri Case Law ─────────────────────────────────────
   if (moCases.length > 0) {
-    content += `### Missouri Key Case Law\n\n`
+    content += `#### Missouri Key Case Law\n\n`
     for (const c of moCases) {
       content += `**${c.name}** — *${c.cite}* (${c.year})\n`
       content += `- **Holding:** ${c.holding}\n`
@@ -296,7 +299,7 @@ export async function runResearcher(input: AgentInput, llm?: LLMClient, mem0Cont
 
   // ── 8th Circuit Precedent (MO Federal) ─────────────────────
   if (eighthCirCases.length > 0) {
-    content += `### 8th Circuit Precedent\n\n`
+    content += `#### 8th Circuit Precedent\n\n`
     for (const c of eighthCirCases) {
       content += `**${c.name}** — *${c.cite}* (${c.year})\n`
       content += `- **Holding:** ${c.holding}\n`
@@ -306,7 +309,7 @@ export async function runResearcher(input: AgentInput, llm?: LLMClient, mem0Cont
 
   // ── MISSOURI MODE: Auto-Flag SOL, Pure Comparative, J&S, Fact Pleading ──
   if (isMO && (caseKeys.includes('personal_injury') || caseKeys.includes('comparative_fault'))) {
-    content += `### ⏰ Missouri SOL & Comparative Fault\n\n`
+    content += `#### ⏰ Missouri SOL & Comparative Fault\n\n`
     content += `**RSMo § 516.120 — 5-Year Statute of Limitations:**\n`
     content += `- Personal injury / negligence: **5 years** from date injury is sustained and capable of ascertainment\n`
     content += `- Discovery rule: SOL tolled until plaintiff knew or should have known of injury (*Strahler v. St. Luke's Hosp.*, 706 S.W.2d 7 (Mo. 1986))\n`
@@ -324,7 +327,7 @@ export async function runResearcher(input: AgentInput, llm?: LLMClient, mem0Cont
 
   // ── MISSOURI MODE: Fact Pleading & Discovery Proportionality ──
   if (isMO && (caseKeys.includes('fact_pleading') || caseKeys.includes('discovery_proportionality'))) {
-    content += `### 📜 Missouri Procedural Requirements\n\n`
+    content += `#### 📜 Missouri Procedural Requirements\n\n`
     if (caseKeys.includes('fact_pleading')) {
       content += `**Mo.Sup.Ct.R. 55.05 — FACT PLEADING Required:**\n`
       content += `- Missouri requires **fact pleading** (NOT notice pleading)\n`
@@ -343,7 +346,7 @@ export async function runResearcher(input: AgentInput, llm?: LLMClient, mem0Cont
 
   // ── KANSAS MODE: Auto-Flag SOL & Presuit ──────────────────
   if (isKS && (caseKeys.includes('personal_injury') || caseKeys.includes('presuit_notice'))) {
-    content += `### ⏰ Kansas SOL & Presuit Requirements\n\n`
+    content += `#### ⏰ Kansas SOL & Presuit Requirements\n\n`
     content += `**K.S.A. 60-513 — 2-Year Statute of Limitations:**\n`
     content += `- Personal injury / negligence: **2 years** from date of injury\n`
     content += `- Discovery rule: accrual tolled until plaintiff knew or should have known of injury and its cause (*Baska v. Scherzer*, 283 Kan. 750 (2007))\n`
@@ -357,7 +360,7 @@ export async function runResearcher(input: AgentInput, llm?: LLMClient, mem0Cont
 
   // ── Comparative Fault Analysis (auto-included for PI) ─────
   if (caseKeys.includes('personal_injury') || caseKeys.includes('comparative_fault')) {
-    content += `### ⚖️ Comparative Fault — Jurisdiction Comparison\n\n`
+    content += `#### ⚖️ Comparative Fault — Jurisdiction Comparison\n\n`
     if (isKS) {
       content += `**Kansas (K.S.A. 60-258a):** Modified comparative fault with **50% bar**.\n`
       content += `- Plaintiff recovers ONLY if **less than 50% at fault**\n`
@@ -380,7 +383,7 @@ export async function runResearcher(input: AgentInput, llm?: LLMClient, mem0Cont
   }
 
   // Procedural framework (always included)
-  content += `### Procedural Framework\n`
+  content += `#### Procedural Framework\n`
   if (isKS) {
     content += `**Kansas:**\n`
     content += `- **K.S.A. Chapter 60** — Kansas Code of Civil Procedure\n`
@@ -406,8 +409,9 @@ export async function runResearcher(input: AgentInput, llm?: LLMClient, mem0Cont
     if (subtypes.includes('statute_lookup')) content += `- **FRCP Rule 6(a)** — exclude day of event; 3 days added for service by mail\n`
   }
 
-  // Risks
-  content += `\n### ⚠️ Risks & Verification Notes\n`
+  // Recommendations & Next Actions section (wraps risks + actions)
+  content += `\n### Recommendations & Next Actions\n`
+  content += `\n#### ⚠️ Risks & Verification Notes\n`
   content += `- **Shepardize/KeyCite** all case citations before reliance — confirm no adverse history\n`
   content += `- Verify no legislative amendments after research date\n`
   if (input.matter.statute_of_limitations) {
@@ -419,7 +423,7 @@ export async function runResearcher(input: AgentInput, llm?: LLMClient, mem0Cont
   risksFound.push('All citations require Shepardize/KeyCite verification')
 
   // Next actions
-  content += `\n### Next Actions\n`
+  content += `\n#### Next Actions\n`
   actions.push('Verify all cited authorities through Westlaw/LexisNexis')
   actions.push('Check for recent legislative amendments on ksrevisor.org / revisor.mo.gov')
   if (totalCases > 0) actions.push(`Review ${totalCases} case(s) for distinguishing facts`)
@@ -428,7 +432,7 @@ export async function runResearcher(input: AgentInput, llm?: LLMClient, mem0Cont
   for (const a of actions) content += `- [ ] ${a}\n`
 
   // Sources
-  content += `\n### Sources\n`
+  content += `\n### Sources / Citations\n`
   if (isKS) {
     content += `- Kansas Statutes: [ksrevisor.org](https://www.ksrevisor.org/)\n`
     content += `- 10th Circuit: [ca10.uscourts.gov](https://www.ca10.uscourts.gov/)\n`
