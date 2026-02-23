@@ -10,7 +10,7 @@ import { orchestrate, getSystemIdentity, initMemoryTables } from '../agents/orch
 import { createMem0Client } from '../agents/mem0'
 import { searchMemory } from '../agents/memory'
 
-type Bindings = { DB: D1Database; MEM0_API_KEY?: string; OPENAI_API_KEY?: string }
+type Bindings = { DB: D1Database; MEM0_API_KEY?: string; OPENAI_API_KEY?: string; OPENAI_BASE_URL?: string }
 const ai = new Hono<{ Bindings: Bindings }>()
 
 // ═══════════════════════════════════════════════════════════════
@@ -125,7 +125,7 @@ ai.post('/chat', async (c) => {
       case_id ? Number(case_id) : null,
       jurisdiction,
       1,
-      { DB: c.env.DB, MEM0_API_KEY: c.env.MEM0_API_KEY, OPENAI_API_KEY: c.env.OPENAI_API_KEY }
+      { DB: c.env.DB, MEM0_API_KEY: c.env.MEM0_API_KEY, OPENAI_API_KEY: c.env.OPENAI_API_KEY, OPENAI_BASE_URL: c.env.OPENAI_BASE_URL }
     )
   }
 
@@ -427,7 +427,7 @@ ai.post('/crew', async (c) => {
         caseId ? Number(caseId) : null,
         jurisdiction,
         1,
-        { DB: c.env.DB, MEM0_API_KEY: c.env.MEM0_API_KEY, OPENAI_API_KEY: c.env.OPENAI_API_KEY }
+        { DB: c.env.DB, MEM0_API_KEY: c.env.MEM0_API_KEY, OPENAI_API_KEY: c.env.OPENAI_API_KEY, OPENAI_BASE_URL: c.env.OPENAI_BASE_URL }
       )
       agentsUsed.push(result.agent_type)
       if (result.sub_agents_called?.length > 0) {
@@ -866,7 +866,7 @@ ai.post('/run', async (c) => {
     case_id ? Number(case_id) : null,
     'kansas',
     1,
-    { DB: c.env.DB, MEM0_API_KEY: c.env.MEM0_API_KEY, OPENAI_API_KEY: c.env.OPENAI_API_KEY }
+    { DB: c.env.DB, MEM0_API_KEY: c.env.MEM0_API_KEY, OPENAI_API_KEY: c.env.OPENAI_API_KEY, OPENAI_BASE_URL: c.env.OPENAI_BASE_URL }
   )
 
   return c.json({

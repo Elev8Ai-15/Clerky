@@ -10,7 +10,7 @@ import ai from './routes/ai'
 import users from './routes/users'
 import notifications from './routes/notifications'
 
-type Bindings = { DB: D1Database; MEM0_API_KEY?: string; OPENAI_API_KEY?: string }
+type Bindings = { DB: D1Database; MEM0_API_KEY?: string; OPENAI_API_KEY?: string; OPENAI_BASE_URL?: string }
 
 const app = new Hono<{ Bindings: Bindings }>()
 

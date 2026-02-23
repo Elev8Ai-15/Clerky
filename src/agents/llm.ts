@@ -1,10 +1,11 @@
 // ═══════════════════════════════════════════════════════════════
-// LAWYRS — LLM Client (OpenAI-compatible)
+// CLERKY — LLM Client (OpenAI-compatible)
 // Provides AI-powered generation when OPENAI_API_KEY is set.
 // Falls back gracefully to template responses when unavailable.
+// Supports any OpenAI-compatible endpoint via OPENAI_BASE_URL.
 // ═══════════════════════════════════════════════════════════════
 
-const OPENAI_BASE = 'https://api.openai.com/v1'
+const DEFAULT_BASE = 'https://www.genspark.ai/api/llm_proxy/v1'
 
 export interface LLMClient {
   isEnabled: boolean
@@ -20,8 +21,9 @@ export interface LLMClient {
   }): Promise<{ content: string; tokens_used: number } | null>
 }
 
-export function createLLMClient(apiKey?: string): LLMClient {
+export function createLLMClient(apiKey?: string, baseUrl?: string): LLMClient {
   const isEnabled = !!apiKey && apiKey.length > 10
+  const base = baseUrl || DEFAULT_BASE
 
   return {
     isEnabled,
@@ -58,14 +60,14 @@ export function createLLMClient(apiKey?: string): LLMClient {
         // Add current user message
         messages.push({ role: 'user', content: userMessage })
 
-        const response = await fetch(`${OPENAI_BASE}/chat/completions`, {
+        const response = await fetch(`${base}/chat/completions`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${apiKey}`
           },
           body: JSON.stringify({
-            model: 'gpt-4o-mini',
+            model: 'gpt-5-mini',
             messages,
             max_tokens: 4000,
             temperature: 0.3
@@ -74,7 +76,7 @@ export function createLLMClient(apiKey?: string): LLMClient {
 
         if (!response.ok) {
           const text = await response.text()
-          console.error(`OpenAI API error ${response.status}: ${text}`)
+          console.error(`LLM API error ${response.status}: ${text}`)
           return null
         }
 
