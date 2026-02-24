@@ -3,13 +3,15 @@
 ## Project Overview
 - **Name**: Clerky
 - **Goal**: Full-featured legal practice management platform with multi-agent AI co-counsel
-- **Stack**: Hono + Cloudflare D1 + TailwindCSS + Cloudflare Pages + **CrewAI** (Python)
-- **Architecture**: Multi-Agent Orchestrated Pipeline v3.3 — **MISSOURI MODE ACTIVE** + **CrewAI Backend** + **Runtime LLM Config**
+- **Stack**: Hono + Cloudflare D1 + TailwindCSS + Cloudflare Pages + **CrewAI** (Python) + **CourtListener/Harvard Caselaw** (Live Legal Research)
+- **Architecture**: Multi-Agent Orchestrated Pipeline v3.4 — **MISSOURI MODE ACTIVE** + **CrewAI Backend** + **Runtime LLM Config** + **Live Legal Research**
 - **User**: Brad (KC metro partner, 25+ years, KS/MO dual-licensed)
 - **Jurisdictions**: Missouri (PRIMARY) & Kansas (dual-licensed KS/MO)
 
-## Live URL
+## Live URLs
+- **Production**: https://lawyrs.pages.dev
 - **Sandbox**: Port 3000
+- **Legal Research API**: https://lawyrs.pages.dev/api/legal-research/health
 
 ## Multi-Agent AI System (v3.3)
 
@@ -73,7 +75,7 @@ User Query → Hono API (port 3000)
 | Agent | Specialties | Key Features |
 |-------|-----------|-------------|
 | **Orchestrator** | Intent routing, multi-agent co-routing | Keyword scoring, conversation continuity, confidence calibration |
-| **Researcher** | KS & MO statutes, case law, citations, **8th Circuit** precedent DB, Federal RAG | SOL lookup (KS 2yr / MO 5yr), comparative fault analysis, auto-injects KS/MO-specific KB entries, fact pleading + discovery proportionality for MO, Shepardize warnings |
+| **Researcher** | KS & MO statutes, case law, citations, **8th + 10th Circuit** precedent DB, Federal RAG, **CourtListener live search**, **citation verification** | SOL lookup (KS 2yr / MO 5yr), comparative fault analysis, auto-injects KS/MO-specific KB entries, fact pleading + discovery proportionality for MO, Shepardize warnings, **real-time case law search across ALL US jurisdictions**, **anti-hallucination citation verification** |
 | **Drafter** | 7 templates (demand letter, MTD, MTC, engagement, complaint, MSJ, discovery) | Caption generation, KS/MO-specific clauses, review checklists |
 | **Analyst** | Risk scoring (6 factors), SWOT, damages modeling | Liability/exposure/SOL/opposing counsel/evidence/deadline scoring |
 | **Strategist** | Settlement (3 scenarios), timeline, budget, ADR | KS/MO-specific strategy, cross-border analysis, cost projections |
@@ -111,6 +113,20 @@ User Query → Hono API (port 3000)
 - **Agent Memory UI** - Browse, search, filter, and delete agent memories
 - **Client Intake** - Multi-step intake form with AI processing pipeline
 - **Notifications** - Notification system with unread badges
+- **Legal Research** (v3.4) - Live legal research platform
+  - **CourtListener Integration**: REST API v4.3 — keyword + semantic search across ALL US jurisdictions
+  - **Harvard Caselaw Access**: 6.7M+ full-text US cases (via CourtListener)
+  - **Citation Verification**: Anti-hallucination — verify citations against real court records
+  - **PACER Docket Search**: Federal court docket search via RECAP
+  - **Judge Search**: Search federal + state judges with appointment history
+  - **Citation Network**: Explore citing/cited-by relationships for any case
+  - **Full Opinion Text**: Retrieve complete opinion text for any CourtListener case
+  - **Litigation Analytics**: Case duration, settlement rates, damages distribution (KS/MO)
+  - **Lex Machina Ready**: Enterprise API client built; falls back to statistical estimates
+  - **Expanded Knowledge Base**: 21 KS statutes, 21 MO statutes, 45+ embedded cases across 11 practice areas
+  - **10th Circuit Precedent**: 15+ 10th Circuit cases (KS federal) covering PI, employment, products, § 1983
+  - **8th Circuit Precedent**: 10+ 8th Circuit cases (MO federal) covering PI, employment, products, § 1983
+  - **Practice Areas**: Personal injury, medical malpractice, employment, family, corporate, product liability, premises liability, insurance bad faith, consumer protection, workers comp, sovereign immunity, real estate
 
 ### Database Schema (26+ Tables)
 1. **Core**: users_attorneys, clients, cases_matters, documents, ai_logs, notifications
@@ -197,6 +213,19 @@ User Query → Hono API (port 3000)
 - `GET /api/dashboard` - Full practice stats overview
 - `GET /api/init-db` - Initialize database + seed data
 
+### Legal Research (Live API — CourtListener + Harvard Caselaw)
+- `GET /api/legal-research/search?q=...&jurisdiction=...&semantic=true` - Case law search (keyword or semantic)
+- `GET /api/legal-research/semantic?q=...` - Semantic (AI) search convenience endpoint
+- `GET /api/legal-research/dockets?q=...` - PACER docket search
+- `GET /api/legal-research/citation?cite=237+Kan.+629` - Single citation lookup/verification
+- `POST /api/legal-research/verify-citations` - Bulk citation verification (anti-hallucination)
+- `GET /api/legal-research/opinion/:clusterId` - Full opinion text
+- `GET /api/legal-research/judges?q=...` - Judge search
+- `GET /api/legal-research/citations/:clusterId?direction=citing|cited_by` - Citation network
+- `GET /api/legal-research/analytics?jurisdiction=kansas&case_type=personal_injury` - Litigation analytics
+- `GET /api/legal-research/health` - API health check (CourtListener + Lex Machina status)
+- `POST /api/legal-research/quick` - Combined search (case law + dockets + analytics)
+
 ### Cases
 - `GET /api/cases` - List cases (filter: status, type, attorney_id, search)
 - `GET /api/cases/:id` - Case detail with docs, tasks, notes, time entries
@@ -223,15 +252,29 @@ User Query → Hono API (port 3000)
 ## Agent Files
 ```
 src/agents/
-├── types.ts        # TypeScript interfaces (AgentInput, AgentOutput, MatterContext, etc.)
-├── memory.ts       # Dual memory system (Mem0 + D1) + matter context assembly
-├── mem0.ts         # Mem0 Cloud API client (store, search, delete, stats)
-├── llm.ts          # OpenAI LLM client (gpt-4o-mini, structured prompts)
-├── orchestrator.ts # Main router: KS/MO intent classification, agent dispatch, response merge
-├── researcher.ts   # Legal research: KS/MO statutes, case law, citations, SOL analysis
-├── drafter.ts      # Document drafting: 7 templates, KS/MO rules, caption generation
-├── analyst.ts      # Risk analysis: 6-factor model, SWOT, damages calculation
-└── strategist.ts   # Strategy planning: KS/MO settlement, timeline, budget, ADR
+├── types.ts          # TypeScript interfaces (AgentInput, AgentOutput, MatterContext, etc.)
+├── memory.ts         # Dual memory system (Mem0 + D1) + matter context assembly
+├── mem0.ts           # Mem0 Cloud API client (store, search, delete, stats)
+├── llm.ts            # OpenAI LLM client (gpt-4o-mini, structured prompts)
+├── orchestrator.ts   # Main router: KS/MO intent classification, agent dispatch, response merge
+├── researcher.ts     # Legal research: KS/MO statutes, case law, citations, SOL analysis + LIVE CourtListener search
+├── legal-research.ts # CourtListener REST API v4 client (search, dockets, citations, judges, opinion text)
+├── lex-machina.ts    # Lex Machina litigation analytics (API client + built-in KS/MO estimates)
+├── drafter.ts        # Document drafting: 7 templates, KS/MO rules, caption generation
+├── analyst.ts        # Risk analysis: 6-factor model, SWOT, damages calculation
+└── strategist.ts     # Strategy planning: KS/MO settlement, timeline, budget, ADR
+
+src/routes/
+├── legal-research.ts # Legal Research API routes (11 endpoints)
+├── ai.ts             # AI Co-Counsel routes
+├── cases.ts          # Cases/Matters CRUD
+├── clients.ts        # Clients CRUD
+├── documents.ts      # Documents CRUD
+├── billing.ts        # Billing/Invoices
+├── calendar.ts       # Calendar events
+├── tasks.ts          # Tasks/Deadlines
+├── users.ts          # User management
+└── notifications.ts  # Notification system
 ```
 
 ## CrewAI Backend (Python)
@@ -284,6 +327,11 @@ DB=D1Database        # Cloudflare D1 binding (automatic)
 # Optional — enhance AI capabilities
 MEM0_API_KEY=        # Mem0 cloud memory (persistent semantic search)
 OPENAI_API_KEY=      # OpenAI for LLM-powered responses
+
+# Optional — enhance Legal Research
+COURTLISTENER_TOKEN= # CourtListener API token (5000 req/hr; anonymous = lower limits)
+LEX_MACHINA_CLIENT_ID=     # Lex Machina enterprise API (contact LexisNexis)
+LEX_MACHINA_CLIENT_SECRET= # Lex Machina enterprise API secret
 ```
 
 ## Development
@@ -322,6 +370,22 @@ Section Order (all agents): Summary → Analysis → Recommendations → Agents 
 ```
 
 ## Bugs Fixed
+
+### Feb 24, 2026 — Live Legal Research Integration (v3.4)
+- **CourtListener REST API v4.3**: Full integration with case law search (keyword + semantic), PACER docket search, citation lookup/verification, judge search, citation network, full opinion text
+- **Harvard Caselaw Access Project**: 6.7M+ US cases accessible via CourtListener integration
+- **Lex Machina client**: Enterprise OAuth2 API client built; built-in KS/MO litigation analytics estimates as fallback
+- **11 Legal Research API endpoints**: `/api/legal-research/search`, `/semantic`, `/dockets`, `/citation`, `/verify-citations`, `/opinion/:id`, `/judges`, `/citations/:id`, `/analytics`, `/health`, `/quick`
+- **Legal Research UI page**: Full-featured search interface with jurisdiction filters, search type toggle, date filters, citation count filters, quick action chips, citation verification panel, litigation analytics dashboard, data source cards
+- **Expanded KS knowledge base**: Added product_liability (3 cases), premises_liability (3 cases), insurance_bad_faith (2 cases), consumer_protection (2 cases), workers_comp (2 cases), sovereign_immunity (2 cases), real_estate (2 cases), medical_malpractice (3 cases) + additional PI/employment/family cases
+- **Expanded MO knowledge base**: Same 8 new practice areas with 2-4 cases each; total 30+ Missouri cases
+- **10th Circuit precedent database**: 15+ cases covering PI, med mal, employment, corporate, product liability, § 1983/qualified immunity, insurance bad faith, consumer protection — binding authority for Kansas federal proceedings
+- **8th Circuit expansion**: Added med mal, product liability, § 1983 cases + FMLA retaliation
+- **Anti-hallucination citation verification**: Bulk + single citation lookup against CourtListener records; warns on unverified citations
+- **Researcher agent v2.0**: Live CourtListener search integrated into research pipeline; falls back gracefully to embedded knowledge base if API unavailable; 10th Circuit cases now included alongside 8th Circuit
+- **Message-based keyword detection**: Added med mal, real estate practice area detection; expanded typeMap for all 11 practice areas
+- **Navigation**: Legal Research added to sidebar + mobile menu with "Live" badge
+- **Build**: 457.61 kB bundle (was 335 kB), 1.15s build time
 
 ### Feb 21, 2026 — Mobile Responsive UI Overhaul (v3.3.2)
 - **Collapsible sidebar on mobile**: Sidebar becomes a slide-out overlay (position: fixed, z-index 50) on screens <1024px, with a backdrop overlay and close-on-navigate behavior
@@ -417,5 +481,6 @@ Section Order (all agents): Summary → Analysis → Recommendations → Agents 
 
 ## Deployment
 - **Platform**: Cloudflare Pages
-- **Status**: Development (sandbox running)
-- **Last Updated**: February 21, 2026
+- **Production URL**: https://lawyrs.pages.dev
+- **Status**: Live (deployed)
+- **Last Updated**: February 24, 2026
