@@ -9,8 +9,9 @@ import tasks from './routes/tasks'
 import ai from './routes/ai'
 import users from './routes/users'
 import notifications from './routes/notifications'
+import legalResearch from './routes/legal-research'
 
-type Bindings = { DB: D1Database; MEM0_API_KEY?: string; OPENAI_API_KEY?: string; OPENAI_BASE_URL?: string }
+type Bindings = { DB: D1Database; MEM0_API_KEY?: string; OPENAI_API_KEY?: string; OPENAI_BASE_URL?: string; COURTLISTENER_TOKEN?: string; LEX_MACHINA_CLIENT_ID?: string; LEX_MACHINA_CLIENT_SECRET?: string }
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -26,6 +27,7 @@ app.route('/api/tasks', tasks)
 app.route('/api/ai', ai)
 app.route('/api/users', users)
 app.route('/api/notifications', notifications)
+app.route('/api/legal-research', legalResearch)
 
 // Dashboard stats endpoint
 app.get('/api/dashboard', async (c) => {
@@ -547,7 +549,11 @@ function getAppHTML(): string {
         <a onclick="navigate('billing')" class="sidebar-link flex items-center gap-3 px-6 py-3 cursor-pointer text-sm" data-page="billing">
           <i class="fas fa-receipt w-5 text-center"></i> Billing
         </a>
-        <div class="px-4 mt-6 mb-2 text-xs font-semibold uppercase tracking-wider" style="color:#6b7ea0">AI Tools</div>
+        <div class="px-4 mt-6 mb-2 text-xs font-semibold uppercase tracking-wider" style="color:#6b7ea0">Research & AI</div>
+        <a onclick="navigate('legal-research')" class="sidebar-link flex items-center gap-3 px-6 py-3 cursor-pointer text-sm" data-page="legal-research">
+          <i class="fas fa-search w-5 text-center" style="color:#10b981"></i> <span style="color:#6ee7b7">Legal Research</span>
+          <span class="ml-auto text-white text-xs px-2 py-0.5 rounded-full" style="background:#059669">Live</span>
+        </a>
         <a onclick="navigate('ai-chat')" class="sidebar-link flex items-center gap-3 px-6 py-3 cursor-pointer text-sm" data-page="ai-chat">
           <i class="fas fa-scale-balanced w-5 text-center" style="color:#cc2229"></i> <span style="color:#f09898">AI Co-Counsel</span>
           <span class="ml-auto text-white text-xs px-2 py-0.5 rounded-full" style="background:#cc2229">Live</span>
@@ -638,6 +644,7 @@ function getAppHTML(): string {
     <button onclick="navigate('tasks');closeMobileMore()" class="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-white/10 flex items-center gap-3"><i class="fas fa-check-circle w-5 text-center" style="color:#6b7ea0"></i> Tasks</button>
     <button onclick="navigate('billing');closeMobileMore()" class="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-white/10 flex items-center gap-3"><i class="fas fa-receipt w-5 text-center" style="color:#6b7ea0"></i> Billing</button>
     <div style="border-top:1px solid #2a4068; margin:4px 0;"></div>
+    <button onclick="navigate('legal-research');closeMobileMore()" class="w-full text-left px-4 py-2.5 text-sm flex items-center gap-3" style="color:#6ee7b7"><i class="fas fa-search w-5 text-center"></i> Legal Research <span class="ml-auto text-xs px-1.5 py-0.5 rounded" style="background:#059669;color:white">Live</span></button>
     <button onclick="navigate('ai-workflow');closeMobileMore()" class="w-full text-left px-4 py-2.5 text-sm flex items-center gap-3" style="color:#f09898"><i class="fas fa-robot w-5 text-center"></i> AI Workflow</button>
     <button onclick="navigate('memory');closeMobileMore()" class="w-full text-left px-4 py-2.5 text-sm flex items-center gap-3" style="color:#f09898"><i class="fas fa-brain w-5 text-center"></i> Agent Memory</button>
     <button onclick="navigate('intake');closeMobileMore()" class="w-full text-left px-4 py-2.5 text-sm text-white hover:bg-white/10 flex items-center gap-3"><i class="fas fa-clipboard-list w-5 text-center" style="color:#6b7ea0"></i> Client Intake</button>
@@ -707,7 +714,7 @@ function navigate(page) {
   else { const moreBtn = document.getElementById('mobileMoreBtn'); if (moreBtn) moreBtn.classList.add('active'); }
   document.getElementById('pageContent').innerHTML = '<div class="flex items-center justify-center h-32"><i class="fas fa-spinner fa-spin text-brand-500 text-xl mr-3"></i> Loading...</div>';
   
-  const pages = { dashboard: loadDashboard, cases: loadCases, clients: loadClients, documents: loadDocuments, calendar: loadCalendar, tasks: loadTasks, billing: loadBilling, 'ai-chat': loadAIChat, 'ai-workflow': loadAIWorkflow, memory: loadMemory, intake: loadIntake };
+  const pages = { dashboard: loadDashboard, cases: loadCases, clients: loadClients, documents: loadDocuments, calendar: loadCalendar, tasks: loadTasks, billing: loadBilling, 'legal-research': loadLegalResearch, 'ai-chat': loadAIChat, 'ai-workflow': loadAIWorkflow, memory: loadMemory, intake: loadIntake };
   if (pages[page]) pages[page]();
 }
 
@@ -1382,6 +1389,284 @@ async function loadBilling() {
       </div>
     \`;
   } catch(e) { showError('billing'); }
+}
+
+// === LEGAL RESEARCH (CourtListener + Harvard Caselaw + Lex Machina) ===
+async function loadLegalResearch() {
+  // Check API health
+  let healthData = null;
+  try {
+    const h = await axios.get(API + '/legal-research/health');
+    healthData = h.data;
+  } catch(e) {}
+
+  const clStatus = healthData?.courtlistener?.status || 'unknown';
+  const clBadge = clStatus === 'ok' ? '<span class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">🟢 Live</span>'
+    : clStatus === 'degraded' ? '<span class="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">🟡 Degraded</span>'
+    : '<span class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">🔴 Down</span>';
+
+  document.getElementById('pageContent').innerHTML = \`
+  <div class="space-y-4 sm:space-y-6 animate-fadeIn">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div>
+        <h2 class="text-xl sm:text-2xl font-bold text-dark-900">Legal Research</h2>
+        <p class="text-sm text-dark-500 mt-1">Search case law, dockets, verify citations — powered by CourtListener & Harvard Caselaw</p>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap">
+        \${clBadge}
+        <span class="text-xs text-dark-400">\${healthData?.courtlistener_token === 'configured' ? '🔑 Authenticated' : '🔓 Anonymous'}</span>
+      </div>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 sm:p-6">
+      <div class="flex flex-col gap-3">
+        <div class="flex flex-col sm:flex-row gap-3">
+          <input id="lrQuery" type="text" placeholder="Search case law, statutes, or legal issues..." class="flex-1 px-4 py-3 border rounded-lg text-sm focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100" onkeydown="if(event.key==='Enter')runLegalSearch()">
+          <button onclick="runLegalSearch()" class="px-6 py-3 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition flex items-center justify-center gap-2">
+            <i class="fas fa-search"></i> Search
+          </button>
+        </div>
+        <div class="flex flex-wrap gap-2 items-center">
+          <select id="lrJurisdiction" class="px-3 py-1.5 border rounded-lg text-xs bg-gray-50">
+            <option value="kansas">Kansas / 10th Cir.</option>
+            <option value="missouri">Missouri / 8th Cir.</option>
+            <option value="multi-state" selected>All KS/MO</option>
+            <option value="federal">Federal</option>
+          </select>
+          <select id="lrSearchType" class="px-3 py-1.5 border rounded-lg text-xs bg-gray-50">
+            <option value="keyword">Keyword Search</option>
+            <option value="semantic">Semantic Search (AI)</option>
+          </select>
+          <select id="lrOrderBy" class="px-3 py-1.5 border rounded-lg text-xs bg-gray-50">
+            <option value="score desc">Relevance</option>
+            <option value="dateFiled desc">Date (Newest)</option>
+            <option value="dateFiled asc">Date (Oldest)</option>
+            <option value="citeCount desc">Most Cited</option>
+          </select>
+          <input id="lrDateAfter" type="date" class="px-3 py-1.5 border rounded-lg text-xs bg-gray-50" placeholder="After date">
+          <label class="flex items-center gap-1.5 text-xs text-dark-500">
+            <input id="lrCitedGt" type="number" min="0" class="w-16 px-2 py-1.5 border rounded-lg text-xs bg-gray-50" placeholder="0"> min citations
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="flex flex-wrap gap-2 overflow-x-auto" style="-webkit-overflow-scrolling:touch">
+      <button onclick="lrQuickSearch('personal injury negligence Kansas')" class="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-full text-xs whitespace-nowrap hover:bg-gray-200">KS Personal Injury</button>
+      <button onclick="lrQuickSearch('comparative fault 50 percent bar Kansas')" class="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-full text-xs whitespace-nowrap hover:bg-gray-200">KS Comparative Fault</button>
+      <button onclick="lrQuickSearch('pure comparative fault Missouri')" class="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-full text-xs whitespace-nowrap hover:bg-gray-200">MO Pure Comparative</button>
+      <button onclick="lrQuickSearch('employment discrimination wrongful termination')" class="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-full text-xs whitespace-nowrap hover:bg-gray-200">Employment Discrimination</button>
+      <button onclick="lrQuickSearch('medical malpractice statute of limitations')" class="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-full text-xs whitespace-nowrap hover:bg-gray-200">Med Mal SOL</button>
+      <button onclick="lrQuickSearch('products liability strict liability defective')" class="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-full text-xs whitespace-nowrap hover:bg-gray-200">Product Liability</button>
+      <button onclick="lrQuickSearch('qualified immunity section 1983')" class="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-full text-xs whitespace-nowrap hover:bg-gray-200">§ 1983 / Qualified Immunity</button>
+    </div>
+
+    <!-- Citation Verification -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+      <h3 class="text-sm font-semibold text-dark-800 mb-2"><i class="fas fa-check-double mr-1 text-green-600"></i> Citation Verification (Anti-Hallucination)</h3>
+      <div class="flex flex-col sm:flex-row gap-2">
+        <input id="lrCitation" type="text" placeholder='Enter citation (e.g., "237 Kan. 629" or "661 S.W.2d 11")' class="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:border-green-500" onkeydown="if(event.key==='Enter')verifyCitationUI()">
+        <button onclick="verifyCitationUI()" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition flex items-center gap-2">
+          <i class="fas fa-check-circle"></i> Verify
+        </button>
+      </div>
+      <div id="citationResult" class="mt-2"></div>
+    </div>
+
+    <!-- Litigation Analytics -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+      <h3 class="text-sm font-semibold text-dark-800 mb-3"><i class="fas fa-chart-bar mr-1 text-purple-600"></i> Litigation Analytics</h3>
+      <div class="flex flex-wrap gap-2 mb-3">
+        <button onclick="loadAnalytics('personal_injury')" class="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-full text-xs hover:bg-purple-100">Personal Injury</button>
+        <button onclick="loadAnalytics('employment')" class="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-full text-xs hover:bg-purple-100">Employment</button>
+        <button onclick="loadAnalytics('medical_malpractice')" class="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-full text-xs hover:bg-purple-100">Med Mal</button>
+        <button onclick="loadAnalytics('family')" class="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-full text-xs hover:bg-purple-100">Family</button>
+        <button onclick="loadAnalytics('corporate')" class="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-full text-xs hover:bg-purple-100">Corporate</button>
+      </div>
+      <div id="analyticsResult"></div>
+    </div>
+
+    <!-- Results -->
+    <div id="lrResults"></div>
+
+    <!-- Data Sources -->
+    <div class="bg-gray-50 rounded-xl border border-gray-200 p-4 text-xs text-dark-500">
+      <p class="font-semibold mb-2">Data Sources & Coverage:</p>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div>
+          <p class="font-medium text-dark-700"><i class="fas fa-landmark mr-1 text-blue-600"></i> CourtListener</p>
+          <p>Case law, PACER dockets, oral arguments, citation networks. Maintained by <a href="https://free.law" target="_blank" class="text-blue-600 hover:underline">Free Law Project</a>.</p>
+        </div>
+        <div>
+          <p class="font-medium text-dark-700"><i class="fas fa-university mr-1 text-red-600"></i> Harvard Caselaw Access</p>
+          <p>Full-text US case law from all jurisdictions. 6.7M+ cases. Public domain.</p>
+        </div>
+        <div>
+          <p class="font-medium text-dark-700"><i class="fas fa-chart-line mr-1 text-purple-600"></i> Litigation Analytics</p>
+          <p>\${healthData?.lex_machina?.status === 'configured' ? 'Lex Machina (LexisNexis)' : 'Built-in KS/MO statistical estimates from judicial reports'}.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  \`;
+}
+
+async function runLegalSearch() {
+  const q = document.getElementById('lrQuery').value.trim();
+  if (!q) return;
+
+  const jurisdiction = document.getElementById('lrJurisdiction').value;
+  const searchType = document.getElementById('lrSearchType').value;
+  const orderBy = document.getElementById('lrOrderBy').value;
+  const dateAfter = document.getElementById('lrDateAfter').value;
+  const citedGt = document.getElementById('lrCitedGt').value;
+
+  const resultsDiv = document.getElementById('lrResults');
+  resultsDiv.innerHTML = '<div class="flex items-center justify-center py-8"><i class="fas fa-spinner fa-spin text-green-500 text-xl mr-3"></i> Searching case law databases...</div>';
+
+  try {
+    const params = new URLSearchParams({ q, jurisdiction, order_by: orderBy });
+    if (searchType === 'semantic') params.set('semantic', 'true');
+    if (dateAfter) params.set('date_after', dateAfter);
+    if (citedGt) params.set('cited_gt', citedGt);
+
+    const { data } = await axios.get(API + '/legal-research/search?' + params.toString());
+
+    if (data.results.length === 0) {
+      resultsDiv.innerHTML = '<div class="bg-yellow-50 rounded-xl border border-yellow-200 p-6 text-center"><i class="fas fa-exclamation-triangle text-yellow-500 text-2xl mb-2"></i><p class="text-dark-700 font-medium">No results found</p><p class="text-sm text-dark-500 mt-1">Try broadening your search terms or changing the jurisdiction filter.</p></div>';
+      return;
+    }
+
+    resultsDiv.innerHTML = \`
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div class="px-4 py-3 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <h3 class="text-sm font-semibold text-dark-800">
+            <i class="fas fa-gavel text-green-600 mr-1"></i>
+            \${data.total_results.toLocaleString()} result(s) — \${data.search_type === 'semantic' ? 'Semantic' : 'Keyword'} search
+          </h3>
+          <span class="text-xs text-dark-400">Source: \${data.source} | API: \${data.api_status}</span>
+        </div>
+        <div class="divide-y divide-gray-100">
+          \${data.results.map((r, i) => \`
+            <div class="p-4 hover:bg-gray-50 transition">
+              <div class="flex items-start gap-3">
+                <span class="text-xs font-mono text-dark-400 mt-1">\${i+1}</span>
+                <div class="flex-1 min-w-0">
+                  <a href="\${r.absolute_url}" target="_blank" class="text-sm font-semibold text-blue-700 hover:underline">\${r.case_name}</a>
+                  <p class="text-xs text-dark-500 mt-0.5">
+                    \${r.citations.length > 0 ? r.citations.join(', ') : 'No official citation'} •
+                    \${r.court} • \${r.date_filed || 'Unknown date'} •
+                    \${r.status}
+                    \${r.cite_count > 0 ? ' • <span class="text-green-600 font-medium">Cited ' + r.cite_count + '×</span>' : ''}
+                    \${r.judge ? ' • Judge: ' + r.judge : ''}
+                  </p>
+                  \${r.snippet ? '<p class="text-xs text-dark-600 mt-1 line-clamp-3">' + r.snippet + '</p>' : ''}
+                </div>
+              </div>
+            </div>
+          \`).join('')}
+        </div>
+      </div>
+    \`;
+  } catch(e) {
+    resultsDiv.innerHTML = '<div class="bg-red-50 rounded-xl border border-red-200 p-4 text-center text-red-700 text-sm"><i class="fas fa-exclamation-circle mr-1"></i> Search failed. CourtListener may be temporarily unavailable. Try again in a moment.</div>';
+  }
+}
+
+function lrQuickSearch(query) {
+  document.getElementById('lrQuery').value = query;
+  runLegalSearch();
+}
+
+async function verifyCitationUI() {
+  const cite = document.getElementById('lrCitation').value.trim();
+  if (!cite) return;
+
+  const resultDiv = document.getElementById('citationResult');
+  resultDiv.innerHTML = '<span class="text-xs text-dark-400"><i class="fas fa-spinner fa-spin mr-1"></i> Verifying...</span>';
+
+  try {
+    const { data } = await axios.get(API + '/legal-research/citation?cite=' + encodeURIComponent(cite));
+    if (data.found) {
+      resultDiv.innerHTML = \`
+        <div class="flex items-center gap-2 bg-green-50 rounded-lg px-3 py-2 mt-1">
+          <i class="fas fa-check-circle text-green-600"></i>
+          <div class="text-xs">
+            <span class="font-medium text-green-800">✅ Citation Verified:</span>
+            <a href="\${data.url}" target="_blank" class="text-blue-600 hover:underline ml-1">\${data.case_name}</a>
+            <span class="text-dark-500"> — \${data.court || ''}, \${data.date_filed || ''}</span>
+          </div>
+        </div>
+      \`;
+    } else {
+      resultDiv.innerHTML = \`
+        <div class="flex items-center gap-2 bg-red-50 rounded-lg px-3 py-2 mt-1">
+          <i class="fas fa-times-circle text-red-600"></i>
+          <span class="text-xs text-red-700">❌ Citation NOT found — may be hallucinated, incorrectly formatted, or from an unpublished opinion. Verify manually on Westlaw/Lexis.</span>
+        </div>
+      \`;
+    }
+  } catch(e) {
+    resultDiv.innerHTML = '<span class="text-xs text-red-500"><i class="fas fa-exclamation-circle mr-1"></i> Verification failed — try again.</span>';
+  }
+}
+
+async function loadAnalytics(caseType) {
+  const jurisdiction = document.getElementById('lrJurisdiction')?.value || 'kansas';
+  const div = document.getElementById('analyticsResult');
+  div.innerHTML = '<span class="text-xs text-dark-400"><i class="fas fa-spinner fa-spin mr-1"></i> Loading analytics...</span>';
+
+  try {
+    const { data } = await axios.get(API + '/legal-research/analytics?jurisdiction=' + jurisdiction + '&case_type=' + caseType);
+    const pct = (n) => (n * 100).toFixed(1) + '%';
+    const usd = (n) => '$' + n.toLocaleString();
+
+    div.innerHTML = \`
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+        <div class="bg-purple-50 rounded-lg p-3 text-center">
+          <p class="text-lg font-bold text-purple-700">\${data.total_cases_analyzed.toLocaleString()}</p>
+          <p class="text-xs text-purple-600">Cases Analyzed</p>
+        </div>
+        <div class="bg-blue-50 rounded-lg p-3 text-center">
+          <p class="text-lg font-bold text-blue-700">\${data.avg_duration_days}d</p>
+          <p class="text-xs text-blue-600">Avg Duration</p>
+        </div>
+        <div class="bg-green-50 rounded-lg p-3 text-center">
+          <p class="text-lg font-bold text-green-700">\${pct(data.resolution_rates.settlement)}</p>
+          <p class="text-xs text-green-600">Settlement Rate</p>
+        </div>
+        <div class="bg-amber-50 rounded-lg p-3 text-center">
+          <p class="text-lg font-bold text-amber-700">\${data.damages_stats.median > 0 ? usd(data.damages_stats.median) : 'N/A'}</p>
+          <p class="text-xs text-amber-600">Median Damages</p>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs">
+          <thead><tr class="text-left text-dark-500 border-b"><th class="pb-1">Resolution</th><th class="pb-1">Rate</th><th class="pb-1 hidden sm:table-cell">Visual</th></tr></thead>
+          <tbody>
+            <tr><td class="py-1">Settlement</td><td>\${pct(data.resolution_rates.settlement)}</td><td class="hidden sm:table-cell"><div class="w-full bg-gray-100 rounded-full h-2"><div class="bg-green-500 rounded-full h-2" style="width:\${data.resolution_rates.settlement*100}%"></div></div></td></tr>
+            <tr><td class="py-1">Plaintiff Verdict</td><td>\${pct(data.resolution_rates.plaintiff_verdict)}</td><td class="hidden sm:table-cell"><div class="w-full bg-gray-100 rounded-full h-2"><div class="bg-blue-500 rounded-full h-2" style="width:\${data.resolution_rates.plaintiff_verdict*100}%"></div></div></td></tr>
+            <tr><td class="py-1">Defendant Verdict</td><td>\${pct(data.resolution_rates.defendant_verdict)}</td><td class="hidden sm:table-cell"><div class="w-full bg-gray-100 rounded-full h-2"><div class="bg-red-500 rounded-full h-2" style="width:\${data.resolution_rates.defendant_verdict*100}%"></div></div></td></tr>
+            <tr><td class="py-1">Dismissal</td><td>\${pct(data.resolution_rates.dismissal)}</td><td class="hidden sm:table-cell"><div class="w-full bg-gray-100 rounded-full h-2"><div class="bg-amber-500 rounded-full h-2" style="width:\${data.resolution_rates.dismissal*100}%"></div></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+      \${data.damages_stats.median > 0 ? \`
+        <div class="mt-3 grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+          <div class="bg-gray-50 rounded p-2"><span class="text-dark-400">25th Pctile</span><br><span class="font-medium">\${usd(data.damages_stats.p25)}</span></div>
+          <div class="bg-gray-50 rounded p-2"><span class="text-dark-400">Median</span><br><span class="font-medium">\${usd(data.damages_stats.median)}</span></div>
+          <div class="bg-gray-50 rounded p-2"><span class="text-dark-400">Mean</span><br><span class="font-medium">\${usd(data.damages_stats.mean)}</span></div>
+          <div class="bg-gray-50 rounded p-2"><span class="text-dark-400">75th Pctile</span><br><span class="font-medium">\${usd(data.damages_stats.p75)}</span></div>
+          <div class="bg-gray-50 rounded p-2"><span class="text-dark-400">Maximum</span><br><span class="font-medium">\${usd(data.damages_stats.max)}</span></div>
+        </div>
+      \` : ''}
+      <p class="text-xs text-dark-400 mt-2">Source: \${data.source === 'lex_machina' ? 'Lex Machina (LexisNexis)' : 'Estimated from judicial statistics'} | Jurisdiction: \${data.jurisdiction}</p>
+    \`;
+  } catch(e) {
+    div.innerHTML = '<span class="text-xs text-red-500"><i class="fas fa-exclamation-circle mr-1"></i> Failed to load analytics.</span>';
+  }
 }
 
 // === AI CO-COUNSEL CHAT (Dark Mode — ported from React patch) ===
