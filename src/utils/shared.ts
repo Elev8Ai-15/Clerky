@@ -30,7 +30,21 @@ export function sanitizeString(s: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#x27;')
-    .replace(/\//g, '&#x2F;')
+  // NOTE: Removed / → &#x2F; (BUG-11 fix) — it was breaking URL fields
+  // (file_url, signing_url, access_url, receipt_url, virtual_link, etc.)
+}
+
+// URL-safe sanitization — use for fields that should NOT have slashes escaped
+export function sanitizeUrl(s: string): string {
+  if (!s) return s
+  // Only strip dangerous HTML-injection chars, preserve URL structure
+  return s
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/javascript:/gi, '')
+    .replace(/data:/gi, '')
 }
 
 // ── Input Validation (BUG-01) ─────────────────────────────────
@@ -107,8 +121,15 @@ export function validate(body: any, rules: FieldRule[]): ValidationResult {
 
 // ── Safe JSON Body Parser Middleware (BUG-01) ─────────────────
 // Wraps POST/PUT handlers so malformed/empty JSON returns 400 not 500
+// Skips body requirement for action endpoints that read data from DB (e.g., /analyze)
 export async function safeJsonParse(c: Context, next: Next) {
   if (['POST', 'PUT', 'PATCH'].includes(c.req.method)) {
+    // Allow empty-body POST for action endpoints (analyze, re-analyze, etc.)
+    const url = new URL(c.req.url)
+    const actionPaths = ['/analyze', '/read-all', '/mark-read']
+    const isActionEndpoint = actionPaths.some(p => url.pathname.endsWith(p))
+    if (isActionEndpoint) { await next(); return }
+
     const ct = c.req.header('content-type') || ''
     if (ct.includes('json') || !ct) {
       try {

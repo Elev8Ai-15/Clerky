@@ -16,7 +16,7 @@ import {
   getLitigationAnalytics, formatAnalyticsMarkdown,
   LexMachinaClient
 } from '../agents/lex-machina'
-import { parsePagination, coalesceInt, badRequest } from '../utils/shared'
+import { parsePagination, coalesceInt, badRequest, rateLimit } from '../utils/shared'
 
 type Bindings = {
   DB: D1Database
@@ -30,6 +30,10 @@ const app = new Hono<{ Bindings: Bindings }>()
 // ── 1. CASE LAW SEARCH ───────────────────────────────────────
 // GET /api/legal-research/search?q=...&jurisdiction=...&semantic=true
 app.get('/search', async (c) => {
+  // Rate limit: 60 requests per minute (BUG-5 fix)
+  if (!rateLimit('legal-search', 60, 60000)) {
+    return c.json({ error: 'Rate limit exceeded. Please wait before searching again.' }, 429)
+  }
   const q = c.req.query('q') || ''
   if (!q) return badRequest(c, ['Query parameter "q" is required'])
   if (q.length > 500) return badRequest(c, ['Query too long (max 500 characters)'])

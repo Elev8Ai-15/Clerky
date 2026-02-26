@@ -23,8 +23,8 @@ calendar.get('/', async (c) => {
   let query = `SELECT ce.*, cm.case_number, cm.title as case_title, u.full_name as organizer_name
     FROM calendar_events ce
     LEFT JOIN cases_matters cm ON ce.case_id = cm.id
-    LEFT JOIN users_attorneys u ON ce.organizer_id = u.id WHERE 1=1`
-  let countQuery = `SELECT COUNT(*) as total FROM calendar_events WHERE 1=1`
+    LEFT JOIN users_attorneys u ON ce.organizer_id = u.id WHERE COALESCE(ce.status, 'active') != 'cancelled'`
+  let countQuery = `SELECT COUNT(*) as total FROM calendar_events WHERE COALESCE(status, 'active') != 'cancelled'`
   const params: any[] = []
   const countParams: any[] = []
 
@@ -118,13 +118,13 @@ calendar.put('/:id', async (c) => {
   }
 })
 
-// Delete event — with existence check + audit
+// Delete event — soft-delete via status='cancelled' for consistency (BUG-17 fix)
 calendar.delete('/:id', async (c) => {
   const id = c.req.param('id')
   if (!(await checkExists(c.env.DB, 'calendar_events', id))) return notFound(c, 'Event')
 
-  await c.env.DB.prepare('DELETE FROM calendar_events WHERE id = ?').bind(id).run()
-  await auditLog(c.env.DB, 'delete', 'calendar_events', id, 1)
+  await c.env.DB.prepare("UPDATE calendar_events SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(id).run()
+  await auditLog(c.env.DB, 'soft_delete', 'calendar_events', id, 1)
 
   return c.json({ success: true })
 })

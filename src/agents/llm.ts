@@ -21,7 +21,7 @@ export interface LLMClient {
   }): Promise<{ content: string; tokens_used: number } | null>
 }
 
-export function createLLMClient(apiKey?: string, baseUrl?: string): LLMClient {
+export function createLLMClient(apiKey?: string, baseUrl?: string, modelName?: string): LLMClient {
   const isEnabled = !!apiKey && apiKey.length > 10
   const base = baseUrl || DEFAULT_BASE
 
@@ -67,7 +67,7 @@ export function createLLMClient(apiKey?: string, baseUrl?: string): LLMClient {
             'Authorization': `Bearer ${apiKey}`
           },
           body: JSON.stringify({
-            model: 'gpt-5-mini',
+            model: modelName || 'gpt-4o-mini',
             messages,
             max_tokens: 4000,
             temperature: 0.3

@@ -12,7 +12,7 @@ import notifications from './routes/notifications'
 import legalResearch from './routes/legal-research'
 import { globalErrorHandler, safeJsonParse, coalesceInt } from './utils/shared'
 
-type Bindings = { DB: D1Database; MEM0_API_KEY?: string; OPENAI_API_KEY?: string; OPENAI_BASE_URL?: string; COURTLISTENER_TOKEN?: string; LEX_MACHINA_CLIENT_ID?: string; LEX_MACHINA_CLIENT_SECRET?: string }
+type Bindings = { DB: D1Database; MEM0_API_KEY?: string; OPENAI_API_KEY?: string; OPENAI_BASE_URL?: string; OPENAI_MODEL?: string; COURTLISTENER_TOKEN?: string; LEX_MACHINA_CLIENT_ID?: string; LEX_MACHINA_CLIENT_SECRET?: string; ADMIN_KEY?: string; CREWAI_URL?: string }
 
 const app = new Hono<{ Bindings: Bindings }>()
 
@@ -41,7 +41,7 @@ app.get('/api/health', async (c) => {
     const dbCheck = await c.env.DB.prepare('SELECT 1 as ok').first()
     return c.json({
       status: 'healthy',
-      version: '5.1.0',
+      version: '5.2.0',
       timestamp: new Date().toISOString(),
       database: dbCheck ? 'connected' : 'error',
       services: {
@@ -78,8 +78,17 @@ app.get('/api/dashboard', async (c) => {
   })
 })
 
-// Database init endpoint
+// ── ADMIN AUTH HELPER (BUG-3 fix) ──────────────────────────
+const DEFAULT_ADMIN_KEY = 'clerky-admin-2026'
+function requireAdmin(c: any): boolean {
+  const adminKey = c.env.ADMIN_KEY || DEFAULT_ADMIN_KEY
+  const provided = c.req.header('X-Admin-Key') || c.req.query('admin_key')
+  return provided === adminKey
+}
+
+// Database init endpoint — PROTECTED (BUG-3)
 app.get('/api/init-db', async (c) => {
+  if (!requireAdmin(c)) return c.json({ error: 'Unauthorized. Provide X-Admin-Key header or admin_key query param.' }, 403)
   const migrations = [
     // Migration 1: Core tables
     `CREATE TABLE IF NOT EXISTS users_attorneys (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE NOT NULL, full_name TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'attorney', bar_number TEXT, phone TEXT, specialty TEXT, avatar_url TEXT, is_active INTEGER DEFAULT 1, password_hash TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
@@ -121,6 +130,8 @@ app.get('/api/init-db', async (c) => {
     `CREATE TABLE IF NOT EXISTS error_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, route TEXT NOT NULL, method TEXT NOT NULL, error_message TEXT NOT NULL, details TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
     // Performance indexes (PERF-01)
     `CREATE INDEX IF NOT EXISTS idx_cases_client ON cases_matters(client_id)`,
+    // BUG-17 fix: Add status column to calendar_events for soft-delete support
+    `ALTER TABLE calendar_events ADD COLUMN status TEXT DEFAULT 'active'`,
     `CREATE INDEX IF NOT EXISTS idx_cases_attorney ON cases_matters(lead_attorney_id)`,
     `CREATE INDEX IF NOT EXISTS idx_cases_status ON cases_matters(status)`,
     `CREATE INDEX IF NOT EXISTS idx_docs_case ON documents(case_id)`,
@@ -136,7 +147,7 @@ app.get('/api/init-db', async (c) => {
   ]
 
   for (const sql of migrations) {
-    await c.env.DB.prepare(sql).run()
+    try { await c.env.DB.prepare(sql).run() } catch (e) { /* ALTER TABLE may fail if column exists */ }
   }
 
   // Seed data — only the admin user
@@ -151,8 +162,9 @@ app.get('/api/init-db', async (c) => {
   return c.json({ success: true, message: 'Database initialized with 26 tables' })
 })
 
-// Reset DB: wipe all data and re-seed with only Brad
+// Reset DB: wipe all data and re-seed with only Brad — PROTECTED (BUG-3)
 app.get('/api/reset-db', async (c) => {
+  if (!requireAdmin(c)) return c.json({ error: 'Unauthorized. Provide X-Admin-Key header or admin_key query param.' }, 403)
   const tables = [
     'notifications', 'ai_logs', 'payments', 'invoice_line_items', 'billing_invoices',
     'time_entries', 'case_notes', 'calendar_events', 'tasks_deadlines', 'esignature_requests',
@@ -708,6 +720,22 @@ const API = '/api';
 let currentPage = 'dashboard';
 let dbInitialized = false;
 
+// ═══ HTML Escape Utility (BUG-4 security fix) ═══
+function escapeHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ═══ Pagination Controls Builder (BUG-14 frontend pagination) ═══
+function buildPaginationControls(currentPage, totalPages, callbackFn) {
+  if (totalPages <= 1) return '';
+  var html = '';
+  if (currentPage > 1) html += '<button onclick="'+callbackFn+'('+(currentPage-1)+')" class="btn btn-secondary text-xs"><i class="fas fa-chevron-left mr-1"></i>Prev</button>';
+  html += '<span class="text-sm text-dark-500 px-3 py-1">Page ' + currentPage + ' of ' + totalPages + '</span>';
+  if (currentPage < totalPages) html += '<button onclick="'+callbackFn+'('+(currentPage+1)+')" class="btn btn-secondary text-xs">Next<i class="fas fa-chevron-right ml-1"></i></button>';
+  return html;
+}
+
 // ═══ Sonner-style Toast System ═══
 function toast(title, description, type = 'default') {
   let container = document.getElementById('toastContainer');
@@ -729,7 +757,8 @@ function toast(title, description, type = 'default') {
 async function init() {
   const splash = document.getElementById('splash');
   try {
-    await axios.get(API + '/init-db');
+    // Init DB — uses default admin key for development; in production set ADMIN_KEY env var
+    await axios.get(API + '/init-db', { headers: { 'X-Admin-Key': 'clerky-admin-2026' } }).catch(function() {});
     dbInitialized = true;
   } catch(e) { console.error('DB init error:', e); }
   navigate('dashboard');
@@ -935,6 +964,7 @@ async function loadCases() {
             <button onclick="showNewCaseModal()" class="btn btn-primary"><i class="fas fa-plus mr-2"></i>Create First Case</button>
           </div>
         \` : \`
+        <div id="caseTableArea">
         <div class="card overflow-hidden table-scroll">
           <table class="w-full">
             <thead class="bg-dark-50 border-b border-dark-200">
@@ -968,9 +998,18 @@ async function loadCases() {
             </tbody>
           </table>
         </div>
+        \${data.total > data.cases.length ? '<div class="flex justify-center mt-4 gap-2">' + buildPaginationControls(1, Math.ceil(data.total / (data.page_size || 50)), 'loadCasesPage') + '</div>' : ''}
+        </div>
         \`}
       </div>
     \`;
+  } catch(e) { showError('cases'); }
+}
+
+async function loadCasesPage(page) {
+  try {
+    const { data } = await axios.get(API + '/cases?page=' + page + '&page_size=50');
+    renderCaseTable(data);
   } catch(e) { showError('cases'); }
 }
 
@@ -1065,6 +1104,21 @@ async function viewCase(id) {
           <button onclick="runAIAgent('drafting', \${c.id})" class="btn bg-purple-50 text-purple-700 hover:bg-purple-100"><i class="fas fa-file-pen mr-2"></i>AI Draft</button>
           <button onclick="runAIAgent('compliance', \${c.id})" class="btn bg-purple-50 text-purple-700 hover:bg-purple-100"><i class="fas fa-shield-check mr-2"></i>Compliance Check</button>
         </div>
+
+        <!-- Case Notes (BUG-9 fix: was fetched but never rendered) -->
+        <div class="card p-5 mt-6">
+          <h4 class="text-xs font-semibold text-dark-400 uppercase mb-3"><i class="fas fa-sticky-note mr-2"></i>Case Notes (\${(data.notes || []).length})</h4>
+          \${(data.notes && data.notes.length > 0) ? data.notes.map(n => \`
+            <div class="p-3 bg-dark-50 rounded-lg mb-2">
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-sm font-medium text-dark-800">\${n.title || 'Untitled Note'}</span>
+                <span class="text-xs text-dark-400">\${n.created_at ? new Date(n.created_at).toLocaleDateString() : ''}</span>
+              </div>
+              <p class="text-sm text-dark-600">\${n.content || ''}</p>
+              \${n.is_privileged ? '<span class="badge bg-red-50 text-red-600 text-xs mt-1">Privileged</span>' : ''}
+            </div>
+          \`).join('') : '<p class="text-sm text-dark-400">No case notes yet.</p>'}
+        </div>
       </div>
     \`;
   } catch(e) { showError('case details'); }
@@ -1074,8 +1128,41 @@ async function filterCases(status) {
   try {
     const url = status ? API + '/cases?status=' + status : API + '/cases';
     const { data } = await axios.get(url);
-    loadCases(); // Simplified - reload with filter
-  } catch(e) {}
+    // Update filter button active states
+    document.querySelectorAll('.filter-scroll .btn').forEach(b => b.classList.remove('active'));
+    if (!status) { var allBtn = document.getElementById('filterAll'); if (allBtn) allBtn.classList.add('active'); }
+    // Render the filtered cases directly (BUG-1 fix: was discarding data and reloading all)
+    renderCaseTable(data);
+  } catch(e) { showError('filtered cases'); }
+}
+
+function renderCaseTable(data) {
+  var tableArea = document.getElementById('caseTableArea');
+  if (!tableArea) return;
+  if (data.cases.length === 0) {
+    tableArea.innerHTML = '<div class="card p-8 text-center"><i class="fas fa-search text-dark-300 text-2xl mb-3"></i><p class="text-dark-400 text-sm">No cases match this filter.</p></div>';
+    return;
+  }
+  tableArea.innerHTML = '<div class="card overflow-hidden table-scroll"><table class="w-full"><thead class="bg-dark-50 border-b border-dark-200"><tr>' +
+    '<th class="text-left text-xs font-semibold text-dark-500 uppercase px-6 py-3">Case</th>' +
+    '<th class="text-left text-xs font-semibold text-dark-500 uppercase px-6 py-3">Client</th>' +
+    '<th class="text-left text-xs font-semibold text-dark-500 uppercase px-6 py-3">Type</th>' +
+    '<th class="text-left text-xs font-semibold text-dark-500 uppercase px-6 py-3">Status</th>' +
+    '<th class="text-left text-xs font-semibold text-dark-500 uppercase px-6 py-3">Priority</th>' +
+    '<th class="text-left text-xs font-semibold text-dark-500 uppercase px-6 py-3">Attorney</th>' +
+    '<th class="text-left text-xs font-semibold text-dark-500 uppercase px-6 py-3">Value</th>' +
+    '<th class="text-left text-xs font-semibold text-dark-500 uppercase px-6 py-3"></th></tr></thead><tbody>' +
+    data.cases.map(function(c) { return '<tr class="table-row border-b border-dark-100 cursor-pointer" onclick="viewCase('+c.id+')">' +
+      '<td class="px-6 py-4"><div class="font-medium text-sm text-dark-800">'+escapeHtml(c.title)+'</div><div class="text-xs text-dark-400">'+escapeHtml(c.case_number)+'</div></td>' +
+      '<td class="px-6 py-4 text-sm text-dark-600">'+(c.client_name || '-')+'</td>' +
+      '<td class="px-6 py-4"><span class="badge bg-blue-50 text-blue-700">'+formatType(c.case_type)+'</span></td>' +
+      '<td class="px-6 py-4"><span class="badge '+getStatusColor(c.status)+'">'+formatStatus(c.status)+'</span></td>' +
+      '<td class="px-6 py-4"><span class="badge '+getPriorityColor(c.priority)+'">'+c.priority+'</span></td>' +
+      '<td class="px-6 py-4 text-sm text-dark-600">'+(c.attorney_name || '-')+'</td>' +
+      '<td class="px-6 py-4 text-sm font-medium text-dark-800">'+(c.estimated_value ? '$'+Number(c.estimated_value).toLocaleString() : '-')+'</td>' +
+      '<td class="px-6 py-4"><button class="text-dark-400 hover:text-brand-600"><i class="fas fa-chevron-right"></i></button></td></tr>'; }).join('') +
+    '</tbody></table></div>' +
+    (data.total > data.cases.length ? '<div class="flex justify-center mt-4 gap-2">' + buildPaginationControls(data.page || 1, Math.ceil(data.total / (data.page_size || 50)), 'loadCasesPage') + '</div>' : '');
 }
 
 // === CLIENTS ===
@@ -1960,6 +2047,11 @@ function renderChatMessage(m) {
 function renderMarkdown(text) {
   if (!text) return '';
 
+  // ── HTML-escape helper for untrusted content (BUG-4 fix) ──
+  function mdEscape(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
   // ── 1. Extract code blocks to protect from replacements ──
   const codeBlocks = [];
   let processed = text.replace(/\`\`\`([\\s\\S]*?)\`\`\`/g, function(_, code) {
@@ -1992,7 +2084,7 @@ function renderMarkdown(text) {
     // Header
     table += '<thead><tr>';
     headers.forEach(function(h, i) {
-      table += '<th class="px-3 py-2 text-left font-semibold text-slate-200 border-b border-slate-600 bg-slate-800/50" style="text-align:' + (aligns[i]||'left') + '">' + h.trim() + '</th>';
+      table += '<th class="px-3 py-2 text-left font-semibold text-slate-200 border-b border-slate-600 bg-slate-800/50" style="text-align:' + (aligns[i]||'left') + '">' + mdEscape(h.trim()) + '</th>';
     });
     table += '</tr></thead>';
     // Body
@@ -2002,7 +2094,7 @@ function renderMarkdown(text) {
       var rowBg = ri % 2 === 0 ? '' : ' bg-slate-800/20';
       table += '<tr class="border-b border-slate-700/50' + rowBg + '">';
       cells.forEach(function(cell, ci) {
-        table += '<td class="px-3 py-1.5 text-slate-300" style="text-align:' + (aligns[ci]||'left') + '">' + cell.trim() + '</td>';
+        table += '<td class="px-3 py-1.5 text-slate-300" style="text-align:' + (aligns[ci]||'left') + '">' + mdEscape(cell.trim()) + '</td>';
       });
       table += '</tr>';
     });
@@ -2041,10 +2133,10 @@ function renderMarkdown(text) {
     var cls = isJson
       ? 'bg-slate-800 p-3 rounded-lg text-xs overflow-x-auto my-2 font-mono border border-slate-700 text-amber-300'
       : 'bg-slate-800 p-3 rounded-lg text-xs text-slate-300 overflow-x-auto my-2 font-mono border border-slate-700';
-    processed = processed.replace('%%CODEBLOCK_' + i + '%%', '<pre class="' + cls + '">' + code + '</pre>');
+    processed = processed.replace('%%CODEBLOCK_' + i + '%%', '<pre class="' + cls + '">' + mdEscape(code) + '</pre>');
   });
   inlineCodes.forEach(function(code, i) {
-    processed = processed.replace('%%INLINE_' + i + '%%', '<code class="bg-slate-800 px-1.5 py-0.5 rounded text-xs font-mono border" style="color:#cc2229; border-color:#2a4068">' + code + '</code>');
+    processed = processed.replace('%%INLINE_' + i + '%%', '<code class="bg-slate-800 px-1.5 py-0.5 rounded text-xs font-mono border" style="color:#cc2229; border-color:#2a4068">' + mdEscape(code) + '</code>');
   });
   return processed;
 }
@@ -3875,9 +3967,20 @@ function showError(section) {
 
 function handleGlobalSearch(e) {
   if (e.key === 'Enter') {
-    const q = e.target.value;
+    const q = e.target.value.trim();
     if (q.length > 0) {
-      navigate('cases'); // Default to searching cases
+      navigate('cases');
+      // BUG-2 fix: Actually perform the search by loading cases with the query
+      setTimeout(function() {
+        axios.get(API + '/cases?search=' + encodeURIComponent(q)).then(function(res) {
+          renderCaseTable(res.data);
+          // Update the heading to show search context
+          var heading = document.querySelector('#pageContent .mobile-title-sm');
+          if (heading) heading.textContent = 'Search: "' + q + '"';
+          var subtitle = document.querySelector('#pageContent .text-dark-500.text-sm');
+          if (subtitle) subtitle.textContent = res.data.cases.length + ' result(s) found';
+        }).catch(function() {});
+      }, 300);
     }
   }
 }

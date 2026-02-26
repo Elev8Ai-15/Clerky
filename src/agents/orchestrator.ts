@@ -180,7 +180,7 @@ export async function orchestrate(
   // 1. Initialize services
   await initMemoryTables(db)
   const mem0 = createMem0Client(env?.MEM0_API_KEY)
-  const llm = createLLMClient(env?.OPENAI_API_KEY, env?.OPENAI_BASE_URL)
+  const llm = createLLMClient(env?.OPENAI_API_KEY, env?.OPENAI_BASE_URL, (env as any)?.OPENAI_MODEL)
   const mem0UserId = `brad@clerky.com` // Primary user from Mem0 dashboard
 
   // 2. Assemble full matter context
@@ -279,13 +279,13 @@ export async function orchestrate(
     jurisdiction.toLowerCase() === 'missouri' ? 'Missouri' :
     jurisdiction.toLowerCase() === 'federal' ? 'US Federal' : 'Multi-state (KS/MO)'
   const matterJson = matter ? JSON.stringify({
-    case_id: matter.case?.id || caseId,
-    case_number: matter.case?.case_number || null,
-    case_type: matter.case?.case_type || null,
-    client_name: matter.case?.client_name || null,
-    status: matter.case?.status || null,
+    case_id: matter.case_id || caseId,
+    case_number: matter.case_number || null,
+    case_type: matter.case_type || null,
+    client_name: matter.client_name || null,
+    status: matter.status || null,
     jurisdiction: jxLabel,
-    date_filed: matter.case?.date_filed || null
+    date_filed: matter.date_filed || null
   }) : 'null'
 
   // Replace template placeholders if LLM injected them
@@ -317,7 +317,7 @@ export async function orchestrate(
     dashboard_update: {
       new_documents: 0,  // placeholder — actual values come from /api/crew HTTP response
       new_tasks: 0,
-      matter_id: matter?.case?.case_number || null,
+      matter_id: matter?.case_number || null,
       event_added: null
     }
   }, null, 2)
@@ -340,7 +340,7 @@ export async function orchestrate(
     '',
     closingLine,
     '',
-    `<small>Date: ${currentDate} | Jurisdiction: ${jxLabel} | Matter: ${matter?.case?.case_number || 'General'}</small>`
+    `<small>Date: ${currentDate} | Jurisdiction: ${jxLabel} | Matter: ${matter?.case_number || 'General'}</small>`
   ].join('\n')
 
   // 10. Write memory updates (Mem0 + D1)

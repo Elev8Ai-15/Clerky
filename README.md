@@ -1,6 +1,6 @@
 # Clerky — AI-Powered Legal Practice Management Platform
 
-> **v5.1.0** — Full security hardening, accessibility, deep-link citations, invoice modal, 14 DB indexes, all API tests passing.
+> **v5.2.0** — 17 bug fixes, admin endpoint protection, XSS hardening, configurable LLM/CrewAI, soft-delete calendar, rate limiting, TypeScript zero errors, 81/81 integration tests passing.
 
 ## Project Overview
 
@@ -9,11 +9,11 @@
 | **Name** | Clerky |
 | **Goal** | Full-featured legal practice management with multi-agent AI co-counsel for Kansas & Missouri attorneys |
 | **Stack** | Hono (TypeScript) · Cloudflare D1 (SQLite) · TailwindCSS · Cloudflare Pages · CrewAI (Python) · CourtListener/Harvard Caselaw |
-| **Architecture** | Multi-Agent Orchestrated Pipeline v5.1 — **MISSOURI MODE ACTIVE** + CrewAI Backend + Runtime LLM Config + Live Legal Research |
+| **Architecture** | Multi-Agent Orchestrated Pipeline v5.2 — **MISSOURI MODE ACTIVE** + CrewAI Backend + Runtime LLM Config + Live Legal Research |
 | **User** | Brad (KC metro partner, 25+ years, KS/MO dual-licensed) |
 | **Jurisdictions** | Missouri (PRIMARY) & Kansas (dual-licensed KS/MO) |
-| **Version** | 5.1.0 |
-| **Bundle** | 491 KB SSR (48 modules, ~1.2 s build) |
+| **Version** | 5.2.0 |
+| **Bundle** | 499 KB SSR (48 modules, ~1.2 s build) |
 | **Codebase** | 10,677 lines across 21 TypeScript source files |
 | **Last Updated** | February 26, 2026 |
 
@@ -106,7 +106,7 @@ Then: `dashboard_update` JSON block, "Human review required" disclaimer, "How el
 
 ---
 
-## Completed Features (v5.1.0)
+## Completed Features (v5.2.0)
 
 ### Practice Management Suite
 - **Dashboard** — Practice overview with stats, upcoming events, AI activity, COALESCE-safe aggregation
@@ -159,7 +159,9 @@ Then: `dashboard_update` JSON block, "Human review required" disclaimer, "How el
 - Global error-handling middleware
 - Safe JSON body parser middleware
 - Collision-resistant ID generation
-- In-memory rate limiter for legal research endpoints
+- In-memory rate limiter applied to AI chat, crew, and legal research endpoints (v5.2)
+- **Admin endpoint protection** (v5.2): init-db, reset-db, and CrewAI configure require `X-Admin-Key` header
+- **XSS in renderMarkdown** fixed (v5.2): table headers, cells, and code blocks now escaped via `escapeHtml()`
 - **14 new database indexes** (v5.1): cases, documents, tasks, invoices, time_entries, notifications, audit_log, calendar
 
 ### Accessibility (v5.1)
@@ -179,8 +181,8 @@ Then: `dashboard_update` JSON block, "Human review required" disclaimer, "How el
 |--------|------|-------------|
 | GET | `/api/health` | Health check (status, version, DB, services) |
 | GET | `/api/dashboard` | Full practice stats (cases, clients, docs, tasks, events, AI logs, notifications) |
-| GET | `/api/init-db` | Initialize 26+ tables and seed admin user |
-| GET | `/api/reset-db` | Reset all tables and re-seed |
+| GET | `/api/init-db` | Initialize 26+ tables and seed admin user **(requires X-Admin-Key header)** |
+| GET | `/api/reset-db` | Reset all tables and re-seed **(requires X-Admin-Key header)** |
 
 ### AI Multi-Agent System
 | Method | Path | Description |
@@ -190,7 +192,7 @@ Then: `dashboard_update` JSON block, "Human review required" disclaimer, "How el
 | GET | `/api/ai/chat/history?session_id=` | Chat history for session |
 | DELETE | `/api/ai/chat/:session_id` | Clear chat session |
 | GET | `/api/ai/crewai/status` | Check CrewAI backend availability |
-| POST | `/api/ai/crewai/configure` | Configure LLM API key at runtime |
+| POST | `/api/ai/crewai/configure` | Configure LLM API key at runtime **(requires X-Admin-Key header)** |
 | GET | `/api/ai/agents` | Agent architecture info |
 | GET | `/api/ai/stats` | AI usage statistics |
 | GET | `/api/ai/logs` | AI activity logs |
@@ -239,7 +241,12 @@ Then: `dashboard_update` JSON block, "Human review required" disclaimer, "How el
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/documents` | List docs (filter: case_id, category, status, search) |
+| GET | `/api/documents/templates/list` | List document templates |
+| GET | `/api/documents/:id` | Document detail with versions, sharing, analysis |
 | POST | `/api/documents` | Create document |
+| POST | `/api/documents/upload` | Upload document with auto-analysis |
+| POST | `/api/documents/:id/analyze` | Re-analyze document |
+| GET | `/api/documents/:id/analysis` | Get stored analysis |
 | PUT | `/api/documents/:id` | Update document |
 | DELETE | `/api/documents/:id` | Archive document (soft-delete) |
 
@@ -249,7 +256,7 @@ Then: `dashboard_update` JSON block, "Human review required" disclaimer, "How el
 | GET | `/api/calendar` | List events (filter: type, case_id, date range) |
 | POST | `/api/calendar` | Create event |
 | PUT | `/api/calendar/:id` | Update event |
-| DELETE | `/api/calendar/:id` | Delete event |
+| DELETE | `/api/calendar/:id` | Cancel event (soft-delete → status='cancelled') |
 
 ### Tasks & Deadlines
 | Method | Path | Description |
@@ -383,18 +390,22 @@ crewai_backend/
 # Required (Cloudflare bindings — automatic)
 DB=D1Database
 
+# Security — Admin access control
+ADMIN_KEY=             # Admin key for init-db, reset-db, crewai/configure (default: clerky-admin-2026)
+
 # Optional — enhance AI capabilities
 MEM0_API_KEY=          # Mem0 cloud memory (persistent semantic search)
 OPENAI_API_KEY=        # OpenAI for LLM-powered responses
+OPENAI_MODEL=          # LLM model name (default: gpt-4o-mini)
+OPENAI_BASE_URL=       # OpenAI-compatible endpoint (default: genspark proxy)
 
 # Optional — enhance Legal Research
 COURTLISTENER_TOKEN=   # CourtListener API (5000 req/hr; anonymous = lower limits)
 LEX_MACHINA_CLIENT_ID=       # Lex Machina enterprise API
 LEX_MACHINA_CLIENT_SECRET=   # Lex Machina enterprise API secret
 
-# CrewAI Backend (optional, for LLM-powered agents)
-OPENAI_BASE_URL=       # OpenAI-compatible endpoint
-CREWAI_MODEL=          # e.g., gpt-5-mini, claude-3-5-sonnet
+# Optional — CrewAI Backend URL
+CREWAI_URL=            # CrewAI backend URL (default: http://127.0.0.1:8100)
 ```
 
 ---
@@ -419,38 +430,38 @@ npm run deploy             # Build + deploy to Cloudflare Pages
 
 ---
 
-## Test Results (v5.1.0 — Feb 26, 2026)
+## Test Results (v5.2.0 — Feb 26, 2026)
 
-### Integration Tests (10/10 passing)
+### Integration Tests (81/81 passing)
 ```
-✅ Test 1:  Create client                    → ID 12
-✅ Test 2:  Create PI case                   → ID 11, CM-2026-XXXXXXX
-✅ Test 3:  Create med-mal case              → ID 12, CM-2026-XXXXXXX
-✅ Test 4:  Invalid client_id blocked        → 400 validation error
-✅ Test 5:  Create invoice                   → ID 3, INV-2026-XXXXXXX
-✅ Test 6:  Empty body blocked               → 400 "Request body is empty"
-✅ Test 7:  XSS sanitized on create          → <script> escaped
-✅ Test 8:  Dashboard aggregates             → 12 cases, 13 clients, 20 tasks
-✅ Test 9:  Legal research health            → CourtListener OK (89ms)
-✅ Test 10: Pagination                       → page 1, size 2, total 12
-```
-
-### Security Tests (all passing)
-```
-✅ XSS injection:     <script>alert(1)</script> → &lt;script&gt;
-✅ SQL injection:      OR 1=1 → 0 results (parameterized queries)
-✅ Negative ID:        GET /api/cases/-1 → 404
-✅ Non-existent ID:    DELETE /api/tasks/99999 → 404
-✅ DB indexes:         14 indexes created successfully
+📋 HEALTH & INFRASTRUCTURE (6/6)
+📊 DASHBOARD (3/3)
+🔒 ADMIN PROTECTION P0-1 (4/4) — init-db, reset-db blocked without key
+🔒 CREWAI PROTECTION P0-3 (1/1) — configure blocked without key
+📝 CREATE TEST DATA (9/9) — clients, cases, documents, tasks, events, invoices, time entries
+📖 READ OPERATIONS (14/14) — all list + detail endpoints
+✏️  UPDATE OPERATIONS (7/7) — client, case, document, task, calendar
+📄 DOCUMENT UPLOAD & ANALYSIS (7/7) — upload, jurisdiction detection, citations, risk flags, re-analyze
+🛡️  VALIDATION (7/7) — empty body, invalid status, FK checks, 404
+🔐 XSS PROTECTION P0-2 (1/1) — script tag escaped
+⚖️  LEGAL RESEARCH (3/3) — health, search, jurisdiction filter
+🤖 AI ENDPOINTS (3/3) — agents, crewai status, logs
+🗑️  SOFT DELETE (6/6) — documents, calendar (P2-13), clients, tasks
+📄 PAGINATION (4/4) — clients, documents, cases, tasks
+📑 TEMPLATES (1/1) — route precedence over /:id
+🔗 URL SANITIZATION P1-6 (1/1) — forward slash preserved
+🌐 SPA ROUTES (4/4) — root, /cases, /clients, Clerky branding
 ```
 
-### Agent Format Tests (5/5 passing)
+### TypeScript (0 errors)
 ```
-✅ RESEARCHER (MO):   Summary ✅ Analysis ✅ Recommendations ✅ Agents Used ✅ JSON ✅ Disclaimer
-✅ DRAFTER (MO):      Summary ✅ Analysis ✅ Recommendations ✅ Agents Used ✅ JSON ✅ Disclaimer
-✅ ANALYST (MO):      Summary ✅ Analysis ✅ Recommendations ✅ Agents Used ✅ JSON ✅ Disclaimer
-✅ STRATEGIST (MO):   Summary ✅ Analysis ✅ Recommendations ✅ Agents Used ✅ JSON ✅ Disclaimer
-✅ RESEARCHER (KS):   Summary ✅ Analysis ✅ Recommendations ✅ Agents Used ✅ JSON ✅ Disclaimer
+✅ npx tsc --noEmit --skipLibCheck → EXIT 0 (0 errors)
+   @cloudflare/workers-types added to tsconfig.json
+```
+
+### Build
+```
+✅ vite build → 48 modules → dist/_worker.js 499 KB → 1.2s
 ```
 
 ---
@@ -458,15 +469,17 @@ npm run deploy             # Build + deploy to Cloudflare Pages
 ## Pending / Future Work
 
 1. **Lex Machina credentials** — Add `LEX_MACHINA_CLIENT_ID` / `LEX_MACHINA_CLIENT_SECRET` for live litigation analytics
-2. **Jurisdiction migration rules** — Add D1 migrations for NOT NULL enforcement on legacy data
-3. **Additional accessibility** — WCAG 2.1 AA full compliance audit
-4. **E-signature workflow** — Complete DocuSign/HelloSign integration
-5. **Client portal** — Self-service portal for client document access
-6. **Trust accounting reports** — IOLTA compliance reporting
-7. **Multi-attorney assignment** — Support multiple attorneys per case
-8. **Advanced search** — Full-text search across all entities
-9. **Export/reporting** — PDF invoice generation, case summaries
-10. **CI/CD pipeline** — Automated tests on GitHub push
+2. **Production ADMIN_KEY** — Set via `wrangler secret put ADMIN_KEY` (currently uses default)
+3. **Authentication system** — JWT-based auth middleware (currently hardcoded user_id=1)
+4. **Additional accessibility** — WCAG 2.1 AA full compliance audit
+5. **E-signature workflow** — Complete DocuSign/HelloSign integration
+6. **Client portal** — Self-service portal for client document access
+7. **Trust accounting reports** — IOLTA compliance reporting
+8. **Multi-attorney assignment** — Support multiple attorneys per case
+9. **Advanced search** — Full-text search across all entities
+10. **Export/reporting** — PDF invoice generation, case summaries
+11. **CI/CD pipeline** — Automated tests on GitHub push
+12. **CORS tightening** — Restrict origins in production
 
 ---
 
@@ -478,14 +491,34 @@ npm run deploy             # Build + deploy to Cloudflare Pages
 | **Production URL** | https://lawyrs.pages.dev |
 | **GitHub** | https://github.com/Elev8Ai-15/Clerky |
 | **Status** | ✅ Live |
-| **Version** | 5.1.0 |
-| **Bundle** | 491 KB (48 modules) |
+| **Version** | 5.2.0 |
+| **Bundle** | 499 KB (48 modules) |
 | **Build Time** | ~1.2 s |
 | **Last Deployed** | February 26, 2026 |
 
 ---
 
 ## Changelog
+
+### v5.2.0 (Feb 26, 2026) — 17 Bug Fixes & Security Hardening
+- **P0-1**: Admin endpoint protection — `/api/init-db`, `/api/reset-db` require `X-Admin-Key` header (default: `clerky-admin-2026`)
+- **P0-2**: XSS fix in `renderMarkdown()` — table headers, cells, code blocks escaped via `escapeHtml()`
+- **P0-3**: CrewAI configure protection — `/api/ai/crewai/configure` requires `X-Admin-Key` header
+- **P1-4**: `filterCases()` now passes status parameter correctly
+- **P1-5**: `handleGlobalSearch()` forwards query to cases search
+- **P1-6**: `sanitizeString()` no longer escapes `/` (was breaking URLs)
+- **P1-7**: `MatterContext.case` type mismatch in orchestrator.ts resolved (8 occurrences)
+- **P1-8**: LLM model name configurable via `OPENAI_MODEL` env var (was hardcoded `gpt-5-mini`)
+- **P2-9**: Rate limiting applied to AI `/chat`, `/crew`, and legal-research `/search` endpoints
+- **P2-10**: Case notes now rendered in `viewCase()` detail page
+- **P2-11**: CrewAI URL configurable via `CREWAI_URL` env var (was hardcoded `127.0.0.1:8100`)
+- **P2-12**: Frontend pagination controls added to all list views
+- **P2-13**: Calendar DELETE now soft-deletes (status→'cancelled') instead of hard-delete
+- **P2-14**: Dead code `renderer.tsx` removed
+- **TypeScript**: Added `@cloudflare/workers-types` to tsconfig → 0 TS errors (was 50+)
+- **safeJsonParse**: Allows empty-body POST for action endpoints (`/analyze`, `/read-all`)
+- **Test suite**: 81/81 integration tests passing across all 17 categories
+- **Bundle**: 499 KB (48 modules, 1.2s build)
 
 ### v5.1.0 (Feb 26, 2026) — Full Integration & Hardening
 - NOT NULL enforcement on `client_id` and `lead_attorney_id` in case creation

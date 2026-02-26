@@ -9,10 +9,15 @@ import { Hono } from 'hono'
 import { orchestrate, getSystemIdentity, initMemoryTables } from '../agents/orchestrator'
 import { createMem0Client } from '../agents/mem0'
 import { searchMemory } from '../agents/memory'
+import { rateLimit } from '../utils/shared'
 
-type Bindings = { DB: D1Database; MEM0_API_KEY?: string; OPENAI_API_KEY?: string; OPENAI_BASE_URL?: string }
+type Bindings = { DB: D1Database; MEM0_API_KEY?: string; OPENAI_API_KEY?: string; OPENAI_BASE_URL?: string; OPENAI_MODEL?: string; ADMIN_KEY?: string; CREWAI_URL?: string }
 const ai = new Hono<{ Bindings: Bindings }>()
 
+// Helper: get configurable CrewAI URL (BUG-10 fix)
+function getCrewAIUrl(env: any): string {
+  return env?.CREWAI_URL || 'http://127.0.0.1:8100'
+}
 // ═══════════════════════════════════════════════════════════════
 // Ensure tables exist
 // ═══════════════════════════════════════════════════════════════
@@ -56,6 +61,10 @@ ai.get('/chat/history', async (c) => {
 
 ai.post('/chat', async (c) => {
   try {
+  // Rate limit: 30 requests per minute per endpoint (BUG-5 fix)
+  if (!rateLimit('ai-chat', 30, 60000)) {
+    return c.json({ error: 'Rate limit exceeded. Please wait before sending another message.' }, 429)
+  }
   const body = await c.req.json()
   const { message, session_id = 'default', case_id, jurisdiction = 'missouri' } = body
   await ensureTables(c.env.DB)
@@ -70,7 +79,7 @@ ai.post('/chat', async (c) => {
   // ════════════════════════════════════════════════════════════
   let result: any = null
   let crewaiPowered = false
-  const CREWAI_URL = 'http://127.0.0.1:8100'
+  const CREWAI_URL = getCrewAIUrl(c.env)
 
   try {
     const crewResp = await fetch(`${CREWAI_URL}/api/crew/chat`, {
@@ -189,7 +198,7 @@ ai.delete('/chat/:session_id', async (c) => {
 // CrewAI Status Endpoint
 // ═══════════════════════════════════════════════════════════════
 ai.get('/crewai/status', async (c) => {
-  const CREWAI_URL = 'http://127.0.0.1:8100'
+  const CREWAI_URL = getCrewAIUrl(c.env)
   try {
     const resp = await fetch(`${CREWAI_URL}/health`, { signal: AbortSignal.timeout(5000) })
     if (resp.ok) {
@@ -202,9 +211,14 @@ ai.get('/crewai/status', async (c) => {
   }
 })
 
-// CrewAI LLM Configuration — Set API key at runtime
+// CrewAI LLM Configuration — Set API key at runtime — PROTECTED (BUG-6)
 ai.post('/crewai/configure', async (c) => {
-  const CREWAI_URL = 'http://127.0.0.1:8100'
+  // Require admin key — always protected (BUG-6 / P0-3)
+  const DEFAULT_ADMIN_KEY = 'clerky-admin-2026'
+  const adminKey = (c.env as any).ADMIN_KEY || DEFAULT_ADMIN_KEY
+  const provided = c.req.header('X-Admin-Key')
+  if (provided !== adminKey) return c.json({ error: 'Unauthorized. Provide X-Admin-Key header.' }, 403)
+  const CREWAI_URL = getCrewAIUrl(c.env)
   try {
     const body = await c.req.json()
     const { api_key, base_url, model } = body
@@ -342,6 +356,10 @@ function detectSideEffects(query: string, content: string, agentType: string): {
 
 ai.post('/crew', async (c) => {
   try {
+    // Rate limit: 20 requests per minute for crew pipeline (BUG-5 fix)
+    if (!rateLimit('ai-crew', 20, 60000)) {
+      return c.json({ error: 'Rate limit exceeded. Please wait before sending another request.' }, 429)
+    }
     const body = await c.req.json()
     const {
       query,
@@ -377,7 +395,7 @@ ai.post('/crew', async (c) => {
 
     let result: any = null
     let crewaiPowered = false
-    const CREWAI_URL = 'http://127.0.0.1:8100'
+    const CREWAI_URL = getCrewAIUrl(c.env)
 
     // Try CrewAI Python backend first
     try {

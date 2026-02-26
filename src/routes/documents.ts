@@ -54,10 +54,15 @@ documents.get('/', async (c) => {
   return c.json({ documents: result.results, page, page_size: pageSize, total: coalesceInt((totalRow as any)?.total) })
 })
 
+// Templates — registered before /:id to prevent route collision (BUG-15 fix)
+documents.get('/templates/list', async (c) => {
+  const result = await c.env.DB.prepare('SELECT * FROM document_templates WHERE is_active = 1 ORDER BY usage_count DESC').all()
+  return c.json({ templates: result.results })
+})
+
 // Get document by ID with related data
 documents.get('/:id', async (c) => {
   const id = c.req.param('id')
-  if (id === 'templates') return c.json({ error: 'Use /templates/list' }, 400)
   const doc = await c.env.DB.prepare(`SELECT d.*, u.full_name as uploaded_by_name FROM documents d LEFT JOIN users_attorneys u ON d.uploaded_by = u.id WHERE d.id = ?`).bind(id).first()
   if (!doc) return notFound(c, 'Document')
 
@@ -144,12 +149,6 @@ documents.delete('/:id', async (c) => {
   await auditLog(c.env.DB, 'soft_delete', 'documents', id, 1)
 
   return c.json({ success: true })
-})
-
-// Templates
-documents.get('/templates/list', async (c) => {
-  const result = await c.env.DB.prepare('SELECT * FROM document_templates WHERE is_active = 1 ORDER BY usage_count DESC').all()
-  return c.json({ templates: result.results })
 })
 
 // ═══════════════════════════════════════════════════════════════
