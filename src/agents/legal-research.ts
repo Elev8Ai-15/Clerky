@@ -32,13 +32,17 @@ export const COURT_IDS = {
   scotus: 'scotus',         // US Supreme Court
 } as const
 
-// ── Jurisdiction-to-court mapping ────────────────────────────
+// ── Jurisdiction-to-court mapping (expanded) ───────────────
 export function getCourtIds(jurisdiction: string): string[] {
-  const j = jurisdiction?.toLowerCase() || ''
+  const j = jurisdiction?.toLowerCase()?.trim() || ''
   if (j === 'kansas' || j === 'ks') return ['kan', 'kansctapp', 'ca10']
-  if (j === 'missouri' || j === 'mo') return ['mod', 'moed', 'moctapp', 'ca8']
-  if (j === 'federal') return ['scotus', 'ca8', 'ca10', 'kan', 'mod', 'moed']
-  return ['kan', 'kansctapp', 'ca10', 'mod', 'moed', 'moctapp', 'ca8'] // multi-state
+  if (j === 'missouri' || j === 'mo') return ['mod', 'moed', 'moctapp', 'mo', 'ca8']
+  if (j === 'federal' || j === 'us') return ['scotus', 'ca8', 'ca10', 'kan', 'mod', 'moed']
+  if (j === '8th circuit' || j === 'ca8' || j === '8th') return ['ca8']
+  if (j === '10th circuit' || j === 'ca10' || j === '10th') return ['ca10']
+  if (j === 'multi-state' || j === 'all' || j === '') return [] // empty = all jurisdictions
+  // Default: search all KS/MO if unrecognized
+  return ['kan', 'kansctapp', 'ca10', 'mod', 'moed', 'moctapp', 'ca8', 'mo']
 }
 
 // ── Result types ─────────────────────────────────────────────
@@ -168,7 +172,8 @@ export async function searchCaseLaw(opts: {
     if (cited_gt) params.set('cited_gt', String(cited_gt))
     if (status) params.set('stat_Published', 'on')
     if (order_by) params.set('order_by', order_by)
-    if (semantic) params.set('semantic', 'true')
+    // Note: CL's semantic search requires specific endpoint handling
+    // The 'semantic' param is not a standard CL param — use as type toggle
     params.set('highlight', 'on')
     // Page size via cursor pagination — CL returns ~20 results per page by default
 

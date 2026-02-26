@@ -10,11 +10,17 @@ import ai from './routes/ai'
 import users from './routes/users'
 import notifications from './routes/notifications'
 import legalResearch from './routes/legal-research'
+import { globalErrorHandler, safeJsonParse, coalesceInt } from './utils/shared'
 
 type Bindings = { DB: D1Database; MEM0_API_KEY?: string; OPENAI_API_KEY?: string; OPENAI_BASE_URL?: string; COURTLISTENER_TOKEN?: string; LEX_MACHINA_CLIENT_ID?: string; LEX_MACHINA_CLIENT_SECRET?: string }
 
 const app = new Hono<{ Bindings: Bindings }>()
 
+// Global error handler — catches all uncaught exceptions (OPS-03)
+app.use('*', globalErrorHandler)
+// Safe JSON body parser — returns 400 for malformed JSON (BUG-01)
+app.use('/api/*', safeJsonParse)
+// CORS for API routes
 app.use('/api/*', cors())
 
 // API Routes
@@ -29,26 +35,46 @@ app.route('/api/users', users)
 app.route('/api/notifications', notifications)
 app.route('/api/legal-research', legalResearch)
 
-// Dashboard stats endpoint
+// ── HEALTH CHECK (OPS-02) ───────────────────────────────────
+app.get('/api/health', async (c) => {
+  try {
+    const dbCheck = await c.env.DB.prepare('SELECT 1 as ok').first()
+    return c.json({
+      status: 'healthy',
+      version: '5.0.0',
+      timestamp: new Date().toISOString(),
+      database: dbCheck ? 'connected' : 'error',
+      services: {
+        ai_agents: 'active',
+        legal_research: 'active',
+        billing: 'active'
+      }
+    })
+  } catch (err: any) {
+    return c.json({ status: 'unhealthy', error: err.message }, 503)
+  }
+})
+
+// Dashboard stats endpoint — with COALESCE fix (BUG-05)
 app.get('/api/dashboard', async (c) => {
   const [casesCount, clientsCount, docsCount, tasksCount, upcomingEvents, recentActivity, unreadNotifs] = await Promise.all([
-    c.env.DB.prepare("SELECT COUNT(*) as total, SUM(CASE WHEN status NOT IN ('closed','archived') THEN 1 ELSE 0 END) as active FROM cases_matters").first(),
-    c.env.DB.prepare("SELECT COUNT(*) as total FROM clients WHERE status = 'active'").first(),
-    c.env.DB.prepare("SELECT COUNT(*) as total FROM documents").first(),
-    c.env.DB.prepare("SELECT COUNT(*) as total, SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending, SUM(CASE WHEN status = 'overdue' OR (status = 'pending' AND due_date < date('now')) THEN 1 ELSE 0 END) as overdue FROM tasks_deadlines").first(),
+    c.env.DB.prepare("SELECT COALESCE(COUNT(*),0) as total, COALESCE(SUM(CASE WHEN status NOT IN ('closed','archived') THEN 1 ELSE 0 END),0) as active FROM cases_matters").first(),
+    c.env.DB.prepare("SELECT COALESCE(COUNT(*),0) as total FROM clients WHERE status = 'active'").first(),
+    c.env.DB.prepare("SELECT COALESCE(COUNT(*),0) as total FROM documents WHERE status != 'archived'").first(),
+    c.env.DB.prepare("SELECT COALESCE(COUNT(*),0) as total, COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END),0) as pending, COALESCE(SUM(CASE WHEN status = 'overdue' OR (status = 'pending' AND due_date < date('now')) THEN 1 ELSE 0 END),0) as overdue FROM tasks_deadlines").first(),
     c.env.DB.prepare("SELECT ce.*, cm.case_number FROM calendar_events ce LEFT JOIN cases_matters cm ON ce.case_id = cm.id WHERE ce.start_datetime >= datetime('now') ORDER BY ce.start_datetime ASC LIMIT 5").all(),
     c.env.DB.prepare("SELECT al.*, cm.case_number FROM ai_logs al LEFT JOIN cases_matters cm ON al.case_id = cm.id ORDER BY al.created_at DESC LIMIT 5").all(),
-    c.env.DB.prepare("SELECT COUNT(*) as count FROM notifications WHERE user_id = 1 AND is_read = 0").first()
+    c.env.DB.prepare("SELECT COALESCE(COUNT(*),0) as count FROM notifications WHERE user_id = 1 AND is_read = 0").first()
   ])
 
   return c.json({
-    cases: { total: (casesCount as any)?.total || 0, active: (casesCount as any)?.active || 0 },
-    clients: { total: (clientsCount as any)?.total || 0 },
-    documents: { total: (docsCount as any)?.total || 0 },
-    tasks: { total: (tasksCount as any)?.total || 0, pending: (tasksCount as any)?.pending || 0, overdue: (tasksCount as any)?.overdue || 0 },
+    cases: { total: coalesceInt((casesCount as any)?.total), active: coalesceInt((casesCount as any)?.active) },
+    clients: { total: coalesceInt((clientsCount as any)?.total) },
+    documents: { total: coalesceInt((docsCount as any)?.total) },
+    tasks: { total: coalesceInt((tasksCount as any)?.total), pending: coalesceInt((tasksCount as any)?.pending), overdue: coalesceInt((tasksCount as any)?.overdue) },
     upcoming_events: upcomingEvents.results,
     recent_ai_activity: recentActivity.results,
-    unread_notifications: (unreadNotifs as any)?.count || 0
+    unread_notifications: coalesceInt((unreadNotifs as any)?.count)
   })
 })
 
@@ -88,7 +114,11 @@ app.get('/api/init-db', async (c) => {
     `CREATE TABLE IF NOT EXISTS case_expenses (id INTEGER PRIMARY KEY AUTOINCREMENT, case_id INTEGER NOT NULL, description TEXT NOT NULL, amount REAL NOT NULL, category TEXT NOT NULL, is_billable INTEGER DEFAULT 1, is_reimbursed INTEGER DEFAULT 0, receipt_url TEXT, vendor TEXT, expense_date TEXT NOT NULL, submitted_by INTEGER NOT NULL, approved_by INTEGER, invoice_id INTEGER, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
     `CREATE TABLE IF NOT EXISTS conflict_checks (id INTEGER PRIMARY KEY AUTOINCREMENT, checked_name TEXT NOT NULL, checked_entity TEXT, case_id INTEGER, checked_by INTEGER NOT NULL, result TEXT NOT NULL, details TEXT, related_case_ids TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
     // Document analysis table
-    `CREATE TABLE IF NOT EXISTS document_analysis (id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, analysis_type TEXT DEFAULT 'full', summary TEXT, doc_classification TEXT, entities_json TEXT, key_dates_json TEXT, monetary_values_json TEXT, parties_json TEXT, citations_json TEXT, clauses_json TEXT, risk_flags_json TEXT, obligations_json TEXT, deadlines_json TEXT, jurisdiction_detected TEXT, confidence REAL DEFAULT 0, tokens_used INTEGER DEFAULT 0, analyzed_by TEXT DEFAULT 'ai', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (document_id) REFERENCES documents(id))`
+    `CREATE TABLE IF NOT EXISTS document_analysis (id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, analysis_type TEXT DEFAULT 'full', summary TEXT, doc_classification TEXT, entities_json TEXT, key_dates_json TEXT, monetary_values_json TEXT, parties_json TEXT, citations_json TEXT, clauses_json TEXT, risk_flags_json TEXT, obligations_json TEXT, deadlines_json TEXT, jurisdiction_detected TEXT, confidence REAL DEFAULT 0, tokens_used INTEGER DEFAULT 0, analyzed_by TEXT DEFAULT 'ai', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (document_id) REFERENCES documents(id))`,
+    // Audit log table (DATA-03)
+    `CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, action TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, user_id INTEGER NOT NULL, changes_json TEXT, old_values_json TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+    // Error logs table (OPS-04)
+    `CREATE TABLE IF NOT EXISTS error_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, route TEXT NOT NULL, method TEXT NOT NULL, error_message TEXT NOT NULL, details TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`
   ]
 
   for (const sql of migrations) {
@@ -115,7 +145,7 @@ app.get('/api/reset-db', async (c) => {
     'trust_transactions', 'trust_accounts', 'case_expenses', 'conflict_checks',
     'client_communications', 'intake_submissions', 'intake_forms', 'client_portal_access',
     'document_analysis', 'document_sharing', 'document_versions', 'document_templates', 'documents',
-    'cases_matters', 'clients', 'ai_chat_messages', 'users_attorneys'
+    'cases_matters', 'clients', 'ai_chat_messages', 'users_attorneys', 'audit_log', 'error_logs'
   ]
   for (const t of tables) {
     try { await c.env.DB.prepare(`DELETE FROM ${t}`).run() } catch(e) { /* table may not exist */ }

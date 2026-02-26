@@ -1,67 +1,148 @@
+// ═══════════════════════════════════════════════════════════════
+// CLERKY — Documents Routes v5.0
+// Fixes: BUG-01 (validation), BUG-02 (XSS), BUG-03 (existence),
+//        DATA-01 (FK), DATA-02 (soft delete), DATA-03 (audit),
+//        OPS-01 (pagination)
+// ═══════════════════════════════════════════════════════════════
+
 import { Hono } from 'hono'
+import { validate, sanitize, parsePagination, checkExists, validateFK, auditLog, badRequest, notFound, coalesceInt, logError, buildUpdateFields } from '../utils/shared'
 
 type Bindings = { DB: D1Database; OPENAI_API_KEY?: string }
 const documents = new Hono<{ Bindings: Bindings }>()
+
+const VALID_CATEGORIES = ['general', 'pleading', 'motion', 'contract', 'correspondence', 'discovery', 'billing', 'memo', 'affidavit', 'court_order', 'lease', 'estate', 'ip', 'evidence', 'template']
+const VALID_STATUSES = ['draft', 'review', 'approved', 'filed', 'executed', 'archived']
 
 // ═══════════════════════════════════════════════════════════════
 // CRUD — Documents
 // ═══════════════════════════════════════════════════════════════
 
+// List documents with pagination + filters
 documents.get('/', async (c) => {
   const caseId = c.req.query('case_id')
   const category = c.req.query('category')
   const status = c.req.query('status')
   const search = c.req.query('search')
+  const { page, pageSize, offset } = parsePagination(c)
 
   let query = `SELECT d.*, u.full_name as uploaded_by_name, cm.case_number, cm.title as case_title
     FROM documents d
     LEFT JOIN users_attorneys u ON d.uploaded_by = u.id
-    LEFT JOIN cases_matters cm ON d.case_id = cm.id WHERE 1=1`
+    LEFT JOIN cases_matters cm ON d.case_id = cm.id WHERE d.status != 'archived'`
+  let countQuery = `SELECT COUNT(*) as total FROM documents WHERE status != 'archived'`
   const params: any[] = []
-  if (caseId) { query += ' AND d.case_id = ?'; params.push(caseId) }
-  if (category) { query += ' AND d.category = ?'; params.push(category) }
-  if (status) { query += ' AND d.status = ?'; params.push(status) }
-  if (search) { query += ' AND (d.title LIKE ? OR d.file_name LIKE ?)'; params.push(`%${search}%`, `%${search}%`) }
-  query += ' ORDER BY d.updated_at DESC'
-  const result = await c.env.DB.prepare(query).bind(...params).all()
-  return c.json({ documents: result.results })
+  const countParams: any[] = []
+
+  if (caseId) { query += ' AND d.case_id = ?'; countQuery += ' AND case_id = ?'; params.push(caseId); countParams.push(caseId) }
+  if (category) { query += ' AND d.category = ?'; countQuery += ' AND category = ?'; params.push(category); countParams.push(category) }
+  if (status) { query += ' AND d.status = ?'; countQuery += ' AND status = ?'; params.push(status); countParams.push(status) }
+  if (search) {
+    query += ' AND (d.title LIKE ? OR d.file_name LIKE ?)'
+    countQuery += ' AND (title LIKE ? OR file_name LIKE ?)'
+    params.push(`%${search}%`, `%${search}%`)
+    countParams.push(`%${search}%`, `%${search}%`)
+  }
+  query += ' ORDER BY d.updated_at DESC LIMIT ? OFFSET ?'
+  params.push(pageSize, offset)
+
+  const [result, totalRow] = await Promise.all([
+    c.env.DB.prepare(query).bind(...params).all(),
+    c.env.DB.prepare(countQuery).bind(...countParams).first()
+  ])
+
+  return c.json({ documents: result.results, page, page_size: pageSize, total: coalesceInt((totalRow as any)?.total) })
 })
 
+// Get document by ID with related data
 documents.get('/:id', async (c) => {
   const id = c.req.param('id')
+  if (id === 'templates') return c.json({ error: 'Use /templates/list' }, 400)
   const doc = await c.env.DB.prepare(`SELECT d.*, u.full_name as uploaded_by_name FROM documents d LEFT JOIN users_attorneys u ON d.uploaded_by = u.id WHERE d.id = ?`).bind(id).first()
-  if (!doc) return c.json({ error: 'Document not found' }, 404)
-  const versions = await c.env.DB.prepare('SELECT dv.*, u.full_name as created_by_name FROM document_versions dv LEFT JOIN users_attorneys u ON dv.created_by = u.id WHERE dv.document_id = ? ORDER BY dv.version_number DESC').bind(id).all()
-  const sharing = await c.env.DB.prepare('SELECT * FROM document_sharing WHERE document_id = ? AND is_active = 1').bind(id).all()
-  // Get analysis if exists
-  const analysis = await c.env.DB.prepare('SELECT * FROM document_analysis WHERE document_id = ? ORDER BY created_at DESC LIMIT 1').bind(id).first()
+  if (!doc) return notFound(c, 'Document')
+
+  const [versions, sharing, analysis] = await Promise.all([
+    c.env.DB.prepare('SELECT dv.*, u.full_name as created_by_name FROM document_versions dv LEFT JOIN users_attorneys u ON dv.created_by = u.id WHERE dv.document_id = ? ORDER BY dv.version_number DESC').bind(id).all(),
+    c.env.DB.prepare('SELECT * FROM document_sharing WHERE document_id = ? AND is_active = 1').bind(id).all(),
+    c.env.DB.prepare('SELECT * FROM document_analysis WHERE document_id = ? ORDER BY created_at DESC LIMIT 1').bind(id).first()
+  ])
+
   return c.json({ document: doc, versions: versions.results, sharing: sharing.results, analysis })
 })
 
+// Create a new document — with validation + sanitization
 documents.post('/', async (c) => {
-  const body = await c.req.json()
-  const result = await c.env.DB.prepare(`
-    INSERT INTO documents (title, file_name, file_type, file_size, category, status, case_id, uploaded_by, ai_generated, ai_summary, content_text, tags)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).bind(body.title, body.file_name, body.file_type || null, body.file_size || null, body.category || 'general', body.status || 'draft', body.case_id || null, body.uploaded_by || 1, body.ai_generated || 0, body.ai_summary || null, body.content_text || null, body.tags || null).run()
-  return c.json({ id: result.meta.last_row_id }, 201)
+  try {
+    const body = await c.req.json()
+    const v = validate(body, [
+      { field: 'title', required: true, type: 'string', minLength: 1, maxLength: 500 },
+      { field: 'file_name', required: true, type: 'string', minLength: 1, maxLength: 500 },
+      { field: 'file_type', type: 'string', maxLength: 100 },
+      { field: 'file_size', type: 'number', min: 0 },
+      { field: 'category', type: 'string', oneOf: VALID_CATEGORIES },
+      { field: 'status', type: 'string', oneOf: VALID_STATUSES },
+      { field: 'case_id', type: 'number', min: 1 },
+      { field: 'content_text', type: 'string', maxLength: 500000 },
+      { field: 'tags', type: 'string', maxLength: 1000 },
+    ])
+    if (!v.valid) return badRequest(c, v.errors)
+
+    // FK validation
+    if (body.case_id) {
+      const fk = await validateFK(c.env.DB, 'cases_matters', body.case_id, 'case_id')
+      if (fk) return badRequest(c, [fk])
+    }
+
+    const safe = sanitize(body)
+    const result = await c.env.DB.prepare(`
+      INSERT INTO documents (title, file_name, file_type, file_size, category, status, case_id, uploaded_by, ai_generated, ai_summary, content_text, tags)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(safe.title, safe.file_name, safe.file_type || null, safe.file_size || null, safe.category || 'general', safe.status || 'draft', safe.case_id || null, safe.uploaded_by || 1, safe.ai_generated || 0, safe.ai_summary || null, safe.content_text || null, safe.tags || null).run()
+
+    await auditLog(c.env.DB, 'create', 'documents', result.meta.last_row_id as number, 1, { title: safe.title, file_name: safe.file_name })
+
+    return c.json({ id: result.meta.last_row_id }, 201)
+  } catch (err: any) {
+    await logError(c.env.DB, '/api/documents', 'POST', err.message)
+    return c.json({ error: 'Failed to create document', detail: err.message }, 500)
+  }
 })
 
+// Update a document — with existence check + audit
 documents.put('/:id', async (c) => {
-  const id = c.req.param('id')
-  const body = await c.req.json()
-  const fields: string[] = []; const values: any[] = []
-  const allowed = ['title','file_name','file_type','category','status','case_id','ai_summary','content_text','tags']
-  for (const f of allowed) { if (body[f] !== undefined) { fields.push(`${f} = ?`); values.push(body[f]) } }
-  if (!fields.length) return c.json({ error: 'No fields' }, 400)
-  fields.push('updated_at = CURRENT_TIMESTAMP'); values.push(id)
-  await c.env.DB.prepare(`UPDATE documents SET ${fields.join(', ')} WHERE id = ?`).bind(...values).run()
-  return c.json({ success: true })
+  try {
+    const id = c.req.param('id')
+    if (!(await checkExists(c.env.DB, 'documents', id))) return notFound(c, 'Document')
+
+    const body = await c.req.json()
+    if (body.category && !VALID_CATEGORIES.includes(body.category)) return badRequest(c, [`Invalid category: ${body.category}`])
+    if (body.status && !VALID_STATUSES.includes(body.status)) return badRequest(c, [`Invalid status: ${body.status}`])
+
+    const allowed = ['title', 'file_name', 'file_type', 'category', 'status', 'case_id', 'ai_summary', 'content_text', 'tags']
+    const { fields, values } = buildUpdateFields(body, allowed)
+    if (!fields.length) return badRequest(c, ['No valid fields to update'])
+
+    fields.push('updated_at = CURRENT_TIMESTAMP')
+    values.push(id)
+
+    await c.env.DB.prepare(`UPDATE documents SET ${fields.join(', ')} WHERE id = ?`).bind(...values).run()
+    await auditLog(c.env.DB, 'update', 'documents', id, 1, sanitize(body))
+
+    return c.json({ success: true })
+  } catch (err: any) {
+    await logError(c.env.DB, `/api/documents/${c.req.param('id')}`, 'PUT', err.message)
+    return c.json({ error: 'Failed to update document', detail: err.message }, 500)
+  }
 })
 
+// Soft-delete a document — with existence check + audit (DATA-02)
 documents.delete('/:id', async (c) => {
   const id = c.req.param('id')
-  await c.env.DB.prepare('UPDATE documents SET status = ? WHERE id = ?').bind('archived', id).run()
+  if (!(await checkExists(c.env.DB, 'documents', id))) return notFound(c, 'Document')
+
+  await c.env.DB.prepare('UPDATE documents SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind('archived', id).run()
+  await auditLog(c.env.DB, 'soft_delete', 'documents', id, 1)
+
   return c.json({ success: true })
 })
 
@@ -72,59 +153,68 @@ documents.get('/templates/list', async (c) => {
 })
 
 // ═══════════════════════════════════════════════════════════════
-// UPLOAD — Receive file content (base64 or text), store in D1, auto-analyze
+// UPLOAD — Receive file content, store in D1, auto-analyze
 // ═══════════════════════════════════════════════════════════════
 
 documents.post('/upload', async (c) => {
-  const body = await c.req.json()
-  const { title, file_name, file_type, file_size, category, case_id, content_text } = body
+  try {
+    const body = await c.req.json()
+    const v = validate(body, [
+      { field: 'title', required: true, type: 'string', minLength: 1, maxLength: 500 },
+      { field: 'file_name', required: true, type: 'string', minLength: 1, maxLength: 500 },
+      { field: 'content_text', required: true, type: 'string', minLength: 1, maxLength: 500000 },
+      { field: 'file_type', type: 'string', maxLength: 100 },
+      { field: 'file_size', type: 'number', min: 0 },
+      { field: 'category', type: 'string', oneOf: VALID_CATEGORIES },
+      { field: 'case_id', type: 'number', min: 1 },
+    ])
+    if (!v.valid) return badRequest(c, v.errors)
 
-  if (!title || !file_name) return c.json({ error: 'title and file_name required' }, 400)
-  if (!content_text) return c.json({ error: 'content_text required (extracted text from the file)' }, 400)
+    const { title, file_name, file_type, file_size, category, case_id, content_text } = body
 
-  // 1. Store the document
-  const result = await c.env.DB.prepare(`
-    INSERT INTO documents (title, file_name, file_type, file_size, category, status, case_id, uploaded_by, ai_generated, content_text, tags)
-    VALUES (?, ?, ?, ?, ?, 'review', ?, 1, 0, ?, 'uploaded')
-  `).bind(title, file_name, file_type || 'text/plain', file_size || content_text.length, category || 'general', case_id || null, content_text).run()
+    // FK validation
+    if (case_id) {
+      const fk = await validateFK(c.env.DB, 'cases_matters', case_id, 'case_id')
+      if (fk) return badRequest(c, [fk])
+    }
 
-  const docId = result.meta.last_row_id as number
+    const safe = sanitize({ title, file_name, content_text })
 
-  // 2. Run inline analysis (no LLM needed — pattern-based extraction)
-  const analysis = analyzeDocument(content_text, file_name, category || 'general')
+    // 1. Store the document
+    const result = await c.env.DB.prepare(`
+      INSERT INTO documents (title, file_name, file_type, file_size, category, status, case_id, uploaded_by, ai_generated, content_text, tags)
+      VALUES (?, ?, ?, ?, ?, 'review', ?, 1, 0, ?, 'uploaded')
+    `).bind(safe.title, safe.file_name, file_type || 'text/plain', file_size || content_text.length, category || 'general', case_id || null, safe.content_text).run()
 
-  // 3. Store analysis results
-  await c.env.DB.prepare(`
-    INSERT INTO document_analysis (document_id, analysis_type, summary, doc_classification, entities_json, key_dates_json, monetary_values_json, parties_json, citations_json, clauses_json, risk_flags_json, obligations_json, deadlines_json, jurisdiction_detected, confidence, analyzed_by)
-    VALUES (?, 'full', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pattern_engine')
-  `).bind(
-    docId,
-    analysis.summary,
-    analysis.classification,
-    JSON.stringify(analysis.entities),
-    JSON.stringify(analysis.keyDates),
-    JSON.stringify(analysis.monetaryValues),
-    JSON.stringify(analysis.parties),
-    JSON.stringify(analysis.citations),
-    JSON.stringify(analysis.clauses),
-    JSON.stringify(analysis.riskFlags),
-    JSON.stringify(analysis.obligations),
-    JSON.stringify(analysis.deadlines),
-    analysis.jurisdiction,
-    analysis.confidence
-  ).run()
+    const docId = result.meta.last_row_id as number
 
-  // 4. Update document with AI summary
-  await c.env.DB.prepare('UPDATE documents SET ai_summary = ?, status = ? WHERE id = ?')
-    .bind(analysis.summary, 'review', docId).run()
+    // 2. Run inline analysis (pattern-based extraction)
+    const analysis = analyzeDocument(content_text, file_name, category || 'general')
 
-  return c.json({
-    id: docId,
-    title,
-    file_name,
-    analysis,
-    message: 'Document uploaded and analyzed successfully'
-  }, 201)
+    // 3. Store analysis results
+    await c.env.DB.prepare(`
+      INSERT INTO document_analysis (document_id, analysis_type, summary, doc_classification, entities_json, key_dates_json, monetary_values_json, parties_json, citations_json, clauses_json, risk_flags_json, obligations_json, deadlines_json, jurisdiction_detected, confidence, analyzed_by)
+      VALUES (?, 'full', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pattern_engine')
+    `).bind(
+      docId, analysis.summary, analysis.classification,
+      JSON.stringify(analysis.entities), JSON.stringify(analysis.keyDates),
+      JSON.stringify(analysis.monetaryValues), JSON.stringify(analysis.parties),
+      JSON.stringify(analysis.citations), JSON.stringify(analysis.clauses),
+      JSON.stringify(analysis.riskFlags), JSON.stringify(analysis.obligations),
+      JSON.stringify(analysis.deadlines), analysis.jurisdiction, analysis.confidence
+    ).run()
+
+    // 4. Update document with AI summary
+    await c.env.DB.prepare('UPDATE documents SET ai_summary = ?, status = ? WHERE id = ?')
+      .bind(analysis.summary, 'review', docId).run()
+
+    await auditLog(c.env.DB, 'create', 'documents', docId, 1, { title: safe.title, file_name: safe.file_name, analyzed: true })
+
+    return c.json({ id: docId, title, file_name, analysis, message: 'Document uploaded and analyzed successfully' }, 201)
+  } catch (err: any) {
+    await logError(c.env.DB, '/api/documents/upload', 'POST', err.message)
+    return c.json({ error: 'Failed to upload document', detail: err.message }, 500)
+  }
 })
 
 // ═══════════════════════════════════════════════════════════════
@@ -134,8 +224,8 @@ documents.post('/upload', async (c) => {
 documents.post('/:id/analyze', async (c) => {
   const id = c.req.param('id')
   const doc = await c.env.DB.prepare('SELECT * FROM documents WHERE id = ?').bind(id).first() as any
-  if (!doc) return c.json({ error: 'Document not found' }, 404)
-  if (!doc.content_text) return c.json({ error: 'No content text available for analysis' }, 400)
+  if (!doc) return notFound(c, 'Document')
+  if (!doc.content_text) return badRequest(c, ['No content text available for analysis'])
 
   const analysis = analyzeDocument(doc.content_text, doc.file_name, doc.category || 'general')
 
@@ -145,23 +235,16 @@ documents.post('/:id/analyze', async (c) => {
     INSERT INTO document_analysis (document_id, analysis_type, summary, doc_classification, entities_json, key_dates_json, monetary_values_json, parties_json, citations_json, clauses_json, risk_flags_json, obligations_json, deadlines_json, jurisdiction_detected, confidence, analyzed_by)
     VALUES (?, 'full', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pattern_engine')
   `).bind(
-    id,
-    analysis.summary,
-    analysis.classification,
-    JSON.stringify(analysis.entities),
-    JSON.stringify(analysis.keyDates),
-    JSON.stringify(analysis.monetaryValues),
-    JSON.stringify(analysis.parties),
-    JSON.stringify(analysis.citations),
-    JSON.stringify(analysis.clauses),
-    JSON.stringify(analysis.riskFlags),
-    JSON.stringify(analysis.obligations),
-    JSON.stringify(analysis.deadlines),
-    analysis.jurisdiction,
-    analysis.confidence
+    id, analysis.summary, analysis.classification,
+    JSON.stringify(analysis.entities), JSON.stringify(analysis.keyDates),
+    JSON.stringify(analysis.monetaryValues), JSON.stringify(analysis.parties),
+    JSON.stringify(analysis.citations), JSON.stringify(analysis.clauses),
+    JSON.stringify(analysis.riskFlags), JSON.stringify(analysis.obligations),
+    JSON.stringify(analysis.deadlines), analysis.jurisdiction, analysis.confidence
   ).run()
 
   await c.env.DB.prepare('UPDATE documents SET ai_summary = ? WHERE id = ?').bind(analysis.summary, id).run()
+  await auditLog(c.env.DB, 'update', 'documents', id, 1, { action: 're-analyze' })
 
   return c.json({ document_id: id, analysis })
 })
@@ -170,8 +253,7 @@ documents.post('/:id/analyze', async (c) => {
 documents.get('/:id/analysis', async (c) => {
   const id = c.req.param('id')
   const analysis = await c.env.DB.prepare('SELECT * FROM document_analysis WHERE document_id = ? ORDER BY created_at DESC LIMIT 1').bind(id).first()
-  if (!analysis) return c.json({ error: 'No analysis found' }, 404)
-  // Parse JSON fields
+  if (!analysis) return notFound(c, 'Analysis')
   const parsed = {
     ...analysis,
     entities: tryParse((analysis as any).entities_json),
@@ -194,7 +276,6 @@ function tryParse(s: any): any {
 
 // ═══════════════════════════════════════════════════════════════
 // PATTERN ENGINE — Deep document analysis without LLM
-// Extracts: entities, dates, money, parties, citations, risks, obligations
 // ═══════════════════════════════════════════════════════════════
 
 interface DocAnalysis {
@@ -238,8 +319,6 @@ function analyzeDocument(text: string, fileName: string, category: string): DocA
 
   // ── Entity Extraction ──────────────────────────────────
   const entities: { type: string; value: string; context: string }[] = []
-
-  // People names (Title Case sequences of 2-3 words)
   const nameMatches = text.match(/\b[A-Z][a-z]+(?:\s+[A-Z]\.?)?\s+[A-Z][a-z]+\b/g) || []
   const seenNames = new Set<string>()
   for (const name of nameMatches.slice(0, 20)) {
@@ -252,39 +331,23 @@ function analyzeDocument(text: string, fileName: string, category: string): DocA
     }
   }
 
-  // Organizations
   const orgPatterns = text.match(/\b[A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)*\s+(?:Inc|LLC|Corp|Co|Ltd|LLP|PC|PA|Group|Associates|Partners|Foundation|Trust|Bank|Insurance|Company)\b\.?/g) || []
-  for (const org of orgPatterns.slice(0, 10)) {
-    entities.push({ type: 'organization', value: org.trim(), context: '' })
-  }
+  for (const org of orgPatterns.slice(0, 10)) entities.push({ type: 'organization', value: org.trim(), context: '' })
 
-  // Addresses
   const addrMatches = text.match(/\d+\s+[A-Z][a-z]+(?:\s+[A-Za-z]+){0,3}\s+(?:Street|St|Avenue|Ave|Boulevard|Blvd|Drive|Dr|Road|Rd|Lane|Ln|Way|Court|Ct|Place|Pl|Suite|Ste)\b\.?/gi) || []
-  for (const addr of addrMatches.slice(0, 5)) {
-    entities.push({ type: 'address', value: addr.trim(), context: '' })
-  }
+  for (const addr of addrMatches.slice(0, 5)) entities.push({ type: 'address', value: addr.trim(), context: '' })
 
-  // Phone numbers
   const phones = text.match(/(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g) || []
-  for (const p of phones.slice(0, 5)) {
-    entities.push({ type: 'phone', value: p.trim(), context: '' })
-  }
+  for (const p of phones.slice(0, 5)) entities.push({ type: 'phone', value: p.trim(), context: '' })
 
-  // Emails
   const emails = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || []
-  for (const e of emails.slice(0, 5)) {
-    entities.push({ type: 'email', value: e, context: '' })
-  }
+  for (const e of emails.slice(0, 5)) entities.push({ type: 'email', value: e, context: '' })
 
-  // Case numbers
   const caseNums = text.match(/(?:Case\s*(?:No\.?|Number|#)\s*|No\.\s*)\d{2,4}[-/]\w+[-/]?\w*/gi) || []
-  for (const cn of caseNums.slice(0, 5)) {
-    entities.push({ type: 'case_number', value: cn.trim(), context: '' })
-  }
+  for (const cn of caseNums.slice(0, 5)) entities.push({ type: 'case_number', value: cn.trim(), context: '' })
 
   // ── Date Extraction ────────────────────────────────────
   const keyDates: { date: string; context: string; type: string }[] = []
-  // Various date formats
   const datePatterns = [
     /(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}/gi,
     /\d{1,2}\/\d{1,2}\/\d{2,4}/g,
@@ -319,11 +382,8 @@ function analyzeDocument(text: string, fileName: string, category: string): DocA
     const ctx = text.substring(Math.max(0, idx - 40), idx + m.length + 40).trim()
     monetaryValues.push({ amount: m, raw: m, context: ctx.substring(0, 100) })
   }
-  // Also match written amounts
   const writtenMoney = text.match(/(?:\d[\d,]*(?:\.\d+)?)\s+(?:dollars|USD)/gi) || []
-  for (const m of writtenMoney.slice(0, 5)) {
-    monetaryValues.push({ amount: m, raw: m, context: '' })
-  }
+  for (const m of writtenMoney.slice(0, 5)) monetaryValues.push({ amount: m, raw: m, context: '' })
 
   // ── Parties Extraction ─────────────────────────────────
   const parties: { name: string; role: string }[] = []
@@ -349,19 +409,14 @@ function analyzeDocument(text: string, fileName: string, category: string): DocA
 
   // ── Citations ──────────────────────────────────────────
   const citations: { citation: string; type: string }[] = []
-  // Kansas statutes
   const ksStatutes = text.match(/K\.?S\.?A\.?\s*§?\s*\d+[-–]\d+[\w]*/g) || []
   for (const s of ksStatutes) citations.push({ citation: s, type: 'kansas_statute' })
-  // Missouri statutes
   const moStatutes = text.match(/RSMo\s*§?\s*[\d.]+/g) || []
   for (const s of moStatutes) citations.push({ citation: s, type: 'missouri_statute' })
-  // Federal statutes
   const fedStatutes = text.match(/\d+\s+U\.?S\.?C\.?\s*§?\s*\d+/g) || []
   for (const s of fedStatutes) citations.push({ citation: s, type: 'federal_statute' })
-  // Case citations (e.g., 237 Kan. 629)
   const caseCites = text.match(/\d+\s+(?:Kan|Mo|S\.W\.\d?d|F\.\d?d|U\.S|S\.Ct|F\.Supp)\.?\s*\d+/g) || []
   for (const s of caseCites) citations.push({ citation: s, type: 'case_law' })
-  // Federal Rules
   const frcp = text.match(/(?:Fed\.|Federal)\s*R(?:ule)?\.?\s*(?:Civ|Crim)\.?\s*P(?:roc)?\.?\s*\d+/gi) || []
   for (const s of frcp) citations.push({ citation: s, type: 'procedural_rule' })
 
@@ -460,21 +515,8 @@ function analyzeDocument(text: string, fileName: string, category: string): DocA
   const confidence = Math.min(0.95, 0.5 + entityCount * 0.02 + dateCount * 0.03 + citCount * 0.04 + (classification !== category ? 0.1 : 0))
 
   return {
-    summary,
-    classification,
-    entities,
-    keyDates,
-    monetaryValues,
-    parties,
-    citations,
-    clauses,
-    riskFlags,
-    obligations,
-    deadlines,
-    jurisdiction,
-    confidence,
-    wordCount,
-    pageEstimate,
+    summary, classification, entities, keyDates, monetaryValues, parties, citations,
+    clauses, riskFlags, obligations, deadlines, jurisdiction, confidence, wordCount, pageEstimate,
   }
 }
 
