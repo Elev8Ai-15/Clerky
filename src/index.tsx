@@ -41,7 +41,7 @@ app.get('/api/health', async (c) => {
     const dbCheck = await c.env.DB.prepare('SELECT 1 as ok').first()
     return c.json({
       status: 'healthy',
-      version: '5.0.0',
+      version: '5.1.0',
       timestamp: new Date().toISOString(),
       database: dbCheck ? 'connected' : 'error',
       services: {
@@ -118,7 +118,21 @@ app.get('/api/init-db', async (c) => {
     // Audit log table (DATA-03)
     `CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, action TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, user_id INTEGER NOT NULL, changes_json TEXT, old_values_json TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
     // Error logs table (OPS-04)
-    `CREATE TABLE IF NOT EXISTS error_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, route TEXT NOT NULL, method TEXT NOT NULL, error_message TEXT NOT NULL, details TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`
+    `CREATE TABLE IF NOT EXISTS error_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, route TEXT NOT NULL, method TEXT NOT NULL, error_message TEXT NOT NULL, details TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+    // Performance indexes (PERF-01)
+    `CREATE INDEX IF NOT EXISTS idx_cases_client ON cases_matters(client_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_cases_attorney ON cases_matters(lead_attorney_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_cases_status ON cases_matters(status)`,
+    `CREATE INDEX IF NOT EXISTS idx_docs_case ON documents(case_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_tasks_case ON tasks_deadlines(case_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_tasks_assigned ON tasks_deadlines(assigned_to)`,
+    `CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks_deadlines(status)`,
+    `CREATE INDEX IF NOT EXISTS idx_invoices_client ON billing_invoices(client_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_invoices_case ON billing_invoices(case_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_time_entries_case ON time_entries(case_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_notifs_user ON notifications(user_id, is_read)`,
+    `CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity_type, entity_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_calendar_start ON calendar_events(start_datetime)`
   ]
 
   for (const sql of migrations) {
@@ -496,9 +510,14 @@ function getAppHTML(): string {
     @keyframes splashDot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.8); } }
 
     /* ═══ Toast JS helper — global function ═══ */
+    /* ═══ Accessibility: Screen Reader Only ═══ */
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    .focus\\:not-sr-only:focus { position: static; width: auto; height: auto; padding: initial; margin: initial; overflow: visible; clip: auto; white-space: normal; }
   </style>
 </head>
 <body class="bg-dark-50">
+  <!-- Skip to main content — accessibility -->
+  <a href="#pageContent" class="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:bg-white focus:text-brand-600 focus:p-3 focus:rounded-lg focus:shadow-lg" style="top:4px;left:4px">Skip to main content</a>
   <!-- Splash Screen -->
   <div id="splash" class="hero-bg min-h-screen flex items-center justify-center">
     <div class="max-w-2xl mx-auto text-center px-6">
@@ -543,9 +562,9 @@ function getAppHTML(): string {
   <!-- Sidebar Overlay (mobile) -->
   <div id="sidebarOverlay" onclick="closeSidebar()"></div>
 
-  <div id="app" class="flex h-screen overflow-hidden">
+  <div id="app" class="flex h-screen overflow-hidden" role="application">
     <!-- Sidebar -->
-    <aside id="sidebar" class="w-64 text-white flex flex-col flex-shrink-0 transition-transform duration-300 ease-in-out" style="background:#1e3354">
+    <aside id="sidebar" class="w-64 text-white flex flex-col flex-shrink-0 transition-transform duration-300 ease-in-out" style="background:#1e3354" role="navigation" aria-label="Main navigation">
       <div class="p-6 border-b" style="border-color:#2a4068">
         <div class="flex items-center gap-3">
           <img src="/static/clerky-logo.png" alt="Clerky" class="h-9 w-auto">
@@ -613,14 +632,14 @@ function getAppHTML(): string {
     </aside>
 
     <!-- Main Content -->
-    <main class="flex-1 flex flex-col overflow-hidden">
+    <main class="flex-1 flex flex-col overflow-hidden" role="main" aria-label="Page content">
       <!-- Top Bar -->
-      <header class="bg-white border-b border-dark-200 px-3 sm:px-6 py-3 flex items-center justify-between flex-shrink-0 gap-2">
+      <header class="bg-white border-b border-dark-200 px-3 sm:px-6 py-3 flex items-center justify-between flex-shrink-0 gap-2" role="banner">
         <div class="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
-          <button onclick="toggleSidebar()" class="text-dark-400 hover:text-dark-600 lg:hidden flex-shrink-0 p-1"><i class="fas fa-bars text-lg"></i></button>
+          <button onclick="toggleSidebar()" class="text-dark-400 hover:text-dark-600 lg:hidden flex-shrink-0 p-1" aria-label="Toggle sidebar menu"><i class="fas fa-bars text-lg"></i></button>
           <div class="relative flex-1 max-w-xs sm:max-w-sm lg:max-w-md">
-            <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-dark-400 text-sm"></i>
-            <input type="text" placeholder="Search..." class="pl-9 pr-4 py-2 w-full bg-dark-50 border-dark-200 rounded-lg text-sm mobile-search" id="globalSearch" onkeyup="handleGlobalSearch(event)">
+            <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-dark-400 text-sm" aria-hidden="true"></i>
+            <input type="text" placeholder="Search..." class="pl-9 pr-4 py-2 w-full bg-dark-50 border-dark-200 rounded-lg text-sm mobile-search" id="globalSearch" onkeyup="handleGlobalSearch(event)" aria-label="Global search">
           </div>
         </div>
         <div class="flex items-center gap-2 sm:gap-4 flex-shrink-0">
@@ -649,7 +668,7 @@ function getAppHTML(): string {
   </div>
 
   <!-- Mobile Bottom Navigation -->
-  <nav id="mobileBottomNav">
+  <nav id="mobileBottomNav" aria-label="Mobile navigation">
     <button onclick="navigate('dashboard')" data-mob="dashboard" class="active">
       <i class="fas fa-chart-line"></i><span>Home</span>
     </button>
@@ -2970,22 +2989,39 @@ async function submitIntake() {
 
 // === MODALS ===
 function showNewCaseModal() {
+  // Pre-fetch clients and attorneys for FK dropdown
+  Promise.all([axios.get(API + '/clients'), axios.get(API + '/users')]).then(([cRes, uRes]) => {
+    const clientOpts = (cRes.data.clients || []).map(cl => '<option value="'+cl.id+'">'+escapeHtml(cl.first_name+' '+cl.last_name)+'</option>').join('');
+    const attyOpts = (uRes.data.users || []).map(u => '<option value="'+u.id+'" '+(u.id===1?'selected':'')+'>'+escapeHtml(u.full_name)+'</option>').join('');
+    const cSel = document.getElementById('ncClientId');
+    const aSel = document.getElementById('ncAttorneyId');
+    if (cSel) cSel.innerHTML = '<option value="">Select client *</option>' + clientOpts;
+    if (aSel) aSel.innerHTML = attyOpts;
+  }).catch(() => {});
+
   document.getElementById('modalContainer').innerHTML = \`
-    <div class="modal-overlay" onclick="closeModal(event)">
+    <div class="modal-overlay" onclick="closeModal(event)" role="dialog" aria-modal="true" aria-labelledby="ncModalTitle">
       <div class="modal p-6" onclick="event.stopPropagation()">
-        <h3 class="text-lg font-bold mb-4">New Case</h3>
+        <h3 class="text-lg font-bold mb-4" id="ncModalTitle">New Case</h3>
         <div class="space-y-4">
-          <div><label class="text-sm font-medium text-dark-700 block mb-1">Title *</label><input id="ncTitle" placeholder="Case title"></div>
+          <div><label class="text-sm font-medium text-dark-700 block mb-1" for="ncTitle">Title *</label><input id="ncTitle" placeholder="Case title" aria-required="true"></div>
           <div class="grid grid-cols-2 gap-4">
-            <div><label class="text-sm font-medium text-dark-700 block mb-1">Type *</label>
-              <select id="ncType"><option value="civil">Civil</option><option value="criminal">Criminal</option><option value="family">Family</option><option value="corporate">Corporate</option><option value="immigration">Immigration</option><option value="personal_injury">Personal Injury</option><option value="employment">Employment</option><option value="ip">IP</option><option value="real_estate">Real Estate</option></select></div>
-            <div><label class="text-sm font-medium text-dark-700 block mb-1">Priority</label>
+            <div><label class="text-sm font-medium text-dark-700 block mb-1" for="ncType">Type *</label>
+              <select id="ncType" aria-required="true"><option value="personal_injury">Personal Injury</option><option value="family">Family</option><option value="corporate">Corporate</option><option value="employment">Employment</option><option value="criminal">Criminal Defense</option><option value="immigration">Immigration</option><option value="real_estate">Real Estate</option><option value="ip">Intellectual Property</option><option value="medical_malpractice">Medical Malpractice</option><option value="wrongful_death">Wrongful Death</option><option value="workers_compensation">Workers Comp</option></select></div>
+            <div><label class="text-sm font-medium text-dark-700 block mb-1" for="ncPriority">Priority</label>
               <select id="ncPriority"><option value="medium">Medium</option><option value="low">Low</option><option value="high">High</option><option value="urgent">Urgent</option></select></div>
           </div>
-          <div><label class="text-sm font-medium text-dark-700 block mb-1">Description</label><textarea id="ncDesc" rows="3" placeholder="Case description..."></textarea></div>
+          <div class="grid grid-cols-2 gap-4">
+            <div><label class="text-sm font-medium text-dark-700 block mb-1" for="ncClientId">Client *</label>
+              <select id="ncClientId" aria-required="true"><option value="">Loading clients...</option></select></div>
+            <div><label class="text-sm font-medium text-dark-700 block mb-1" for="ncAttorneyId">Lead Attorney *</label>
+              <select id="ncAttorneyId" aria-required="true"><option value="1">Brad</option></select></div>
+          </div>
+          <div><label class="text-sm font-medium text-dark-700 block mb-1" for="ncDesc">Description</label><textarea id="ncDesc" rows="3" placeholder="Case description..."></textarea></div>
+          <div id="ncError" class="text-sm text-red-600 hidden"></div>
           <div class="flex gap-2 justify-end">
             <button onclick="closeModal()" class="btn btn-secondary">Cancel</button>
-            <button onclick="createCase()" class="btn btn-primary">Create Case</button>
+            <button onclick="createCase()" class="btn btn-primary" id="ncSubmitBtn">Create Case</button>
           </div>
         </div>
       </div>
@@ -2994,23 +3030,37 @@ function showNewCaseModal() {
 }
 
 async function createCase() {
+  const title = document.getElementById('ncTitle').value.trim();
+  const clientId = document.getElementById('ncClientId').value;
+  const attorneyId = document.getElementById('ncAttorneyId').value;
+  const errEl = document.getElementById('ncError');
+  if (!title) { errEl.textContent = 'Title is required'; errEl.classList.remove('hidden'); return; }
+  if (!clientId) { errEl.textContent = 'Client is required. Add a client first.'; errEl.classList.remove('hidden'); return; }
+  const btn = document.getElementById('ncSubmitBtn');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Creating...';
   try {
     await axios.post(API + '/cases', {
-      title: document.getElementById('ncTitle').value,
+      title,
       case_type: document.getElementById('ncType').value,
       priority: document.getElementById('ncPriority').value,
       description: document.getElementById('ncDesc').value,
-      client_id: 1, lead_attorney_id: 1
+      client_id: Number(clientId),
+      lead_attorney_id: Number(attorneyId) || 1
     });
+    toast('Case Created', title, 'success');
     closeModal(); loadCases();
-  } catch(e) { alert('Error creating case'); }
+  } catch(e) {
+    const msg = e.response?.data?.errors?.join(', ') || e.response?.data?.error || 'Error creating case';
+    errEl.textContent = msg; errEl.classList.remove('hidden');
+    btn.disabled = false; btn.innerHTML = 'Create Case';
+  }
 }
 
 function showNewClientModal() {
   document.getElementById('modalContainer').innerHTML = \`
-    <div class="modal-overlay" onclick="closeModal(event)">
+    <div class="modal-overlay" onclick="closeModal(event)" role="dialog" aria-modal="true" aria-labelledby="nclModalTitle">
       <div class="modal p-6" onclick="event.stopPropagation()">
-        <h3 class="text-lg font-bold mb-4">New Client</h3>
+        <h3 class="text-lg font-bold mb-4" id="nclModalTitle">New Client</h3>
         <div class="space-y-4">
           <div class="grid grid-cols-2 gap-4">
             <div><label class="text-sm font-medium block mb-1">First Name *</label><input id="nclFirst" placeholder="First name"></div>
@@ -3031,15 +3081,19 @@ function showNewClientModal() {
 
 async function createClient() {
   try {
-    await axios.post(API + '/clients', {
+    const res = await axios.post(API + '/clients', {
       first_name: document.getElementById('nclFirst').value,
       last_name: document.getElementById('nclLast').value,
       email: document.getElementById('nclEmail').value,
       phone: document.getElementById('nclPhone').value,
       client_type: document.getElementById('nclType').value
     });
+    toast('Client Added', document.getElementById('nclFirst').value + ' ' + document.getElementById('nclLast').value, 'success');
     closeModal(); loadClients();
-  } catch(e) { alert('Error creating client'); }
+  } catch(e) {
+    const msg = e.response?.data?.errors?.join(', ') || e.response?.data?.error || 'Error creating client';
+    toast('Error', msg, 'error');
+  }
 }
 
 function showNewEventModal() {
@@ -3075,8 +3129,12 @@ async function createEvent() {
       location: document.getElementById('neLocation').value,
       organizer_id: 1
     });
+    toast('Event Created', document.getElementById('neTitle').value, 'success');
     closeModal(); loadCalendar();
-  } catch(e) { alert('Error creating event'); }
+  } catch(e) {
+    const msg = e.response?.data?.errors?.join(', ') || e.response?.data?.error || 'Error creating event';
+    toast('Error', msg, 'error');
+  }
 }
 
 function showNewTaskModal() {
@@ -3112,8 +3170,12 @@ async function createTask() {
       description: document.getElementById('ntDesc').value,
       assigned_to: 1
     });
+    toast('Task Created', document.getElementById('ntTitle').value, 'success');
     closeModal(); loadTasks();
-  } catch(e) { alert('Error creating task'); }
+  } catch(e) {
+    const msg = e.response?.data?.errors?.join(', ') || e.response?.data?.error || 'Error creating task';
+    toast('Error', msg, 'error');
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -3555,12 +3617,9 @@ async function viewDocument(id) {
           <!-- Legal Citations -->
           \${citations.length > 0 ? \`
           <div class="card p-5">
-            <h4 class="font-semibold text-dark-800 mb-3 flex items-center gap-2"><i class="fas fa-book text-amber-500"></i> Legal Citations (\${citations.length})</h4>
+            <h4 class="font-semibold text-dark-800 mb-3 flex items-center gap-2"><i class="fas fa-book text-amber-500"></i> Legal Citations (\${citations.length}) <span class="text-xs text-dark-400 font-normal ml-auto">Hover for deep links</span></h4>
             <div class="flex flex-wrap gap-2">
-              \${citations.map(c => {
-                const typeColor = c.type === 'kansas_statute' ? 'bg-blue-100 text-blue-700' : c.type === 'missouri_statute' ? 'bg-red-100 text-red-700' : c.type === 'federal_statute' ? 'bg-indigo-100 text-indigo-700' : c.type === 'case_law' ? 'bg-purple-100 text-purple-700' : 'bg-dark-100 text-dark-600';
-                return '<div class="badge '+typeColor+' text-xs py-1 px-2"><i class="fas fa-'+(c.type.includes('statute') ? 'gavel' : c.type === 'case_law' ? 'scale-balanced' : 'book')+' mr-1"></i>'+escapeHtml(c.citation)+'</div>';
-              }).join('')}
+              \${citations.map(c => renderCitationWithLinks(c.citation, c.type)).join('')}
             </div>
           </div>\` : ''}
 
@@ -3668,7 +3727,80 @@ async function deleteDoc(id) {
   } catch(e) { toast('Error', e.message, 'error'); }
 }
 
-function showNewInvoiceModal() { alert('Invoice creation modal - Coming soon!'); }
+function showNewInvoiceModal() {
+  Promise.all([axios.get(API + '/clients'), axios.get(API + '/cases')]).then(([cRes, csRes]) => {
+    const clientOpts = (cRes.data.clients || []).map(cl => '<option value="'+cl.id+'">'+escapeHtml(cl.first_name+' '+cl.last_name)+'</option>').join('');
+    const caseOpts = (csRes.data.cases || []).map(cs => '<option value="'+cs.id+'">'+escapeHtml(cs.case_number+' — '+cs.title.substring(0,30))+'</option>').join('');
+    const cSel = document.getElementById('niClientId');
+    const csSel = document.getElementById('niCaseId');
+    if (cSel) cSel.innerHTML = '<option value="">Select client *</option>' + clientOpts;
+    if (csSel) csSel.innerHTML = '<option value="">Select case *</option>' + caseOpts;
+  }).catch(() => {});
+
+  document.getElementById('modalContainer').innerHTML = \`
+    <div class="modal-overlay" onclick="closeModal(event)" role="dialog" aria-modal="true" aria-labelledby="niModalTitle">
+      <div class="modal p-6" onclick="event.stopPropagation()">
+        <h3 class="text-lg font-bold mb-4" id="niModalTitle"><i class="fas fa-receipt text-green-600 mr-2"></i>New Invoice</h3>
+        <div class="space-y-4">
+          <div class="grid grid-cols-2 gap-4">
+            <div><label class="text-sm font-medium text-dark-700 block mb-1" for="niClientId">Client *</label>
+              <select id="niClientId" aria-required="true"><option value="">Loading...</option></select></div>
+            <div><label class="text-sm font-medium text-dark-700 block mb-1" for="niCaseId">Case *</label>
+              <select id="niCaseId" aria-required="true"><option value="">Loading...</option></select></div>
+          </div>
+          <div class="grid grid-cols-3 gap-4">
+            <div><label class="text-sm font-medium text-dark-700 block mb-1" for="niSubtotal">Subtotal ($)</label>
+              <input id="niSubtotal" type="number" step="0.01" min="0" placeholder="0.00"></div>
+            <div><label class="text-sm font-medium text-dark-700 block mb-1" for="niTax">Tax ($)</label>
+              <input id="niTax" type="number" step="0.01" min="0" placeholder="0.00" value="0"></div>
+            <div><label class="text-sm font-medium text-dark-700 block mb-1" for="niTotal">Total ($)</label>
+              <input id="niTotal" type="number" step="0.01" min="0" placeholder="0.00"></div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div><label class="text-sm font-medium text-dark-700 block mb-1" for="niDue">Due Date</label>
+              <input id="niDue" type="date"></div>
+            <div><label class="text-sm font-medium text-dark-700 block mb-1" for="niTerms">Payment Terms</label>
+              <select id="niTerms"><option value="net_30">Net 30</option><option value="net_15">Net 15</option><option value="net_60">Net 60</option><option value="due_on_receipt">Due on Receipt</option></select></div>
+          </div>
+          <div><label class="text-sm font-medium text-dark-700 block mb-1" for="niNotes">Notes</label>
+            <textarea id="niNotes" rows="2" placeholder="Invoice notes..."></textarea></div>
+          <div id="niError" class="text-sm text-red-600 hidden"></div>
+          <div class="flex gap-2 justify-end">
+            <button onclick="closeModal()" class="btn btn-secondary">Cancel</button>
+            <button onclick="createInvoice()" class="btn btn-success" id="niSubmitBtn"><i class="fas fa-check mr-1"></i>Create Invoice</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  \`;
+}
+
+async function createInvoice() {
+  const clientId = document.getElementById('niClientId').value;
+  const caseId = document.getElementById('niCaseId').value;
+  const errEl = document.getElementById('niError');
+  if (!clientId || !caseId) { errEl.textContent = 'Client and Case are required'; errEl.classList.remove('hidden'); return; }
+  const btn = document.getElementById('niSubmitBtn');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Creating...';
+  try {
+    const subtotal = parseFloat(document.getElementById('niSubtotal').value) || 0;
+    const tax = parseFloat(document.getElementById('niTax').value) || 0;
+    const total = parseFloat(document.getElementById('niTotal').value) || (subtotal + tax);
+    await axios.post(API + '/billing/invoices', {
+      client_id: Number(clientId), case_id: Number(caseId),
+      subtotal, tax_amount: tax, total_amount: total,
+      due_date: document.getElementById('niDue').value || null,
+      payment_terms: document.getElementById('niTerms').value,
+      notes: document.getElementById('niNotes').value
+    });
+    toast('Invoice Created', 'New invoice for $' + total.toLocaleString(), 'success');
+    closeModal(); loadBilling();
+  } catch(e) {
+    const msg = e.response?.data?.errors?.join(', ') || e.response?.data?.error || 'Error creating invoice';
+    errEl.textContent = msg; errEl.classList.remove('hidden');
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-check mr-1"></i>Create Invoice';
+  }
+}
 
 function closeModal(e) {
   if (e && e.target !== e.currentTarget) return;
@@ -3711,6 +3843,30 @@ function getInvoiceStatusColor(s) {
 function getAgentIcon(t) {
   const m = { orchestrator:'diagram-project', intake:'clipboard-list', research:'magnifying-glass', drafting:'file-pen', verification:'shield-check', compliance:'scale-balanced', esignature:'signature', billing:'receipt' };
   return m[t] || 'robot';
+}
+
+// ═══ Deep Link Generation for Legal Citations ═══
+function generateCitationLinks(cite) {
+  const encoded = encodeURIComponent(cite);
+  return {
+    westlaw: 'https://1.next.westlaw.com/Search/Results.html?query=' + encoded,
+    lexis: 'https://advance.lexis.com/search/?q=' + encoded,
+    scholar: 'https://scholar.google.com/scholar?q=%22' + encoded + '%22',
+    courtlistener: '/api/legal-research/citation?cite=' + encoded
+  };
+}
+
+function renderCitationWithLinks(cite, type) {
+  const links = generateCitationLinks(cite);
+  const typeColor = type === 'kansas_statute' ? 'bg-blue-100 text-blue-700' : type === 'missouri_statute' ? 'bg-red-100 text-red-700' : type === 'federal_statute' ? 'bg-indigo-100 text-indigo-700' : type === 'case_law' ? 'bg-purple-100 text-purple-700' : 'bg-dark-100 text-dark-600';
+  const iconType = type && type.includes('statute') ? 'gavel' : type === 'case_law' ? 'scale-balanced' : 'book';
+  return '<div class="flex items-center gap-1 group">' +
+    '<span class="badge '+typeColor+' text-xs py-1 px-2"><i class="fas fa-'+iconType+' mr-1"></i>'+escapeHtml(cite)+'</span>' +
+    '<span class="hidden group-hover:inline-flex items-center gap-1 text-[10px]">' +
+    '<a href="'+links.westlaw+'" target="_blank" rel="noopener" class="text-blue-500 hover:underline" title="Search on Westlaw">WL</a>' +
+    '<a href="'+links.lexis+'" target="_blank" rel="noopener" class="text-purple-500 hover:underline" title="Search on Lexis">LX</a>' +
+    '<a href="'+links.scholar+'" target="_blank" rel="noopener" class="text-green-500 hover:underline" title="Google Scholar">GS</a>' +
+    '</span></div>';
 }
 
 function showError(section) {

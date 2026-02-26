@@ -11,7 +11,7 @@ import { validate, sanitize, generateSafeId, parsePagination, checkExists, valid
 type Bindings = { DB: D1Database }
 const cases = new Hono<{ Bindings: Bindings }>()
 
-const VALID_TYPES = ['civil', 'criminal', 'family', 'corporate', 'immigration', 'real_estate', 'ip', 'employment', 'bankruptcy', 'personal_injury', 'other']
+const VALID_TYPES = ['civil', 'criminal', 'family', 'corporate', 'immigration', 'real_estate', 'ip', 'employment', 'bankruptcy', 'personal_injury', 'medical_malpractice', 'wrongful_death', 'workers_compensation', 'other']
 const VALID_STATUSES = ['open', 'in_progress', 'pending_review', 'discovery', 'trial', 'settled', 'closed', 'archived']
 const VALID_PRIORITIES = ['low', 'medium', 'high', 'urgent']
 
