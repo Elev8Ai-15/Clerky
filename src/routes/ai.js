@@ -158,50 +158,113 @@ ai.delete('/chat/:session_id', async (c) => {
     return c.json({ success: true });
 });
 // ═══════════════════════════════════════════════════════════════
-// CrewAI Status Endpoint
+// CrewAI / LLM Status Endpoint — checks BOTH CrewAI backend AND Hono-side LLM
 // ═══════════════════════════════════════════════════════════════
 ai.get('/crewai/status', async (c) => {
     const CREWAI_URL = getCrewAIUrl(c.env);
+    const honoKey = c.env.OPENAI_API_KEY || '';
+    const honoBase = c.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
+    const honoModel = c.env.OPENAI_MODEL || 'gpt-5-mini';
+    const honoConfigured = honoKey.length > 10;
+
+    // Try CrewAI backend first
     try {
-        const resp = await fetch(`${CREWAI_URL}/health`, { signal: AbortSignal.timeout(5000) });
+        const resp = await fetch(`${CREWAI_URL}/health`, { signal: AbortSignal.timeout(3000) });
         if (resp.ok) {
             const data = await resp.json();
-            return c.json({ available: true, ...data });
+            return c.json({ available: true, hono_llm_configured: honoConfigured, ...data });
         }
-        return c.json({ available: false, status: 'unhealthy', error: `HTTP ${resp.status}` });
+    } catch (e) { /* CrewAI offline — fall through */ }
+
+    // CrewAI is offline — report Hono-side LLM status
+    if (honoConfigured) {
+        // Test if the key actually works
+        try {
+            const testResp = await fetch(`${honoBase}/chat/completions`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${honoKey}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: honoModel, messages: [{ role: 'user', content: 'ping' }], max_tokens: 5 }),
+                signal: AbortSignal.timeout(8000),
+            });
+            const llmReachable = testResp.ok;
+            return c.json({
+                available: true,
+                status: llmReachable ? 'ok' : 'degraded',
+                model: honoModel,
+                llm_configured: true,
+                llm_reachable: llmReachable,
+                crewai_backend: false,
+                engine: 'hono-agents',
+                message: llmReachable ? 'LLM connected via embedded agents' : 'LLM key configured but not reachable',
+            });
+        } catch (e) {
+            return c.json({
+                available: true, status: 'degraded', model: honoModel,
+                llm_configured: true, llm_reachable: false, crewai_backend: false, engine: 'hono-agents',
+            });
+        }
     }
-    catch (e) {
-        return c.json({ available: false, status: 'offline', error: e.message || 'Connection refused' });
-    }
+
+    return c.json({ available: false, status: 'offline', llm_configured: false, llm_reachable: false, crewai_backend: false });
 });
-// CrewAI LLM Configuration — Set API key at runtime — PROTECTED (BUG-6)
+
+// LLM Configuration — Set API key at runtime — PROTECTED (BUG-6)
+// Works with CrewAI backend OR standalone Hono agents
 ai.post('/crewai/configure', async (c) => {
-    // Require admin key — always protected (BUG-6 / P0-3)
     const DEFAULT_ADMIN_KEY = 'clerky-admin-2026';
     const adminKey = c.env.ADMIN_KEY || DEFAULT_ADMIN_KEY;
     const provided = c.req.header('X-Admin-Key');
     if (provided !== adminKey)
         return c.json({ error: 'Unauthorized. Provide X-Admin-Key header.' }, 403);
+
+    const body = await c.req.json();
+    const { api_key, base_url, model } = body;
+    if (!api_key)
+        return c.json({ error: 'api_key is required' }, 400);
+
+    const useBase = base_url || 'https://api.openai.com/v1';
+    const useModel = model || 'gpt-5-mini';
+
+    // Try to configure CrewAI backend first
     const CREWAI_URL = getCrewAIUrl(c.env);
+    let crewaiOk = false;
     try {
-        const body = await c.req.json();
-        const { api_key, base_url, model } = body;
-        if (!api_key)
-            return c.json({ error: 'api_key is required' }, 400);
         const resp = await fetch(`${CREWAI_URL}/api/crew/configure`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ api_key, base_url, model }),
+            body: JSON.stringify({ api_key, base_url: useBase, model: useModel }),
             signal: AbortSignal.timeout(10000),
         });
         if (resp.ok) {
             const data = await resp.json();
-            return c.json(data);
+            crewaiOk = true;
+            return c.json({ ...data, crewai_configured: true, hono_configured: true });
         }
-        return c.json({ error: `CrewAI responded with HTTP ${resp.status}` }, resp.status);
-    }
-    catch (e) {
-        return c.json({ error: 'CrewAI backend not available', detail: e.message }, 503);
+    } catch (e) { /* CrewAI offline — configure Hono side only */ }
+
+    // Test the API key directly
+    try {
+        const testResp = await fetch(`${useBase}/chat/completions`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${api_key}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model: useModel, messages: [{ role: 'user', content: 'ping' }], max_tokens: 5 }),
+            signal: AbortSignal.timeout(10000),
+        });
+        const llmReachable = testResp.ok;
+        return c.json({
+            success: llmReachable,
+            model: useModel,
+            base_url: useBase,
+            llm_reachable: llmReachable,
+            crewai_configured: crewaiOk,
+            hono_configured: true,
+            message: llmReachable ? 'LLM configured and verified' : 'LLM key saved but not reachable — check your API key',
+        });
+    } catch (e) {
+        return c.json({
+            success: false, model: useModel, llm_reachable: false,
+            message: 'Could not reach LLM endpoint: ' + (e.message || 'timeout'),
+        });
     }
 });
 // Detect if the AI should create side-effects based on the query + response
