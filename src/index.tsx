@@ -3085,16 +3085,7 @@ async function submitIntake() {
 
 // === MODALS ===
 function showNewCaseModal() {
-  // Pre-fetch clients and attorneys for FK dropdown
-  Promise.all([axios.get(API + '/clients'), axios.get(API + '/users')]).then(([cRes, uRes]) => {
-    const clientOpts = (cRes.data.clients || []).map(cl => '<option value="'+cl.id+'">'+escapeHtml(cl.first_name+' '+cl.last_name)+'</option>').join('');
-    const attyOpts = (uRes.data.users || []).map(u => '<option value="'+u.id+'" '+(u.id===1?'selected':'')+'>'+escapeHtml(u.full_name)+'</option>').join('');
-    const cSel = document.getElementById('ncClientId');
-    const aSel = document.getElementById('ncAttorneyId');
-    if (cSel) cSel.innerHTML = '<option value="">Select client *</option>' + clientOpts;
-    if (aSel) aSel.innerHTML = attyOpts;
-  }).catch(() => {});
-
+  // RENDER modal FIRST, then fetch data to populate dropdowns (fixes race condition)
   document.getElementById('modalContainer').innerHTML = \`
     <div class="modal-overlay" onclick="closeModal(event)" role="dialog" aria-modal="true" aria-labelledby="ncModalTitle">
       <div class="modal p-6" onclick="event.stopPropagation()">
@@ -3108,10 +3099,26 @@ function showNewCaseModal() {
               <select id="ncPriority"><option value="medium">Medium</option><option value="low">Low</option><option value="high">High</option><option value="urgent">Urgent</option></select></div>
           </div>
           <div class="grid grid-cols-2 gap-4">
-            <div><label class="text-sm font-medium text-dark-700 block mb-1" for="ncClientId">Client *</label>
-              <select id="ncClientId" aria-required="true"><option value="">Loading clients...</option></select></div>
+            <div>
+              <label class="text-sm font-medium text-dark-700 block mb-1" for="ncClientId">Client *</label>
+              <select id="ncClientId" aria-required="true"><option value="">Loading clients...</option></select>
+              <div id="ncQuickClient" class="hidden mt-2 p-3 bg-dark-50 rounded-lg border border-dark-200 space-y-2">
+                <p class="text-xs font-medium text-dark-600">Quick Add Client</p>
+                <div class="grid grid-cols-2 gap-2">
+                  <input id="ncNewFirst" placeholder="First name *" class="text-sm">
+                  <input id="ncNewLast" placeholder="Last name *" class="text-sm">
+                </div>
+                <input id="ncNewEmail" placeholder="Email *" type="email" class="text-sm">
+                <input id="ncNewPhone" placeholder="Phone (optional)" class="text-sm">
+                <div class="flex gap-2">
+                  <button onclick="quickAddClient()" class="btn btn-primary text-xs py-1 px-3" id="ncQuickAddBtn"><i class="fas fa-plus mr-1"></i>Add</button>
+                  <button onclick="document.getElementById('ncQuickClient').classList.add('hidden')" class="btn btn-secondary text-xs py-1 px-3">Cancel</button>
+                </div>
+                <div id="ncQuickError" class="text-xs text-red-600 hidden"></div>
+              </div>
+            </div>
             <div><label class="text-sm font-medium text-dark-700 block mb-1" for="ncAttorneyId">Lead Attorney *</label>
-              <select id="ncAttorneyId" aria-required="true"><option value="1">Brad</option></select></div>
+              <select id="ncAttorneyId" aria-required="true"><option value="">Loading...</option></select></div>
           </div>
           <div><label class="text-sm font-medium text-dark-700 block mb-1" for="ncDesc">Description</label><textarea id="ncDesc" rows="3" placeholder="Case description..."></textarea></div>
           <div id="ncError" class="text-sm text-red-600 hidden"></div>
@@ -3123,6 +3130,60 @@ function showNewCaseModal() {
       </div>
     </div>
   \`;
+
+  // NOW fetch data and populate dropdowns (DOM is ready)
+  Promise.all([axios.get(API + '/clients'), axios.get(API + '/users')]).then(([cRes, uRes]) => {
+    const clients = (cRes.data.clients || []).filter(cl => cl.status === 'active');
+    const clientOpts = clients.map(cl => '<option value="'+cl.id+'">'+escapeHtml(cl.first_name+' '+cl.last_name)+(cl.company_name ? ' ('+escapeHtml(cl.company_name)+')' : '')+'</option>').join('');
+    const attyOpts = (uRes.data.users || []).filter(u => u.is_active).map(u => '<option value="'+u.id+'" '+(u.id===1?'selected':'')+'>'+escapeHtml(u.full_name)+'</option>').join('');
+    const cSel = document.getElementById('ncClientId');
+    const aSel = document.getElementById('ncAttorneyId');
+    if (cSel) {
+      const addNew = '<option value="__new__" style="color:#b91c1c;font-weight:600">+ Add New Client...</option>';
+      cSel.innerHTML = '<option value="">Select client *</option>' + clientOpts + addNew;
+      cSel.addEventListener('change', function() {
+        if (this.value === '__new__') {
+          this.value = '';
+          document.getElementById('ncQuickClient').classList.remove('hidden');
+          document.getElementById('ncNewFirst').focus();
+        }
+      });
+    }
+    if (aSel) aSel.innerHTML = attyOpts;
+  }).catch((e) => {
+    const cSel = document.getElementById('ncClientId');
+    if (cSel) cSel.innerHTML = '<option value="">Error loading clients</option><option value="__new__" style="color:#b91c1c;font-weight:600">+ Add New Client...</option>';
+  });
+}
+
+async function quickAddClient() {
+  const first = document.getElementById('ncNewFirst').value.trim();
+  const last = document.getElementById('ncNewLast').value.trim();
+  const email = document.getElementById('ncNewEmail').value.trim();
+  const phone = document.getElementById('ncNewPhone').value.trim();
+  const errEl = document.getElementById('ncQuickError');
+  if (!first || !last) { errEl.textContent = 'First and last name are required'; errEl.classList.remove('hidden'); return; }
+  if (!email) { errEl.textContent = 'Email is required'; errEl.classList.remove('hidden'); return; }
+  const btn = document.getElementById('ncQuickAddBtn');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Adding...';
+  try {
+    const res = await axios.post(API + '/clients', { first_name: first, last_name: last, email: email, phone: phone || null, client_type: 'individual', status: 'active' });
+    const newClient = res.data.client || res.data;
+    const newId = newClient.id;
+    const cSel = document.getElementById('ncClientId');
+    const opt = document.createElement('option');
+    opt.value = newId; opt.textContent = first + ' ' + last; opt.selected = true;
+    const addNewOpt = cSel.querySelector('option[value="__new__"]');
+    if (addNewOpt) cSel.insertBefore(opt, addNewOpt);
+    else cSel.appendChild(opt);
+    cSel.value = newId;
+    document.getElementById('ncQuickClient').classList.add('hidden');
+    toast('Client Added', first + ' ' + last, 'success');
+  } catch(e) {
+    const msg = e.response?.data?.errors?.join(', ') || e.response?.data?.error || 'Error adding client';
+    errEl.textContent = msg; errEl.classList.remove('hidden');
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-plus mr-1"></i>Add';
+  }
 }
 
 async function createCase() {
@@ -3283,12 +3344,8 @@ var pendingUploadText = '';
 function showNewDocModal() {
   pendingUploadFile = null;
   pendingUploadText = '';
-  // Pre-fetch cases for association dropdown
-  axios.get(API + '/cases').then(({ data }) => {
-    const caseOpts = (data.cases || []).map(c => '<option value="'+c.id+'">'+c.case_number+' — '+c.title.substring(0,35)+'</option>').join('');
-    document.getElementById('uploadCaseSelect').innerHTML = '<option value="">No case</option>' + caseOpts;
-  }).catch(() => {});
 
+  // RENDER modal FIRST, then fetch data (fixes race condition)
   document.getElementById('modalContainer').innerHTML = \`
     <div class="modal-overlay" onclick="closeModal(event)" style="z-index:60">
       <div class="modal p-0" onclick="event.stopPropagation()" style="max-width:680px; max-height:90vh; overflow-y:auto">
@@ -3415,6 +3472,13 @@ function showNewDocModal() {
       </div>
     </div>
   \`;
+
+  // NOW fetch cases to populate dropdown (DOM is ready)
+  axios.get(API + '/cases').then(({ data }) => {
+    const caseOpts = (data.cases || []).map(c => '<option value="'+c.id+'">'+escapeHtml(c.case_number+' — '+c.title.substring(0,35))+'</option>').join('');
+    const sel = document.getElementById('uploadCaseSelect');
+    if (sel) sel.innerHTML = '<option value="">No case (stand-alone document)</option>' + caseOpts;
+  }).catch(() => {});
 }
 
 function handleFileDrop(e) {
@@ -3824,15 +3888,7 @@ async function deleteDoc(id) {
 }
 
 function showNewInvoiceModal() {
-  Promise.all([axios.get(API + '/clients'), axios.get(API + '/cases')]).then(([cRes, csRes]) => {
-    const clientOpts = (cRes.data.clients || []).map(cl => '<option value="'+cl.id+'">'+escapeHtml(cl.first_name+' '+cl.last_name)+'</option>').join('');
-    const caseOpts = (csRes.data.cases || []).map(cs => '<option value="'+cs.id+'">'+escapeHtml(cs.case_number+' — '+cs.title.substring(0,30))+'</option>').join('');
-    const cSel = document.getElementById('niClientId');
-    const csSel = document.getElementById('niCaseId');
-    if (cSel) cSel.innerHTML = '<option value="">Select client *</option>' + clientOpts;
-    if (csSel) csSel.innerHTML = '<option value="">Select case *</option>' + caseOpts;
-  }).catch(() => {});
-
+  // RENDER modal FIRST, then fetch data (fixes race condition)
   document.getElementById('modalContainer').innerHTML = \`
     <div class="modal-overlay" onclick="closeModal(event)" role="dialog" aria-modal="true" aria-labelledby="niModalTitle">
       <div class="modal p-6" onclick="event.stopPropagation()">
@@ -3869,6 +3925,21 @@ function showNewInvoiceModal() {
       </div>
     </div>
   \`;
+
+  // NOW fetch data and populate dropdowns (DOM is ready)
+  Promise.all([axios.get(API + '/clients'), axios.get(API + '/cases')]).then(([cRes, csRes]) => {
+    const clientOpts = (cRes.data.clients || []).filter(cl => cl.status === 'active').map(cl => '<option value="'+cl.id+'">'+escapeHtml(cl.first_name+' '+cl.last_name)+'</option>').join('');
+    const caseOpts = (csRes.data.cases || []).map(cs => '<option value="'+cs.id+'">'+escapeHtml(cs.case_number+' — '+cs.title.substring(0,30))+'</option>').join('');
+    const cSel = document.getElementById('niClientId');
+    const csSel = document.getElementById('niCaseId');
+    if (cSel) cSel.innerHTML = '<option value="">Select client *</option>' + clientOpts;
+    if (csSel) csSel.innerHTML = '<option value="">Select case *</option>' + caseOpts;
+  }).catch(() => {
+    const cSel = document.getElementById('niClientId');
+    const csSel = document.getElementById('niCaseId');
+    if (cSel) cSel.innerHTML = '<option value="">Error loading clients</option>';
+    if (csSel) csSel.innerHTML = '<option value="">Error loading cases</option>';
+  });
 }
 
 async function createInvoice() {
