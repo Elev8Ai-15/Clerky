@@ -451,7 +451,7 @@ ai.post('/crew', async (c) => {
       if (result.sub_agents_called?.length > 0) {
         for (const sub of result.sub_agents_called) agentsUsed.push(sub)
       }
-      pipelineSteps.push(`4. Template pipeline completed: ${result.agent_type} agent (conf: ${(result.confidence * 100).toFixed(0)}%)`)
+      pipelineSteps.push(`4. Research pipeline completed: ${result.agent_type} agent (conf: ${(result.confidence * 100).toFixed(0)}%)`)
     }
 
     // ══════════════════════════════════════════════════════

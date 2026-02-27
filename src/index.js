@@ -1,193 +1,188 @@
-import { Hono } from 'hono'
-import { cors } from 'hono/cors'
-import cases from './routes/cases'
-import clients from './routes/clients'
-import documents from './routes/documents'
-import billing from './routes/billing'
-import calendar from './routes/calendar'
-import tasks from './routes/tasks'
-import ai from './routes/ai'
-import users from './routes/users'
-import notifications from './routes/notifications'
-import legalResearch from './routes/legal-research'
-import { globalErrorHandler, safeJsonParse, coalesceInt } from './utils/shared'
-
-type Bindings = { DB: D1Database; MEM0_API_KEY?: string; OPENAI_API_KEY?: string; OPENAI_BASE_URL?: string; OPENAI_MODEL?: string; COURTLISTENER_TOKEN?: string; LEX_MACHINA_CLIENT_ID?: string; LEX_MACHINA_CLIENT_SECRET?: string; ADMIN_KEY?: string; CREWAI_URL?: string }
-
-const app = new Hono<{ Bindings: Bindings }>()
-
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
+import cases from './routes/cases';
+import clients from './routes/clients';
+import documents from './routes/documents';
+import billing from './routes/billing';
+import calendar from './routes/calendar';
+import tasks from './routes/tasks';
+import ai from './routes/ai';
+import users from './routes/users';
+import notifications from './routes/notifications';
+import legalResearch from './routes/legal-research';
+import { globalErrorHandler, safeJsonParse, coalesceInt } from './utils/shared';
+const app = new Hono();
 // Global error handler — catches all uncaught exceptions (OPS-03)
-app.use('*', globalErrorHandler)
+app.use('*', globalErrorHandler);
 // Safe JSON body parser — returns 400 for malformed JSON (BUG-01)
-app.use('/api/*', safeJsonParse)
+app.use('/api/*', safeJsonParse);
 // CORS for API routes
-app.use('/api/*', cors())
-
+app.use('/api/*', cors());
 // API Routes
-app.route('/api/cases', cases)
-app.route('/api/clients', clients)
-app.route('/api/documents', documents)
-app.route('/api/billing', billing)
-app.route('/api/calendar', calendar)
-app.route('/api/tasks', tasks)
-app.route('/api/ai', ai)
-app.route('/api/users', users)
-app.route('/api/notifications', notifications)
-app.route('/api/legal-research', legalResearch)
-
+app.route('/api/cases', cases);
+app.route('/api/clients', clients);
+app.route('/api/documents', documents);
+app.route('/api/billing', billing);
+app.route('/api/calendar', calendar);
+app.route('/api/tasks', tasks);
+app.route('/api/ai', ai);
+app.route('/api/users', users);
+app.route('/api/notifications', notifications);
+app.route('/api/legal-research', legalResearch);
 // ── HEALTH CHECK (OPS-02) ───────────────────────────────────
 app.get('/api/health', async (c) => {
-  try {
-    const dbCheck = await c.env.DB.prepare('SELECT 1 as ok').first()
-    return c.json({
-      status: 'healthy',
-      version: '5.2.0',
-      timestamp: new Date().toISOString(),
-      database: dbCheck ? 'connected' : 'error',
-      services: {
-        ai_agents: 'active',
-        legal_research: 'active',
-        billing: 'active'
-      }
-    })
-  } catch (err: any) {
-    return c.json({ status: 'unhealthy', error: err.message }, 503)
-  }
-})
-
+    try {
+        const dbCheck = await c.env.DB.prepare('SELECT 1 as ok').first();
+        return c.json({
+            status: 'healthy',
+            version: '5.2.0',
+            timestamp: new Date().toISOString(),
+            database: dbCheck ? 'connected' : 'error',
+            services: {
+                ai_agents: 'active',
+                legal_research: 'active',
+                billing: 'active'
+            }
+        });
+    }
+    catch (err) {
+        return c.json({ status: 'unhealthy', error: err.message }, 503);
+    }
+});
 // Dashboard stats endpoint — with COALESCE fix (BUG-05)
 app.get('/api/dashboard', async (c) => {
-  const [casesCount, clientsCount, docsCount, tasksCount, upcomingEvents, recentActivity, unreadNotifs] = await Promise.all([
-    c.env.DB.prepare("SELECT COALESCE(COUNT(*),0) as total, COALESCE(SUM(CASE WHEN status NOT IN ('closed','archived') THEN 1 ELSE 0 END),0) as active FROM cases_matters").first(),
-    c.env.DB.prepare("SELECT COALESCE(COUNT(*),0) as total FROM clients WHERE status = 'active'").first(),
-    c.env.DB.prepare("SELECT COALESCE(COUNT(*),0) as total FROM documents WHERE status != 'archived'").first(),
-    c.env.DB.prepare("SELECT COALESCE(COUNT(*),0) as total, COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END),0) as pending, COALESCE(SUM(CASE WHEN status = 'overdue' OR (status = 'pending' AND due_date < date('now')) THEN 1 ELSE 0 END),0) as overdue FROM tasks_deadlines").first(),
-    c.env.DB.prepare("SELECT ce.*, cm.case_number FROM calendar_events ce LEFT JOIN cases_matters cm ON ce.case_id = cm.id WHERE ce.start_datetime >= datetime('now') ORDER BY ce.start_datetime ASC LIMIT 5").all(),
-    c.env.DB.prepare("SELECT al.*, cm.case_number FROM ai_logs al LEFT JOIN cases_matters cm ON al.case_id = cm.id ORDER BY al.created_at DESC LIMIT 5").all(),
-    c.env.DB.prepare("SELECT COALESCE(COUNT(*),0) as count FROM notifications WHERE user_id = 1 AND is_read = 0").first()
-  ])
-
-  return c.json({
-    cases: { total: coalesceInt((casesCount as any)?.total), active: coalesceInt((casesCount as any)?.active) },
-    clients: { total: coalesceInt((clientsCount as any)?.total) },
-    documents: { total: coalesceInt((docsCount as any)?.total) },
-    tasks: { total: coalesceInt((tasksCount as any)?.total), pending: coalesceInt((tasksCount as any)?.pending), overdue: coalesceInt((tasksCount as any)?.overdue) },
-    upcoming_events: upcomingEvents.results,
-    recent_ai_activity: recentActivity.results,
-    unread_notifications: coalesceInt((unreadNotifs as any)?.count)
-  })
-})
-
+    const [casesCount, clientsCount, docsCount, tasksCount, upcomingEvents, recentActivity, unreadNotifs] = await Promise.all([
+        c.env.DB.prepare("SELECT COALESCE(COUNT(*),0) as total, COALESCE(SUM(CASE WHEN status NOT IN ('closed','archived') THEN 1 ELSE 0 END),0) as active FROM cases_matters").first(),
+        c.env.DB.prepare("SELECT COALESCE(COUNT(*),0) as total FROM clients WHERE status = 'active'").first(),
+        c.env.DB.prepare("SELECT COALESCE(COUNT(*),0) as total FROM documents WHERE status != 'archived'").first(),
+        c.env.DB.prepare("SELECT COALESCE(COUNT(*),0) as total, COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END),0) as pending, COALESCE(SUM(CASE WHEN status = 'overdue' OR (status = 'pending' AND due_date < date('now')) THEN 1 ELSE 0 END),0) as overdue FROM tasks_deadlines").first(),
+        c.env.DB.prepare("SELECT ce.*, cm.case_number FROM calendar_events ce LEFT JOIN cases_matters cm ON ce.case_id = cm.id WHERE ce.start_datetime >= datetime('now') ORDER BY ce.start_datetime ASC LIMIT 5").all(),
+        c.env.DB.prepare("SELECT al.*, cm.case_number FROM ai_logs al LEFT JOIN cases_matters cm ON al.case_id = cm.id ORDER BY al.created_at DESC LIMIT 5").all(),
+        c.env.DB.prepare("SELECT COALESCE(COUNT(*),0) as count FROM notifications WHERE user_id = 1 AND is_read = 0").first()
+    ]);
+    return c.json({
+        cases: { total: coalesceInt(casesCount?.total), active: coalesceInt(casesCount?.active) },
+        clients: { total: coalesceInt(clientsCount?.total) },
+        documents: { total: coalesceInt(docsCount?.total) },
+        tasks: { total: coalesceInt(tasksCount?.total), pending: coalesceInt(tasksCount?.pending), overdue: coalesceInt(tasksCount?.overdue) },
+        upcoming_events: upcomingEvents.results,
+        recent_ai_activity: recentActivity.results,
+        unread_notifications: coalesceInt(unreadNotifs?.count)
+    });
+});
 // ── ADMIN AUTH HELPER (BUG-3 fix) ──────────────────────────
-const DEFAULT_ADMIN_KEY = 'clerky-admin-2026'
-function requireAdmin(c: any): boolean {
-  const adminKey = c.env.ADMIN_KEY || DEFAULT_ADMIN_KEY
-  const provided = c.req.header('X-Admin-Key') || c.req.query('admin_key')
-  return provided === adminKey
+const DEFAULT_ADMIN_KEY = 'clerky-admin-2026';
+function requireAdmin(c) {
+    const adminKey = c.env.ADMIN_KEY || DEFAULT_ADMIN_KEY;
+    const provided = c.req.header('X-Admin-Key') || c.req.query('admin_key');
+    return provided === adminKey;
 }
-
 // Database init endpoint — PROTECTED (BUG-3)
 app.get('/api/init-db', async (c) => {
-  if (!requireAdmin(c)) return c.json({ error: 'Unauthorized. Provide X-Admin-Key header or admin_key query param.' }, 403)
-  const migrations = [
-    // Migration 1: Core tables
-    `CREATE TABLE IF NOT EXISTS users_attorneys (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE NOT NULL, full_name TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'attorney', bar_number TEXT, phone TEXT, specialty TEXT, avatar_url TEXT, is_active INTEGER DEFAULT 1, password_hash TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS clients (id INTEGER PRIMARY KEY AUTOINCREMENT, first_name TEXT NOT NULL, last_name TEXT NOT NULL, email TEXT UNIQUE, phone TEXT, address TEXT, city TEXT, state TEXT, zip_code TEXT, date_of_birth TEXT, ssn_last4 TEXT, company_name TEXT, client_type TEXT DEFAULT 'individual', status TEXT DEFAULT 'active', notes TEXT, assigned_attorney_id INTEGER, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS cases_matters (id INTEGER PRIMARY KEY AUTOINCREMENT, case_number TEXT UNIQUE NOT NULL, title TEXT NOT NULL, description TEXT, case_type TEXT NOT NULL, status TEXT DEFAULT 'open', priority TEXT DEFAULT 'medium', client_id INTEGER NOT NULL, lead_attorney_id INTEGER NOT NULL, court_name TEXT, court_case_number TEXT, judge_name TEXT, opposing_counsel TEXT, opposing_party TEXT, date_filed TEXT, date_closed TEXT, statute_of_limitations TEXT, estimated_value REAL, contingency_fee_pct REAL, retainer_amount REAL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS documents (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, file_name TEXT NOT NULL, file_type TEXT, file_size INTEGER, file_url TEXT, category TEXT DEFAULT 'general', status TEXT DEFAULT 'draft', case_id INTEGER, uploaded_by INTEGER, ai_generated INTEGER DEFAULT 0, ai_summary TEXT, content_text TEXT, tags TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS ai_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, agent_type TEXT NOT NULL, action TEXT NOT NULL, input_data TEXT, output_data TEXT, tokens_used INTEGER DEFAULT 0, cost REAL DEFAULT 0, duration_ms INTEGER, status TEXT DEFAULT 'success', case_id INTEGER, user_id INTEGER, error_message TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS notifications (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, title TEXT NOT NULL, message TEXT NOT NULL, type TEXT DEFAULT 'info', is_read INTEGER DEFAULT 0, link TEXT, case_id INTEGER, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    // Migration 2: Document processing
-    `CREATE TABLE IF NOT EXISTS document_versions (id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, version_number INTEGER NOT NULL DEFAULT 1, file_url TEXT, file_size INTEGER, change_summary TEXT, created_by INTEGER, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS document_sharing (id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, shared_with_user_id INTEGER, shared_with_email TEXT, permission TEXT DEFAULT 'view', access_token TEXT UNIQUE, expires_at DATETIME, is_active INTEGER DEFAULT 1, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS document_templates (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, description TEXT, category TEXT NOT NULL, content_template TEXT NOT NULL, variables TEXT, case_type TEXT, is_active INTEGER DEFAULT 1, usage_count INTEGER DEFAULT 0, created_by INTEGER, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    // Migration 3: Client portal
-    `CREATE TABLE IF NOT EXISTS client_portal_access (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER NOT NULL, email TEXT NOT NULL, password_hash TEXT, access_token TEXT UNIQUE, is_active INTEGER DEFAULT 1, last_login DATETIME, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS intake_forms (id INTEGER PRIMARY KEY AUTOINCREMENT, form_name TEXT NOT NULL, form_type TEXT NOT NULL, schema_json TEXT NOT NULL, is_active INTEGER DEFAULT 1, is_public INTEGER DEFAULT 0, access_url TEXT UNIQUE, submissions_count INTEGER DEFAULT 0, created_by INTEGER, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS intake_submissions (id INTEGER PRIMARY KEY AUTOINCREMENT, form_id INTEGER NOT NULL, client_id INTEGER, submission_data TEXT NOT NULL, status TEXT DEFAULT 'pending', reviewed_by INTEGER, review_notes TEXT, converted_case_id INTEGER, submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP, reviewed_at DATETIME)`,
-    `CREATE TABLE IF NOT EXISTS client_communications (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER NOT NULL, case_id INTEGER, user_id INTEGER NOT NULL, type TEXT NOT NULL, direction TEXT NOT NULL, subject TEXT, body TEXT NOT NULL, is_privileged INTEGER DEFAULT 0, attachments TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    // Migration 4: Case management
-    `CREATE TABLE IF NOT EXISTS tasks_deadlines (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, description TEXT, case_id INTEGER, assigned_to INTEGER NOT NULL, assigned_by INTEGER, priority TEXT DEFAULT 'medium', status TEXT DEFAULT 'pending', task_type TEXT DEFAULT 'task', due_date TEXT, completed_date TEXT, reminder_date TEXT, is_recurring INTEGER DEFAULT 0, recurrence_pattern TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS calendar_events (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, description TEXT, event_type TEXT NOT NULL, case_id INTEGER, organizer_id INTEGER NOT NULL, location TEXT, virtual_link TEXT, start_datetime TEXT NOT NULL, end_datetime TEXT NOT NULL, all_day INTEGER DEFAULT 0, color TEXT DEFAULT '#3B82F6', is_private INTEGER DEFAULT 0, reminder_minutes INTEGER DEFAULT 30, attendees TEXT, notes TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS case_notes (id INTEGER PRIMARY KEY AUTOINCREMENT, case_id INTEGER NOT NULL, author_id INTEGER NOT NULL, title TEXT, content TEXT NOT NULL, note_type TEXT DEFAULT 'general', is_privileged INTEGER DEFAULT 0, is_pinned INTEGER DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS time_entries (id INTEGER PRIMARY KEY AUTOINCREMENT, case_id INTEGER NOT NULL, user_id INTEGER NOT NULL, description TEXT NOT NULL, hours REAL NOT NULL, rate REAL NOT NULL, activity_type TEXT DEFAULT 'legal_work', is_billable INTEGER DEFAULT 1, is_billed INTEGER DEFAULT 0, invoice_id INTEGER, entry_date TEXT NOT NULL, timer_start TEXT, timer_end TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    // Migration 5: Billing
-    `CREATE TABLE IF NOT EXISTS esignature_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, case_id INTEGER, requested_by INTEGER NOT NULL, signer_name TEXT NOT NULL, signer_email TEXT NOT NULL, status TEXT DEFAULT 'pending', provider TEXT DEFAULT 'internal', external_id TEXT, signing_url TEXT, signed_at DATETIME, expires_at DATETIME, reminder_sent INTEGER DEFAULT 0, ip_address TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS billing_invoices (id INTEGER PRIMARY KEY AUTOINCREMENT, invoice_number TEXT UNIQUE NOT NULL, case_id INTEGER NOT NULL, client_id INTEGER NOT NULL, issued_by INTEGER NOT NULL, status TEXT DEFAULT 'draft', subtotal REAL NOT NULL DEFAULT 0, tax_rate REAL DEFAULT 0, tax_amount REAL DEFAULT 0, discount_amount REAL DEFAULT 0, total_amount REAL NOT NULL DEFAULT 0, amount_paid REAL DEFAULT 0, currency TEXT DEFAULT 'USD', due_date TEXT, sent_date TEXT, paid_date TEXT, notes TEXT, payment_terms TEXT DEFAULT 'net_30', stripe_invoice_id TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS invoice_line_items (id INTEGER PRIMARY KEY AUTOINCREMENT, invoice_id INTEGER NOT NULL, time_entry_id INTEGER, description TEXT NOT NULL, quantity REAL DEFAULT 1, rate REAL NOT NULL, item_type TEXT DEFAULT 'service', created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS payment_methods (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER NOT NULL, type TEXT NOT NULL, provider TEXT DEFAULT 'stripe', external_id TEXT, last_four TEXT, brand TEXT, is_default INTEGER DEFAULT 0, is_active INTEGER DEFAULT 1, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS payments (id INTEGER PRIMARY KEY AUTOINCREMENT, invoice_id INTEGER NOT NULL, payment_method_id INTEGER, amount REAL NOT NULL, currency TEXT DEFAULT 'USD', status TEXT DEFAULT 'completed', stripe_payment_id TEXT, transaction_ref TEXT, notes TEXT, payment_date TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    // Migration 6: Trust accounting
-    `CREATE TABLE IF NOT EXISTS trust_accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER NOT NULL, case_id INTEGER, account_name TEXT NOT NULL, balance REAL DEFAULT 0, currency TEXT DEFAULT 'USD', status TEXT DEFAULT 'active', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS trust_transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, trust_account_id INTEGER NOT NULL, type TEXT NOT NULL, amount REAL NOT NULL, description TEXT NOT NULL, reference_number TEXT, balance_after REAL NOT NULL, authorized_by INTEGER NOT NULL, invoice_id INTEGER, transaction_date TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS case_expenses (id INTEGER PRIMARY KEY AUTOINCREMENT, case_id INTEGER NOT NULL, description TEXT NOT NULL, amount REAL NOT NULL, category TEXT NOT NULL, is_billable INTEGER DEFAULT 1, is_reimbursed INTEGER DEFAULT 0, receipt_url TEXT, vendor TEXT, expense_date TEXT NOT NULL, submitted_by INTEGER NOT NULL, approved_by INTEGER, invoice_id INTEGER, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    `CREATE TABLE IF NOT EXISTS conflict_checks (id INTEGER PRIMARY KEY AUTOINCREMENT, checked_name TEXT NOT NULL, checked_entity TEXT, case_id INTEGER, checked_by INTEGER NOT NULL, result TEXT NOT NULL, details TEXT, related_case_ids TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    // Document analysis table
-    `CREATE TABLE IF NOT EXISTS document_analysis (id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, analysis_type TEXT DEFAULT 'full', summary TEXT, doc_classification TEXT, entities_json TEXT, key_dates_json TEXT, monetary_values_json TEXT, parties_json TEXT, citations_json TEXT, clauses_json TEXT, risk_flags_json TEXT, obligations_json TEXT, deadlines_json TEXT, jurisdiction_detected TEXT, confidence REAL DEFAULT 0, tokens_used INTEGER DEFAULT 0, analyzed_by TEXT DEFAULT 'ai', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (document_id) REFERENCES documents(id))`,
-    // Audit log table (DATA-03)
-    `CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, action TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, user_id INTEGER NOT NULL, changes_json TEXT, old_values_json TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    // Error logs table (OPS-04)
-    `CREATE TABLE IF NOT EXISTS error_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, route TEXT NOT NULL, method TEXT NOT NULL, error_message TEXT NOT NULL, details TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
-    // Performance indexes (PERF-01)
-    `CREATE INDEX IF NOT EXISTS idx_cases_client ON cases_matters(client_id)`,
-    // BUG-17 fix: Add status column to calendar_events for soft-delete support
-    `ALTER TABLE calendar_events ADD COLUMN status TEXT DEFAULT 'active'`,
-    `CREATE INDEX IF NOT EXISTS idx_cases_attorney ON cases_matters(lead_attorney_id)`,
-    `CREATE INDEX IF NOT EXISTS idx_cases_status ON cases_matters(status)`,
-    `CREATE INDEX IF NOT EXISTS idx_docs_case ON documents(case_id)`,
-    `CREATE INDEX IF NOT EXISTS idx_tasks_case ON tasks_deadlines(case_id)`,
-    `CREATE INDEX IF NOT EXISTS idx_tasks_assigned ON tasks_deadlines(assigned_to)`,
-    `CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks_deadlines(status)`,
-    `CREATE INDEX IF NOT EXISTS idx_invoices_client ON billing_invoices(client_id)`,
-    `CREATE INDEX IF NOT EXISTS idx_invoices_case ON billing_invoices(case_id)`,
-    `CREATE INDEX IF NOT EXISTS idx_time_entries_case ON time_entries(case_id)`,
-    `CREATE INDEX IF NOT EXISTS idx_notifs_user ON notifications(user_id, is_read)`,
-    `CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity_type, entity_id)`,
-    `CREATE INDEX IF NOT EXISTS idx_calendar_start ON calendar_events(start_datetime)`
-  ]
-
-  for (const sql of migrations) {
-    try { await c.env.DB.prepare(sql).run() } catch (e) { /* ALTER TABLE may fail if column exists */ }
-  }
-
-  // Seed data — only the admin user
-  const seedStatements = [
-    `INSERT OR IGNORE INTO users_attorneys (id, email, full_name, role, bar_number, phone, specialty) VALUES (1, 'brad@clerky.com', 'Brad', 'admin', 'KS-MO-2019-001', '(816) 555-0101', 'General Practice')`
-  ]
-
-  for (const sql of seedStatements) {
-    try { await c.env.DB.prepare(sql).run() } catch (e) { /* ignore duplicates */ }
-  }
-
-  return c.json({ success: true, message: 'Database initialized with 26 tables' })
-})
-
+    if (!requireAdmin(c))
+        return c.json({ error: 'Unauthorized. Provide X-Admin-Key header or admin_key query param.' }, 403);
+    const migrations = [
+        // Migration 1: Core tables
+        `CREATE TABLE IF NOT EXISTS users_attorneys (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE NOT NULL, full_name TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'attorney', bar_number TEXT, phone TEXT, specialty TEXT, avatar_url TEXT, is_active INTEGER DEFAULT 1, password_hash TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+        `CREATE TABLE IF NOT EXISTS clients (id INTEGER PRIMARY KEY AUTOINCREMENT, first_name TEXT NOT NULL, last_name TEXT NOT NULL, email TEXT UNIQUE, phone TEXT, address TEXT, city TEXT, state TEXT, zip_code TEXT, date_of_birth TEXT, ssn_last4 TEXT, company_name TEXT, client_type TEXT DEFAULT 'individual', status TEXT DEFAULT 'active', notes TEXT, assigned_attorney_id INTEGER, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+        `CREATE TABLE IF NOT EXISTS cases_matters (id INTEGER PRIMARY KEY AUTOINCREMENT, case_number TEXT UNIQUE NOT NULL, title TEXT NOT NULL, description TEXT, case_type TEXT NOT NULL, status TEXT DEFAULT 'open', priority TEXT DEFAULT 'medium', client_id INTEGER NOT NULL, lead_attorney_id INTEGER NOT NULL, court_name TEXT, court_case_number TEXT, judge_name TEXT, opposing_counsel TEXT, opposing_party TEXT, date_filed TEXT, date_closed TEXT, statute_of_limitations TEXT, estimated_value REAL, contingency_fee_pct REAL, retainer_amount REAL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+        `CREATE TABLE IF NOT EXISTS documents (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, file_name TEXT NOT NULL, file_type TEXT, file_size INTEGER, file_url TEXT, category TEXT DEFAULT 'general', status TEXT DEFAULT 'draft', case_id INTEGER, uploaded_by INTEGER, ai_generated INTEGER DEFAULT 0, ai_summary TEXT, content_text TEXT, tags TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+        `CREATE TABLE IF NOT EXISTS ai_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, agent_type TEXT NOT NULL, action TEXT NOT NULL, input_data TEXT, output_data TEXT, tokens_used INTEGER DEFAULT 0, cost REAL DEFAULT 0, duration_ms INTEGER, status TEXT DEFAULT 'success', case_id INTEGER, user_id INTEGER, error_message TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+        `CREATE TABLE IF NOT EXISTS notifications (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, title TEXT NOT NULL, message TEXT NOT NULL, type TEXT DEFAULT 'info', is_read INTEGER DEFAULT 0, link TEXT, case_id INTEGER, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+        // Migration 2: Document processing
+        `CREATE TABLE IF NOT EXISTS document_versions (id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, version_number INTEGER NOT NULL DEFAULT 1, file_url TEXT, file_size INTEGER, change_summary TEXT, created_by INTEGER, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+        `CREATE TABLE IF NOT EXISTS document_sharing (id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, shared_with_user_id INTEGER, shared_with_email TEXT, permission TEXT DEFAULT 'view', access_token TEXT UNIQUE, expires_at DATETIME, is_active INTEGER DEFAULT 1, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+        `CREATE TABLE IF NOT EXISTS document_templates (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, description TEXT, category TEXT NOT NULL, content_template TEXT NOT NULL, variables TEXT, case_type TEXT, is_active INTEGER DEFAULT 1, usage_count INTEGER DEFAULT 0, created_by INTEGER, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+        // Migration 3: Client portal
+        `CREATE TABLE IF NOT EXISTS client_portal_access (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER NOT NULL, email TEXT NOT NULL, password_hash TEXT, access_token TEXT UNIQUE, is_active INTEGER DEFAULT 1, last_login DATETIME, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+        `CREATE TABLE IF NOT EXISTS intake_forms (id INTEGER PRIMARY KEY AUTOINCREMENT, form_name TEXT NOT NULL, form_type TEXT NOT NULL, schema_json TEXT NOT NULL, is_active INTEGER DEFAULT 1, is_public INTEGER DEFAULT 0, access_url TEXT UNIQUE, submissions_count INTEGER DEFAULT 0, created_by INTEGER, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+        `CREATE TABLE IF NOT EXISTS intake_submissions (id INTEGER PRIMARY KEY AUTOINCREMENT, form_id INTEGER NOT NULL, client_id INTEGER, submission_data TEXT NOT NULL, status TEXT DEFAULT 'pending', reviewed_by INTEGER, review_notes TEXT, converted_case_id INTEGER, submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP, reviewed_at DATETIME)`,
+        `CREATE TABLE IF NOT EXISTS client_communications (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER NOT NULL, case_id INTEGER, user_id INTEGER NOT NULL, type TEXT NOT NULL, direction TEXT NOT NULL, subject TEXT, body TEXT NOT NULL, is_privileged INTEGER DEFAULT 0, attachments TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+        // Migration 4: Case management
+        `CREATE TABLE IF NOT EXISTS tasks_deadlines (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, description TEXT, case_id INTEGER, assigned_to INTEGER NOT NULL, assigned_by INTEGER, priority TEXT DEFAULT 'medium', status TEXT DEFAULT 'pending', task_type TEXT DEFAULT 'task', due_date TEXT, completed_date TEXT, reminder_date TEXT, is_recurring INTEGER DEFAULT 0, recurrence_pattern TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+        `CREATE TABLE IF NOT EXISTS calendar_events (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, description TEXT, event_type TEXT NOT NULL, case_id INTEGER, organizer_id INTEGER NOT NULL, location TEXT, virtual_link TEXT, start_datetime TEXT NOT NULL, end_datetime TEXT NOT NULL, all_day INTEGER DEFAULT 0, color TEXT DEFAULT '#3B82F6', is_private INTEGER DEFAULT 0, reminder_minutes INTEGER DEFAULT 30, attendees TEXT, notes TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+        `CREATE TABLE IF NOT EXISTS case_notes (id INTEGER PRIMARY KEY AUTOINCREMENT, case_id INTEGER NOT NULL, author_id INTEGER NOT NULL, title TEXT, content TEXT NOT NULL, note_type TEXT DEFAULT 'general', is_privileged INTEGER DEFAULT 0, is_pinned INTEGER DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+        `CREATE TABLE IF NOT EXISTS time_entries (id INTEGER PRIMARY KEY AUTOINCREMENT, case_id INTEGER NOT NULL, user_id INTEGER NOT NULL, description TEXT NOT NULL, hours REAL NOT NULL, rate REAL NOT NULL, activity_type TEXT DEFAULT 'legal_work', is_billable INTEGER DEFAULT 1, is_billed INTEGER DEFAULT 0, invoice_id INTEGER, entry_date TEXT NOT NULL, timer_start TEXT, timer_end TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+        // Migration 5: Billing
+        `CREATE TABLE IF NOT EXISTS esignature_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, case_id INTEGER, requested_by INTEGER NOT NULL, signer_name TEXT NOT NULL, signer_email TEXT NOT NULL, status TEXT DEFAULT 'pending', provider TEXT DEFAULT 'internal', external_id TEXT, signing_url TEXT, signed_at DATETIME, expires_at DATETIME, reminder_sent INTEGER DEFAULT 0, ip_address TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+        `CREATE TABLE IF NOT EXISTS billing_invoices (id INTEGER PRIMARY KEY AUTOINCREMENT, invoice_number TEXT UNIQUE NOT NULL, case_id INTEGER NOT NULL, client_id INTEGER NOT NULL, issued_by INTEGER NOT NULL, status TEXT DEFAULT 'draft', subtotal REAL NOT NULL DEFAULT 0, tax_rate REAL DEFAULT 0, tax_amount REAL DEFAULT 0, discount_amount REAL DEFAULT 0, total_amount REAL NOT NULL DEFAULT 0, amount_paid REAL DEFAULT 0, currency TEXT DEFAULT 'USD', due_date TEXT, sent_date TEXT, paid_date TEXT, notes TEXT, payment_terms TEXT DEFAULT 'net_30', stripe_invoice_id TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+        `CREATE TABLE IF NOT EXISTS invoice_line_items (id INTEGER PRIMARY KEY AUTOINCREMENT, invoice_id INTEGER NOT NULL, time_entry_id INTEGER, description TEXT NOT NULL, quantity REAL DEFAULT 1, rate REAL NOT NULL, item_type TEXT DEFAULT 'service', created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+        `CREATE TABLE IF NOT EXISTS payment_methods (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER NOT NULL, type TEXT NOT NULL, provider TEXT DEFAULT 'stripe', external_id TEXT, last_four TEXT, brand TEXT, is_default INTEGER DEFAULT 0, is_active INTEGER DEFAULT 1, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+        `CREATE TABLE IF NOT EXISTS payments (id INTEGER PRIMARY KEY AUTOINCREMENT, invoice_id INTEGER NOT NULL, payment_method_id INTEGER, amount REAL NOT NULL, currency TEXT DEFAULT 'USD', status TEXT DEFAULT 'completed', stripe_payment_id TEXT, transaction_ref TEXT, notes TEXT, payment_date TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+        // Migration 6: Trust accounting
+        `CREATE TABLE IF NOT EXISTS trust_accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER NOT NULL, case_id INTEGER, account_name TEXT NOT NULL, balance REAL DEFAULT 0, currency TEXT DEFAULT 'USD', status TEXT DEFAULT 'active', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+        `CREATE TABLE IF NOT EXISTS trust_transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, trust_account_id INTEGER NOT NULL, type TEXT NOT NULL, amount REAL NOT NULL, description TEXT NOT NULL, reference_number TEXT, balance_after REAL NOT NULL, authorized_by INTEGER NOT NULL, invoice_id INTEGER, transaction_date TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+        `CREATE TABLE IF NOT EXISTS case_expenses (id INTEGER PRIMARY KEY AUTOINCREMENT, case_id INTEGER NOT NULL, description TEXT NOT NULL, amount REAL NOT NULL, category TEXT NOT NULL, is_billable INTEGER DEFAULT 1, is_reimbursed INTEGER DEFAULT 0, receipt_url TEXT, vendor TEXT, expense_date TEXT NOT NULL, submitted_by INTEGER NOT NULL, approved_by INTEGER, invoice_id INTEGER, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+        `CREATE TABLE IF NOT EXISTS conflict_checks (id INTEGER PRIMARY KEY AUTOINCREMENT, checked_name TEXT NOT NULL, checked_entity TEXT, case_id INTEGER, checked_by INTEGER NOT NULL, result TEXT NOT NULL, details TEXT, related_case_ids TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+        // Document analysis table
+        `CREATE TABLE IF NOT EXISTS document_analysis (id INTEGER PRIMARY KEY AUTOINCREMENT, document_id INTEGER NOT NULL, analysis_type TEXT DEFAULT 'full', summary TEXT, doc_classification TEXT, entities_json TEXT, key_dates_json TEXT, monetary_values_json TEXT, parties_json TEXT, citations_json TEXT, clauses_json TEXT, risk_flags_json TEXT, obligations_json TEXT, deadlines_json TEXT, jurisdiction_detected TEXT, confidence REAL DEFAULT 0, tokens_used INTEGER DEFAULT 0, analyzed_by TEXT DEFAULT 'ai', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (document_id) REFERENCES documents(id))`,
+        // Audit log table (DATA-03)
+        `CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, action TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id TEXT NOT NULL, user_id INTEGER NOT NULL, changes_json TEXT, old_values_json TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+        // Error logs table (OPS-04)
+        `CREATE TABLE IF NOT EXISTS error_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, route TEXT NOT NULL, method TEXT NOT NULL, error_message TEXT NOT NULL, details TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP)`,
+        // Performance indexes (PERF-01)
+        `CREATE INDEX IF NOT EXISTS idx_cases_client ON cases_matters(client_id)`,
+        // BUG-17 fix: Add status column to calendar_events for soft-delete support
+        `ALTER TABLE calendar_events ADD COLUMN status TEXT DEFAULT 'active'`,
+        `CREATE INDEX IF NOT EXISTS idx_cases_attorney ON cases_matters(lead_attorney_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_cases_status ON cases_matters(status)`,
+        `CREATE INDEX IF NOT EXISTS idx_docs_case ON documents(case_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_tasks_case ON tasks_deadlines(case_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_tasks_assigned ON tasks_deadlines(assigned_to)`,
+        `CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks_deadlines(status)`,
+        `CREATE INDEX IF NOT EXISTS idx_invoices_client ON billing_invoices(client_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_invoices_case ON billing_invoices(case_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_time_entries_case ON time_entries(case_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_notifs_user ON notifications(user_id, is_read)`,
+        `CREATE INDEX IF NOT EXISTS idx_audit_entity ON audit_log(entity_type, entity_id)`,
+        `CREATE INDEX IF NOT EXISTS idx_calendar_start ON calendar_events(start_datetime)`
+    ];
+    for (const sql of migrations) {
+        try {
+            await c.env.DB.prepare(sql).run();
+        }
+        catch (e) { /* ALTER TABLE may fail if column exists */ }
+    }
+    // Seed data — only the admin user
+    const seedStatements = [
+        `INSERT OR IGNORE INTO users_attorneys (id, email, full_name, role, bar_number, phone, specialty) VALUES (1, 'brad@clerky.com', 'Brad', 'admin', 'KS-MO-2019-001', '(816) 555-0101', 'General Practice')`
+    ];
+    for (const sql of seedStatements) {
+        try {
+            await c.env.DB.prepare(sql).run();
+        }
+        catch (e) { /* ignore duplicates */ }
+    }
+    return c.json({ success: true, message: 'Database initialized with 26 tables' });
+});
 // Reset DB: wipe all data and re-seed with only Brad — PROTECTED (BUG-3)
 app.get('/api/reset-db', async (c) => {
-  if (!requireAdmin(c)) return c.json({ error: 'Unauthorized. Provide X-Admin-Key header or admin_key query param.' }, 403)
-  const tables = [
-    'notifications', 'ai_logs', 'payments', 'invoice_line_items', 'billing_invoices',
-    'time_entries', 'case_notes', 'calendar_events', 'tasks_deadlines', 'esignature_requests',
-    'trust_transactions', 'trust_accounts', 'case_expenses', 'conflict_checks',
-    'client_communications', 'intake_submissions', 'intake_forms', 'client_portal_access',
-    'document_analysis', 'document_sharing', 'document_versions', 'document_templates', 'documents',
-    'cases_matters', 'clients', 'ai_chat_messages', 'users_attorneys', 'audit_log', 'error_logs'
-  ]
-  for (const t of tables) {
-    try { await c.env.DB.prepare(`DELETE FROM ${t}`).run() } catch(e) { /* table may not exist */ }
-  }
-  // Re-seed admin user
-  await c.env.DB.prepare(`INSERT OR IGNORE INTO users_attorneys (id, email, full_name, role, bar_number, phone, specialty) VALUES (1, 'brad@clerky.com', 'Brad', 'admin', 'KS-MO-2019-001', '(816) 555-0101', 'General Practice')`).run()
-  return c.json({ success: true, message: 'All data cleared. Fresh start with admin user Brad.' })
-})
-
+    if (!requireAdmin(c))
+        return c.json({ error: 'Unauthorized. Provide X-Admin-Key header or admin_key query param.' }, 403);
+    const tables = [
+        'notifications', 'ai_logs', 'payments', 'invoice_line_items', 'billing_invoices',
+        'time_entries', 'case_notes', 'calendar_events', 'tasks_deadlines', 'esignature_requests',
+        'trust_transactions', 'trust_accounts', 'case_expenses', 'conflict_checks',
+        'client_communications', 'intake_submissions', 'intake_forms', 'client_portal_access',
+        'document_analysis', 'document_sharing', 'document_versions', 'document_templates', 'documents',
+        'cases_matters', 'clients', 'ai_chat_messages', 'users_attorneys', 'audit_log', 'error_logs'
+    ];
+    for (const t of tables) {
+        try {
+            await c.env.DB.prepare(`DELETE FROM ${t}`).run();
+        }
+        catch (e) { /* table may not exist */ }
+    }
+    // Re-seed admin user
+    await c.env.DB.prepare(`INSERT OR IGNORE INTO users_attorneys (id, email, full_name, role, bar_number, phone, specialty) VALUES (1, 'brad@clerky.com', 'Brad', 'admin', 'KS-MO-2019-001', '(816) 555-0101', 'General Practice')`).run();
+    return c.json({ success: true, message: 'All data cleared. Fresh start with admin user Brad.' });
+});
 // Serve the SPA for all non-API routes
 app.get('*', (c) => {
-  return c.html(getAppHTML())
-})
-
-function getAppHTML(): string {
-  return `<!DOCTYPE html>
+    return c.html(getAppHTML());
+});
+function getAppHTML() {
+    return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -2398,10 +2393,10 @@ async function checkCrewAIStatus() {
     } else if (d.available) {
       indicator.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> <span class="text-amber-400">AI Agents ready — connect an LLM for full AI research</span> <button onclick="showCrewAISettings()" class="text-amber-300 underline ml-1">Connect LLM</button>';
     } else {
-      indicator.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> <span class="text-amber-400">Research agents ready — connect an LLM for enhanced AI</span> <button onclick="showCrewAISettings()" class="text-amber-300 underline ml-1">Connect LLM</button>';
+      indicator.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span> <span class="text-slate-500">Research agents ready — connect an LLM for enhanced AI</span>';
     }
   } catch(e) {
-    indicator.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> <span class="text-amber-400">Research agents ready — connect an LLM for enhanced AI</span> <button onclick="showCrewAISettings()" class="text-amber-300 underline ml-1">Connect LLM</button>';
+    indicator.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span> <span class="text-slate-500">Research agents ready — connect an LLM for enhanced AI</span>';
   }
 }
 
@@ -3993,7 +3988,6 @@ function handleGlobalSearch(e) {
 init();
   </script>
 </body>
-</html>`
+</html>`;
 }
-
-export default app
+export default app;

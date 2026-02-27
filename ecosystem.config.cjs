@@ -19,7 +19,9 @@ module.exports = {
       cwd: './crewai_backend',
       env: {
         CREWAI_PORT: 8100,
-        PYTHONUNBUFFERED: '1'
+        PYTHONUNBUFFERED: '1',
+        OPENAI_BASE_URL: 'https://www.genspark.ai/api/llm_proxy/v1',
+        CREWAI_MODEL: 'gpt-5-mini'
       },
       watch: false,
       instances: 1,
