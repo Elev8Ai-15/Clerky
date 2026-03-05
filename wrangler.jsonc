@@ -11,4 +11,9 @@
       "database_id": "04174db9-6c28-49c6-9ebd-c0ce5370c54e"
     }
   ]
+  // Secrets (set via: wrangler secret put ANTHROPIC_API_KEY)
+  // ANTHROPIC_API_KEY — Required. Powers all AI search, research, and cross-referencing via claude-opus-4-6.
+  // MEM0_API_KEY      — Optional. Enables persistent memory via Mem0 cloud.
+  // COURTLISTENER_TOKEN — Optional. Legal research via CourtListener API.
+  // LEX_MACHINA_CLIENT_ID / LEX_MACHINA_CLIENT_SECRET — Optional. Lex Machina analytics.
 }

@@ -1,11 +1,13 @@
 // ═══════════════════════════════════════════════════════════════
-// CLERKY — LLM Client (OpenAI-compatible)
-// Provides AI-powered generation when OPENAI_API_KEY is set.
+// CLERKY — LLM Client (Anthropic claude-opus-4-6)
+// Powers all AI searching, cross-referencing, and research.
+// Configured via ANTHROPIC_API_KEY Cloudflare env binding.
 // Falls back gracefully to template responses when unavailable.
-// Supports any OpenAI-compatible endpoint via OPENAI_BASE_URL.
 // ═══════════════════════════════════════════════════════════════
 
-const DEFAULT_BASE = 'https://www.genspark.ai/api/llm_proxy/v1'
+const ANTHROPIC_API_BASE = 'https://api.anthropic.com/v1'
+const ANTHROPIC_MODEL = 'claude-opus-4-6'
+const ANTHROPIC_VERSION = '2023-06-01'
 
 export interface LLMClient {
   isEnabled: boolean
@@ -21,15 +23,13 @@ export interface LLMClient {
   }): Promise<{ content: string; tokens_used: number } | null>
 }
 
-export function createLLMClient(apiKey?: string, baseUrl?: string): LLMClient {
+export function createLLMClient(apiKey?: string, _baseUrl?: string): LLMClient {
   const isEnabled = !!apiKey && apiKey.length > 10
-  const base = baseUrl || DEFAULT_BASE
 
   return {
     isEnabled,
 
     async generateForAgent({
-      agentType,
       systemIdentity,
       agentSpecialty,
       matterContext,
@@ -41,52 +41,50 @@ export function createLLMClient(apiKey?: string, baseUrl?: string): LLMClient {
       if (!isEnabled) return null
 
       try {
-        // Build system message with full context
+        // Build system prompt with full context
         let systemContent = `${systemIdentity}\n\nSpecialty: ${agentSpecialty}\n\n`
         if (matterContext) systemContent += `Current Matter Context:\n${matterContext}\n\n`
         if (mem0Context) systemContent += `Prior Memory Context (from Mem0):\n${mem0Context}\n\n`
         if (embeddedKnowledge) systemContent += `Embedded Knowledge Base:\n${embeddedKnowledge}\n\n`
         systemContent += `Respond in structured markdown. Include citations, risks, and next actions.`
 
-        const messages: { role: string; content: string }[] = [
-          { role: 'system', content: systemContent }
-        ]
-
-        // Add conversation history (last 10 messages)
+        // Build messages array (last 10 history messages + current)
+        const messages: { role: string; content: string }[] = []
         for (const msg of conversationHistory.slice(-10)) {
           messages.push({ role: msg.role, content: msg.content })
         }
-
-        // Add current user message
         messages.push({ role: 'user', content: userMessage })
 
-        const response = await fetch(`${base}/chat/completions`, {
+        const response = await fetch(`${ANTHROPIC_API_BASE}/messages`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
+            'x-api-key': apiKey!,
+            'anthropic-version': ANTHROPIC_VERSION
           },
           body: JSON.stringify({
-            model: 'gpt-5-mini',
-            messages,
+            model: ANTHROPIC_MODEL,
             max_tokens: 4000,
-            temperature: 0.3
+            system: systemContent,
+            messages
           })
         })
 
         if (!response.ok) {
           const text = await response.text()
-          console.error(`LLM API error ${response.status}: ${text}`)
+          console.error(`Anthropic API error ${response.status}: ${text}`)
           return null
         }
 
         const data = await response.json() as any
-        const choice = data.choices?.[0]
-        if (!choice?.message?.content) return null
+        const textBlock = data.content?.find((b: any) => b.type === 'text')
+        if (!textBlock?.text) return null
+
+        const tokens_used = (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0)
 
         return {
-          content: choice.message.content,
-          tokens_used: data.usage?.total_tokens || 0
+          content: textBlock.text,
+          tokens_used
         }
       } catch (e) {
         console.error('LLM generation failed:', e)

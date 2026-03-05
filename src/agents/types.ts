@@ -129,8 +129,7 @@ export type DB = D1Database
 export interface Env {
   DB: D1Database
   MEM0_API_KEY?: string
-  OPENAI_API_KEY?: string
-  OPENAI_BASE_URL?: string
+  ANTHROPIC_API_KEY?: string
   COURTLISTENER_TOKEN?: string
   LEX_MACHINA_CLIENT_ID?: string
   LEX_MACHINA_CLIENT_SECRET?: string

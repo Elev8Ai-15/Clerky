@@ -8,7 +8,7 @@
 import { Hono } from 'hono'
 import { validate, sanitize, parsePagination, checkExists, validateFK, auditLog, badRequest, notFound, coalesceInt, logError, buildUpdateFields } from '../utils/shared'
 
-type Bindings = { DB: D1Database; OPENAI_API_KEY?: string }
+type Bindings = { DB: D1Database; ANTHROPIC_API_KEY?: string }
 const documents = new Hono<{ Bindings: Bindings }>()
 
 const VALID_CATEGORIES = ['general', 'pleading', 'motion', 'contract', 'correspondence', 'discovery', 'billing', 'memo', 'affidavit', 'court_order', 'lease', 'estate', 'ip', 'evidence', 'template']

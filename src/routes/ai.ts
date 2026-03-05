@@ -10,7 +10,7 @@ import { orchestrate, getSystemIdentity, initMemoryTables } from '../agents/orch
 import { createMem0Client } from '../agents/mem0'
 import { searchMemory } from '../agents/memory'
 
-type Bindings = { DB: D1Database; MEM0_API_KEY?: string; OPENAI_API_KEY?: string; OPENAI_BASE_URL?: string }
+type Bindings = { DB: D1Database; MEM0_API_KEY?: string; ANTHROPIC_API_KEY?: string }
 const ai = new Hono<{ Bindings: Bindings }>()
 
 // ═══════════════════════════════════════════════════════════════
@@ -125,7 +125,7 @@ ai.post('/chat', async (c) => {
       case_id ? Number(case_id) : null,
       jurisdiction,
       1,
-      { DB: c.env.DB, MEM0_API_KEY: c.env.MEM0_API_KEY, OPENAI_API_KEY: c.env.OPENAI_API_KEY, OPENAI_BASE_URL: c.env.OPENAI_BASE_URL }
+      { DB: c.env.DB, MEM0_API_KEY: c.env.MEM0_API_KEY, ANTHROPIC_API_KEY: c.env.ANTHROPIC_API_KEY }
     )
   }
 
@@ -427,7 +427,7 @@ ai.post('/crew', async (c) => {
         caseId ? Number(caseId) : null,
         jurisdiction,
         1,
-        { DB: c.env.DB, MEM0_API_KEY: c.env.MEM0_API_KEY, OPENAI_API_KEY: c.env.OPENAI_API_KEY, OPENAI_BASE_URL: c.env.OPENAI_BASE_URL }
+        { DB: c.env.DB, MEM0_API_KEY: c.env.MEM0_API_KEY, ANTHROPIC_API_KEY: c.env.ANTHROPIC_API_KEY }
       )
       agentsUsed.push(result.agent_type)
       if (result.sub_agents_called?.length > 0) {
@@ -751,7 +751,7 @@ ai.get('/agents', async (c) => {
     architecture: 'Multi-Agent Orchestrated Pipeline',
     version: '3.3.0',
     system_identity: getSystemIdentity(),
-    llm_enabled: !!c.env.OPENAI_API_KEY,
+    llm_enabled: !!c.env.ANTHROPIC_API_KEY,
     mem0_enabled: mem0.isEnabled,
     crewai_backend: 'http://127.0.0.1:8100 (check /api/ai/crewai/status)',
     agents: [
@@ -850,7 +850,7 @@ ai.get('/stats', async (c) => {
     memory_entries: memoryCount,
     mem0_memories: mem0Total,
     mem0_enabled: mem0.isEnabled,
-    llm_enabled: !!c.env.OPENAI_API_KEY,
+    llm_enabled: !!c.env.ANTHROPIC_API_KEY,
     active_sessions: sessionCount
   })
 })
@@ -866,7 +866,7 @@ ai.post('/run', async (c) => {
     case_id ? Number(case_id) : null,
     'kansas',
     1,
-    { DB: c.env.DB, MEM0_API_KEY: c.env.MEM0_API_KEY, OPENAI_API_KEY: c.env.OPENAI_API_KEY, OPENAI_BASE_URL: c.env.OPENAI_BASE_URL }
+    { DB: c.env.DB, MEM0_API_KEY: c.env.MEM0_API_KEY, ANTHROPIC_API_KEY: c.env.ANTHROPIC_API_KEY }
   )
 
   return c.json({

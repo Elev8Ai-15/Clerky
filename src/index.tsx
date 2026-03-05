@@ -12,7 +12,7 @@ import notifications from './routes/notifications'
 import legalResearch from './routes/legal-research'
 import { globalErrorHandler, safeJsonParse, coalesceInt } from './utils/shared'
 
-type Bindings = { DB: D1Database; MEM0_API_KEY?: string; OPENAI_API_KEY?: string; OPENAI_BASE_URL?: string; COURTLISTENER_TOKEN?: string; LEX_MACHINA_CLIENT_ID?: string; LEX_MACHINA_CLIENT_SECRET?: string }
+type Bindings = { DB: D1Database; MEM0_API_KEY?: string; ANTHROPIC_API_KEY?: string; COURTLISTENER_TOKEN?: string; LEX_MACHINA_CLIENT_ID?: string; LEX_MACHINA_CLIENT_SECRET?: string }
 
 const app = new Hono<{ Bindings: Bindings }>()
 
