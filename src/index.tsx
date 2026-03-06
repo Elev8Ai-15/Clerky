@@ -2394,14 +2394,15 @@ async function checkCrewAIStatus() {
     const res = await axios.get(API + '/ai/crewai/status', { timeout: 5000 });
     const d = res.data;
     if (d.available && d.llm_reachable) {
-      indicator.innerHTML = '<span class="w-1.5 h-1.5 rounded-full animate-pulse" style="background:#cc2229"></span> <span style="color:#cc2229">CrewAI: ' + d.model + ' ✓ LLM active</span>';
-    } else if (d.available) {
-      indicator.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> <span class="text-amber-400">AI Agents ready — connect an LLM for full AI research</span> <button onclick="showCrewAISettings()" class="text-amber-300 underline ml-1">Connect LLM</button>';
+      const providerLabel = d.provider === 'anthropic' ? 'Claude' : 'LLM';
+      indicator.innerHTML = '<span class="w-1.5 h-1.5 rounded-full animate-pulse" style="background:#22c55e"></span> <span style="color:#22c55e">' + providerLabel + ': ' + (d.model || 'active') + ' ✓ Connected</span>';
+    } else if (d.available && d.llm_configured) {
+      indicator.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> <span class="text-amber-400">LLM configured — connection degraded</span>';
     } else {
-      indicator.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> <span class="text-amber-400">Research agents ready — connect an LLM for enhanced AI</span> <button onclick="showCrewAISettings()" class="text-amber-300 underline ml-1">Connect LLM</button>';
+      indicator.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span> <span class="text-slate-500">AI agents active — template mode</span>';
     }
   } catch(e) {
-    indicator.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> <span class="text-amber-400">Research agents ready — connect an LLM for enhanced AI</span> <button onclick="showCrewAISettings()" class="text-amber-300 underline ml-1">Connect LLM</button>';
+    indicator.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span> <span class="text-slate-500">AI agents active — template mode</span>';
   }
 }
 
@@ -2484,13 +2485,14 @@ function showCrewAISettings() {
     const det = document.getElementById('crewaiCfgDetail');
     if (!det) return;
     if (d.available && d.llm_reachable) {
-      det.innerHTML = '<span style="color:#22c55e"><i class="fas fa-circle text-[8px] mr-1"></i>Connected</span> — Model: <span class="text-white">' + (d.model||'unknown') + '</span>';
+      const prov = d.provider === 'anthropic' ? 'Anthropic Claude' : 'LLM';
+      det.innerHTML = '<span style="color:#22c55e"><i class="fas fa-circle text-[8px] mr-1"></i>Connected</span> — Provider: <span class="text-white">' + prov + '</span> — Model: <span class="text-white">' + (d.model||'unknown') + '</span>';
     } else if (d.available && d.llm_configured) {
       det.innerHTML = '<span class="text-amber-400"><i class="fas fa-circle text-[8px] mr-1"></i>Configured but not reachable</span> — Model: <span class="text-white">' + (d.model||'unknown') + '</span>';
     } else if (d.available) {
-      det.innerHTML = '<span class="text-amber-400"><i class="fas fa-circle text-[8px] mr-1"></i>CrewAI ready — enter API key for full AI</span>';
+      det.innerHTML = '<span class="text-amber-400"><i class="fas fa-circle text-[8px] mr-1"></i>Agents ready — enter API key for full AI</span>';
     } else {
-      det.innerHTML = '<span class="text-slate-500"><i class="fas fa-circle text-[8px] mr-1"></i>CrewAI backend offline</span> — embedded research agents active';
+      det.innerHTML = '<span class="text-slate-500"><i class="fas fa-circle text-[8px] mr-1"></i>Embedded research agents active</span>';
     }
   }).catch(() => {
     const det = document.getElementById('crewaiCfgDetail');

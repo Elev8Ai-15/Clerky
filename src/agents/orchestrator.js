@@ -186,7 +186,7 @@ export async function orchestrate(db, message, sessionId, caseId, jurisdiction, 
     // 1. Initialize services
     await initMemoryTables(db);
     const mem0 = createMem0Client(env?.MEM0_API_KEY);
-    const llm = createLLMClient(env?.OPENAI_API_KEY, env?.OPENAI_BASE_URL, env?.OPENAI_MODEL);
+    const llm = createLLMClient(env?.OPENAI_API_KEY, env?.OPENAI_BASE_URL, env?.OPENAI_MODEL, env?.ANTHROPIC_API_KEY);
     const mem0UserId = `brad@clerky.com`; // Primary user from Mem0 dashboard
     // 2. Assemble full matter context
     const matter = await assembleMatterContext(db, caseId, sessionId, mem0, message, mem0UserId);

@@ -116,7 +116,7 @@ ai.post('/chat', async (c) => {
         // FALLBACK: TEMPLATE ORCHESTRATOR PIPELINE v3.2
         // ════════════════════════════════════════════════════════════
         if (!result) {
-            result = await orchestrate(c.env.DB, message, session_id, case_id ? Number(case_id) : null, jurisdiction, 1, { DB: c.env.DB, MEM0_API_KEY: c.env.MEM0_API_KEY, OPENAI_API_KEY: c.env.OPENAI_API_KEY, OPENAI_BASE_URL: c.env.OPENAI_BASE_URL });
+            result = await orchestrate(c.env.DB, message, session_id, case_id ? Number(case_id) : null, jurisdiction, 1, { DB: c.env.DB, MEM0_API_KEY: c.env.MEM0_API_KEY, OPENAI_API_KEY: c.env.OPENAI_API_KEY, OPENAI_BASE_URL: c.env.OPENAI_BASE_URL, ANTHROPIC_API_KEY: c.env.ANTHROPIC_API_KEY });
         }
         // Save assistant response with agent metadata
         const insertResult = await c.env.DB.prepare(`INSERT INTO ai_chat_messages (session_id, case_id, role, content, jurisdiction, agent_type, tokens_used, confidence, sub_agents, risks_flagged, citations_count)
@@ -162,23 +162,48 @@ ai.delete('/chat/:session_id', async (c) => {
 // ═══════════════════════════════════════════════════════════════
 ai.get('/crewai/status', async (c) => {
     const CREWAI_URL = getCrewAIUrl(c.env);
+    const anthropicKey = c.env.ANTHROPIC_API_KEY || '';
     const honoKey = c.env.OPENAI_API_KEY || '';
     const honoBase = c.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
     const honoModel = c.env.OPENAI_MODEL || 'gpt-5-mini';
+    const anthropicConfigured = anthropicKey.length > 10;
     const honoConfigured = honoKey.length > 10;
+    const anyLLMConfigured = anthropicConfigured || honoConfigured;
 
     // Try CrewAI backend first
     try {
         const resp = await fetch(`${CREWAI_URL}/health`, { signal: AbortSignal.timeout(3000) });
         if (resp.ok) {
             const data = await resp.json();
-            return c.json({ available: true, hono_llm_configured: honoConfigured, ...data });
+            return c.json({ available: true, hono_llm_configured: anyLLMConfigured, anthropic_configured: anthropicConfigured, ...data });
         }
     } catch (e) { /* CrewAI offline — fall through */ }
 
-    // CrewAI is offline — report Hono-side LLM status
+    // Anthropic is the primary LLM
+    if (anthropicConfigured) {
+        try {
+            const testResp = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01' },
+                body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 5, messages: [{ role: 'user', content: 'ping' }] }),
+                signal: AbortSignal.timeout(8000),
+            });
+            const llmReachable = testResp.ok;
+            return c.json({
+                available: true, status: llmReachable ? 'ok' : 'degraded', model: 'claude-sonnet-4-20250514',
+                provider: 'anthropic', llm_configured: true, llm_reachable: llmReachable, crewai_backend: false, engine: 'hono-agents',
+                message: llmReachable ? 'Anthropic Claude connected via embedded agents' : 'Anthropic key configured but not reachable',
+            });
+        } catch (e) {
+            return c.json({
+                available: true, status: 'degraded', model: 'claude-sonnet-4-20250514',
+                provider: 'anthropic', llm_configured: true, llm_reachable: false, crewai_backend: false, engine: 'hono-agents',
+            });
+        }
+    }
+
+    // Fallback: OpenAI-compatible
     if (honoConfigured) {
-        // Test if the key actually works
         try {
             const testResp = await fetch(`${honoBase}/chat/completions`, {
                 method: 'POST',
@@ -188,19 +213,14 @@ ai.get('/crewai/status', async (c) => {
             });
             const llmReachable = testResp.ok;
             return c.json({
-                available: true,
-                status: llmReachable ? 'ok' : 'degraded',
-                model: honoModel,
-                llm_configured: true,
-                llm_reachable: llmReachable,
-                crewai_backend: false,
-                engine: 'hono-agents',
+                available: true, status: llmReachable ? 'ok' : 'degraded', model: honoModel,
+                provider: 'openai', llm_configured: true, llm_reachable: llmReachable, crewai_backend: false, engine: 'hono-agents',
                 message: llmReachable ? 'LLM connected via embedded agents' : 'LLM key configured but not reachable',
             });
         } catch (e) {
             return c.json({
                 available: true, status: 'degraded', model: honoModel,
-                llm_configured: true, llm_reachable: false, crewai_backend: false, engine: 'hono-agents',
+                provider: 'openai', llm_configured: true, llm_reachable: false, crewai_backend: false, engine: 'hono-agents',
             });
         }
     }
@@ -464,7 +484,7 @@ ai.post('/crew', async (c) => {
         }
         // Fallback: Template orchestrator pipeline
         if (!result) {
-            result = await orchestrate(c.env.DB, query, session_id, caseId ? Number(caseId) : null, jurisdiction, 1, { DB: c.env.DB, MEM0_API_KEY: c.env.MEM0_API_KEY, OPENAI_API_KEY: c.env.OPENAI_API_KEY, OPENAI_BASE_URL: c.env.OPENAI_BASE_URL });
+            result = await orchestrate(c.env.DB, query, session_id, caseId ? Number(caseId) : null, jurisdiction, 1, { DB: c.env.DB, MEM0_API_KEY: c.env.MEM0_API_KEY, OPENAI_API_KEY: c.env.OPENAI_API_KEY, OPENAI_BASE_URL: c.env.OPENAI_BASE_URL, ANTHROPIC_API_KEY: c.env.ANTHROPIC_API_KEY });
             agentsUsed.push(result.agent_type);
             if (result.sub_agents_called?.length > 0) {
                 for (const sub of result.sub_agents_called)
@@ -723,7 +743,8 @@ ai.get('/agents', async (c) => {
         architecture: 'Multi-Agent Orchestrated Pipeline',
         version: '3.3.0',
         system_identity: getSystemIdentity(),
-        llm_enabled: !!c.env.OPENAI_API_KEY,
+        llm_enabled: !!(c.env.ANTHROPIC_API_KEY || c.env.OPENAI_API_KEY),
+        llm_provider: c.env.ANTHROPIC_API_KEY ? 'anthropic' : c.env.OPENAI_API_KEY ? 'openai' : 'none',
         mem0_enabled: mem0.isEnabled,
         crewai_backend: 'http://127.0.0.1:8100 (check /api/ai/crewai/status)',
         agents: [
@@ -824,14 +845,14 @@ ai.get('/stats', async (c) => {
         memory_entries: memoryCount,
         mem0_memories: mem0Total,
         mem0_enabled: mem0.isEnabled,
-        llm_enabled: !!c.env.OPENAI_API_KEY,
+        llm_enabled: !!(c.env.ANTHROPIC_API_KEY || c.env.OPENAI_API_KEY),
         active_sessions: sessionCount
     });
 });
 ai.post('/run', async (c) => {
     const body = await c.req.json();
     const { agent_type, action, case_id, input_data } = body;
-    const result = await orchestrate(c.env.DB, `Run ${agent_type} agent: ${action || 'auto_process'}${input_data ? '. Context: ' + JSON.stringify(input_data) : ''}`, 'workflow_' + Date.now(), case_id ? Number(case_id) : null, 'kansas', 1, { DB: c.env.DB, MEM0_API_KEY: c.env.MEM0_API_KEY, OPENAI_API_KEY: c.env.OPENAI_API_KEY, OPENAI_BASE_URL: c.env.OPENAI_BASE_URL });
+    const result = await orchestrate(c.env.DB, `Run ${agent_type} agent: ${action || 'auto_process'}${input_data ? '. Context: ' + JSON.stringify(input_data) : ''}`, 'workflow_' + Date.now(), case_id ? Number(case_id) : null, 'kansas', 1, { DB: c.env.DB, MEM0_API_KEY: c.env.MEM0_API_KEY, OPENAI_API_KEY: c.env.OPENAI_API_KEY, OPENAI_BASE_URL: c.env.OPENAI_BASE_URL, ANTHROPIC_API_KEY: c.env.ANTHROPIC_API_KEY });
     return c.json({
         id: Date.now(),
         agent_type: result.agent_type,
